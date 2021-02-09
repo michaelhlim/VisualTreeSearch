@@ -1,0 +1,1 @@
+This folder should contain all the experiment scripts that we run for different environments, testing algorithms, etc.

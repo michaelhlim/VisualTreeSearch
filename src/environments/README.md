@@ -1,0 +1,1 @@
+This folder should contain all the environments (such as the floor domain problem). It would be nice if we set up an abstract Environment class and then define specific environments that extends this class.
