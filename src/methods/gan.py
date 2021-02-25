@@ -16,7 +16,7 @@ import time
 
 
 DIM_STATE = 2
-DIM_OBS = 4
+DIM_OBS = 2
 DIM_HIDDEN = 256
 NUM_PAR_PF = 100   # num particles
 
@@ -138,18 +138,19 @@ class ObsPredictorNetwork(nn.Module):
     def __init__(self):
         super(ObsPredictorNetwork, self).__init__()
         self.dim = 64
-        self.state_encode = nn.Sequential(    # Need this? Relic of obs_encode
+        #self.emb = nn.Embedding(DIM_STATE, 1)
+        self.state_encode = nn.Sequential(
             nn.Linear(DIM_STATE, DIM_HIDDEN),
-            nn.BatchNorm1d(DIM_HIDDEN, 0.8),
+            #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
             nn.LeakyReLU(0.2),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
-            nn.BatchNorm1d(DIM_HIDDEN, 0.8),
+            #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
             nn.LeakyReLU(0.2),
             nn.Linear(DIM_HIDDEN, self.dim),
             nn.LeakyReLU(0.2)
         )
         self.op_net = nn.Sequential(
-            nn.Linear(self.dim * 2, DIM_HIDDEN),
+            nn.Linear(self.dim, DIM_HIDDEN),
             nn.BatchNorm1d(DIM_HIDDEN, 0.8),
             nn.LeakyReLU(0.2),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
@@ -161,11 +162,16 @@ class ObsPredictorNetwork(nn.Module):
             nn.Linear(DIM_HIDDEN, DIM_OBS)
         )
 
+
     def forward(self, state, num_obs=1):
         state_enc = self.state_encode(state)  # (batch, self.dim)
+        #state_enc = self.emb(state.long())
+        #state_enc = state_enc.squeeze(2)
         state_enc = state_enc.repeat(num_obs, 1)  # (batch * num_obs, self.dim)
         z = torch.randn_like(state_enc)  # (batch * num_obs, self.dim)
-        x = torch.cat([state_enc, z], -1)  # (batch * num_obs, 2 * self.dim)
+        #x = torch.cat([state_enc, z], -1)  # (batch * num_obs, 2 * self.dim)
+        x = torch.multiply(state_enc, z)
+        #x = state_enc
         obs_prediction = self.op_net(x)  # [batch * num_obs, 2]
         return obs_prediction
 
@@ -220,6 +226,47 @@ def make_batch(batch_size):
 
     return states_batch, obs_batch
 
+def make_simple_batch(batch_size):
+    #states_batch = np.zeros((batch_size, 2))
+    states_batch = np.tile(np.random.rand(2), batch_size).reshape((batch_size, 2))
+    obs_batch = states_batch + np.random.normal(0, 1, (batch_size, 2))
+    states_batch = torch.from_numpy(states_batch).float()
+    obs_batch = torch.from_numpy(obs_batch).float()
+
+    return states_batch, obs_batch
+
+def make_simple_batch_mode(batch_size, mode):
+    if mode == 0:
+        state = np.array([0., 0.])
+    if mode == 1:
+        state = np.array([1., 0.])
+    if mode == 2:
+        state = np.array([0., 1.])
+
+    states_batch = np.tile(state, batch_size).reshape((batch_size, 2))
+    obs_batch = states_batch + np.random.normal(0, 0.1, (batch_size, 2))
+    states_batch = torch.from_numpy(states_batch).float()
+    obs_batch = torch.from_numpy(obs_batch).float()
+
+    return states_batch, obs_batch
+
+def make_simple_batch_multiple_modes(batch_size):
+    rand_mode0 = np.random.randint(batch_size/3)
+    rand_mode1 = np.random.randint(2*batch_size/3 - rand_mode0)
+    rand_mode2 = batch_size - (rand_mode0 + rand_mode1)
+
+    mode0_batch = np.tile(np.array([0., 0.]), rand_mode0).reshape((rand_mode0, 2))
+    mode1_batch = np.tile(np.array([1., 0.]), rand_mode1).reshape((rand_mode1, 2))
+    mode2_batch = np.tile(np.array([0., 1.]), rand_mode2).reshape((rand_mode2, 2))
+    states_batch = np.vstack([mode0_batch, mode1_batch, mode2_batch])
+    np.random.shuffle(states_batch)
+
+    obs_batch = states_batch + np.random.normal(0, 0.1, (batch_size, 2))
+    states_batch = torch.from_numpy(states_batch).float()
+    obs_batch = torch.from_numpy(obs_batch).float()
+
+    return states_batch, obs_batch
+
 
 class Trainer():
     def __init__(self, args):
@@ -232,7 +279,7 @@ class Trainer():
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=self.lr, betas=self.betas)
         #self.measure_optimizer = RMSprop(self.measure_net.parameters(), lr=0.00005)
         #self.op_optimizer = Adam(self.op_net.parameters(), lr=self.lr, betas=self.betas)
-        self.op_optimizer = RMSprop(self.op_net.parameters(), lr=0.00005, momentum=0.5)
+        self.op_optimizer = RMSprop(self.op_net.parameters(), lr=0.00005)
         self.batch_size = args['batch_size']
         self.num_training_steps = args['num_training_steps']
         self.print_freq = args['print_freq']
@@ -265,18 +312,25 @@ class Trainer():
 
     def train(self):
         t1 = time.time()
-        init_momentum_op = self.op_optimizer.param_groups[0]["momentum"]
-        final_momentum_op = 0.99
-        slope = (final_momentum_op - init_momentum_op)/20000
+        #init_momentum_op = self.op_optimizer.param_groups[0]["momentum"]
+        #final_momentum_op = 0.99
+        #num_steps_interpolate = 30000
+        #slope = (final_momentum_op - init_momentum_op)/num_steps_interpolate
         for step in range(self.num_training_steps):
-            if step > 20000:
-                momentum = slope * (step - 20000)
-                self.op_optimizer.param_groups[0]["momentum"] = init_momentum_op + momentum
+            # if step > self.num_training_steps - num_steps_interpolate:
+            #    momentum = slope * (step - (self.num_training_steps - num_steps_interpolate))
+            #    self.op_optimizer.param_groups[0]["momentum"] = init_momentum_op + momentum
 
             real_step = self.start_step + step + 1
 
             # Make batch of training data
-            states_batch, obs_batch = make_batch(self.batch_size)
+            #states_batch, obs_batch = make_batch(self.batch_size)
+            #states_batch, obs_batch = make_simple_batch(self.batch_size)
+
+            #mode = np.random.randint(3)
+            #states_batch, obs_batch = make_simple_batch_mode(self.batch_size, mode)
+
+            states_batch, obs_batch = make_simple_batch_multiple_modes(self.batch_size)
 
             # ------------------------
             #  Train Observation Predictor
@@ -325,7 +379,7 @@ class Trainer():
                 print("STEP", real_step, "OP_LOSS", OP_loss.item(), "M_LOSS", OM_loss.item())
                 self.op_losses.append((real_step, OP_loss.item()))
                 self.m_losses.append((real_step, OM_loss.item()))
-                print("OP MOMENTUM", self.op_optimizer.param_groups[0]["momentum"])
+                #print("OP MOMENTUM", self.op_optimizer.param_groups[0]["momentum"])
 
             if step % self.chkpt_freq == 0:
                 torch.save(self.measure_net.state_dict(), self.measure_model_path + str(real_step))
@@ -361,59 +415,78 @@ class Tester():
         self.op_losses = pickle.load(open(self.op_pickle_path, "rb"))
 
     def test(self):
-        obs_batch = []
-        env = Environment()
-        state = torch.from_numpy(env.state).reshape((1, 2))
-        states_batch = torch.cat(self.batch_size*[state]).float()
-        for _ in range(self.batch_size):
-            obs = env.get_observation()
-            obs_batch.append(obs)
-        obs_predicted = self.op_net(states_batch)
-
-        plt.scatter([state[0][0]], [state[0][1]], color='k')
-        plt.scatter([obs[0] for obs in obs_batch], [obs[1] for obs in obs_batch], color='g')
-        #plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='g')
-        plt.scatter([obs[0] for obs in obs_predicted.detach().numpy()],
-                    [obs[1] for obs in obs_predicted.detach().numpy()], color='r')
-        #plt.scatter([obs[2] for obs in obs_predicted.detach().numpy()],
-        #            [obs[3] for obs in obs_predicted.detach().numpy()], color='b')
-        plt.show()
-
-        obs_batch = np.array(obs_batch)
-        obs_batch_mean = np.mean(obs_batch[:, :2], axis=0)
-        obs_batch_std = np.std(obs_batch[:, :2], axis=0)
-        print("OBS_BATCH_MEAN\n", obs_batch_mean)
-        print("OBS_BATCH_STD\n", obs_batch_std)
-        obs_predicted_mean = np.mean(obs_predicted[:, :2].detach().numpy(), axis=0)
-        obs_predicted_std = np.std(obs_predicted[:, :2].detach().numpy(), axis=0)
-        print("OBS_PREDICTED_MEAN\n", obs_predicted_mean)
-        print("OBS_PREDICTED_STD\n", obs_predicted_std)
-
-        # states_batch, obs_batch = make_batch(self.batch_size)
-        #
+        # obs_batch = []
+        # env = Environment()
+        # state = torch.from_numpy(env.state).reshape((1, 2))
+        # states_batch = torch.cat(self.batch_size*[state]).float()
+        # for _ in range(self.batch_size):
+        #     obs = env.get_observation()
+        #     obs_batch.append(obs)
         # obs_predicted = self.op_net(states_batch)
-        # print("OBS_BATCH\n", obs_batch)
-        # print("OBS_PREDICTED\n", obs_predicted)
-        # print("DIFF OBS_BATCH AND OBS_PREDICTED\n", torch.norm(obs_predicted - obs_batch, dim=-1),
-        #       torch.mean(torch.norm(obs_predicted - obs_batch, dim=-1)))
-        # print("DIFF OBS_PREDICTED AND STATES\n", obs_predicted[:, :2] - states_batch)
-        # print("DIFF OBS_BATCH AND STATES\n", obs_batch[:, :2] - states_batch)
 
-        obs_batch = torch.from_numpy(obs_batch).float()
-        probabilities_fake = self.measure_net.m_model(states_batch, obs_predicted.detach())
-        print("PROBABILITIES FOR FAKE DATA\n", torch.mean(probabilities_fake))
-        probabilities_real = self.measure_net.m_model(states_batch, obs_batch)
-        print("PROBABILITIES FOR REAL DATA\n", torch.mean(probabilities_real))
 
-        # states_batch = states_batch.numpy()
-        # diff_obs_pred_states = obs_predicted[:, :2].detach().numpy() - states_batch
-        # probabilities_fake_gaussian = norm.pdf(diff_obs_pred_states, 0, 0.01)
-        # probabilities_fake_gaussian = np.prod(probabilities_fake_gaussian, axis=1)
-        # print("GAUSSIAN PROBABILITIES FOR FAKE DATA\n", np.mean(probabilities_fake_gaussian))
-        # diff_obs_batch_states = obs_batch[:, :2] - states_batch
-        # probabilities_real_gaussian = norm.pdf(diff_obs_batch_states, 0, 0.01)
-        # probabilities_real_gaussian = np.prod(probabilities_real_gaussian, axis=1)
-        # print("GAUSSIAN PROBABILITIES FOR REAL DATA\n", np.mean(probabilities_real_gaussian))
+        # state = torch.from_numpy(np.random.rand(2) + 0 * np.ones(2)).reshape((1, 2))
+        # states_batch = torch.cat(self.batch_size * [state]).float()
+        # obs_batch = states_batch.numpy() + np.random.normal(0, 1, (self.batch_size, 2))
+        # obs_predicted = self.op_net(states_batch)
+
+
+        #state = np.array([np.zeros(2)])
+        states = [ np.array([np.array([0., 0.])]), np.array([np.array([1., 0.])]),
+                  np.array([np.array([0., 1.])]) ]
+        for state in states:
+            print("STATE", state)
+            #state = np.array([np.array([1., 0.])])
+            states_batch = np.tile(state, self.batch_size).reshape((self.batch_size, 2))
+            obs_batch = states_batch + np.random.normal(0, 0.1, (self.batch_size, 2))
+            states_batch = torch.from_numpy(states_batch).float()
+            obs_predicted = self.op_net(states_batch)
+
+
+            plt.scatter([state[0][0]], [state[0][1]], color='k')
+            plt.scatter([obs[0] for obs in obs_batch], [obs[1] for obs in obs_batch], color='g')
+            #plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='g')
+            plt.scatter([obs[0] for obs in obs_predicted.detach().numpy()],
+                        [obs[1] for obs in obs_predicted.detach().numpy()], color='r')
+            #plt.scatter([obs[2] for obs in obs_predicted.detach().numpy()],
+            #            [obs[3] for obs in obs_predicted.detach().numpy()], color='b')
+            plt.show()
+
+            obs_batch = np.array(obs_batch)
+            obs_batch_mean = np.mean(obs_batch[:, :2], axis=0)
+            obs_batch_std = np.std(obs_batch[:, :2], axis=0)
+            print("OBS_BATCH_MEAN\n", obs_batch_mean)
+            print("OBS_BATCH_STD\n", obs_batch_std)
+            obs_predicted_mean = np.mean(obs_predicted[:, :2].detach().numpy(), axis=0)
+            obs_predicted_std = np.std(obs_predicted[:, :2].detach().numpy(), axis=0)
+            print("OBS_PREDICTED_MEAN\n", obs_predicted_mean)
+            print("OBS_PREDICTED_STD\n", obs_predicted_std)
+
+            # states_batch, obs_batch = make_batch(self.batch_size)
+            #
+            # obs_predicted = self.op_net(states_batch)
+            # print("OBS_BATCH\n", obs_batch)
+            # print("OBS_PREDICTED\n", obs_predicted)
+            # print("DIFF OBS_BATCH AND OBS_PREDICTED\n", torch.norm(obs_predicted - obs_batch, dim=-1),
+            #       torch.mean(torch.norm(obs_predicted - obs_batch, dim=-1)))
+            # print("DIFF OBS_PREDICTED AND STATES\n", obs_predicted[:, :2] - states_batch)
+            # print("DIFF OBS_BATCH AND STATES\n", obs_batch[:, :2] - states_batch)
+
+            obs_batch = torch.from_numpy(obs_batch).float()
+            probabilities_fake = self.measure_net.m_model(states_batch, obs_predicted.detach())
+            print("PROBABILITIES FOR FAKE DATA\n", torch.mean(probabilities_fake))
+            probabilities_real = self.measure_net.m_model(states_batch, obs_batch)
+            print("PROBABILITIES FOR REAL DATA\n", torch.mean(probabilities_real))
+
+            # states_batch = states_batch.numpy()
+            # diff_obs_pred_states = obs_predicted[:, :2].detach().numpy() - states_batch
+            # probabilities_fake_gaussian = norm.pdf(diff_obs_pred_states, 0, 0.01)
+            # probabilities_fake_gaussian = np.prod(probabilities_fake_gaussian, axis=1)
+            # print("GAUSSIAN PROBABILITIES FOR FAKE DATA\n", np.mean(probabilities_fake_gaussian))
+            # diff_obs_batch_states = obs_batch[:, :2] - states_batch
+            # probabilities_real_gaussian = norm.pdf(diff_obs_batch_states, 0, 0.01)
+            # probabilities_real_gaussian = np.prod(probabilities_real_gaussian, axis=1)
+            # print("GAUSSIAN PROBABILITIES FOR REAL DATA\n", np.mean(probabilities_real_gaussian))
 
 
 
@@ -465,13 +538,13 @@ if __name__ == "__main__":
     lr = 1e-3
     betas = (0.5, 0.9)   # for the Adam optimizer
     batch_size = 64
-    num_training_steps = 40000
+    num_training_steps = 30000
     print_freq = num_training_steps/100
     chkpt_freq = num_training_steps/5
-    measure_model_path = "../../measure_checkpoints_rmsprop6/"
-    op_model_path = "../../op_checkpoints_rmsprop6/"
-    measure_pickle_path = "m_losses_rmsprop6.p"
-    op_pickle_path = "op_losses_rmsprop6.p"
+    measure_model_path = "../../measure_checkpoints_tuning2/"
+    op_model_path = "../../op_checkpoints_tuning2/"
+    measure_pickle_path = "m_losses_tuning2.p"
+    op_pickle_path = "op_losses_tuning2.p"
     generator_freq = 1 # Set to 1 if not Wasserstein
 
     args = {"lr": lr, "betas": betas, "batch_size": batch_size, "num_training_steps": num_training_steps,
