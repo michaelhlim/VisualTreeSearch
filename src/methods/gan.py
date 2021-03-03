@@ -20,6 +20,9 @@ DIM_OBS = 2
 DIM_HIDDEN = 256
 NUM_PAR_PF = 100   # num particles
 
+DIM_LSTM_HIDDEN = 128
+NUM_LSTM_LAYER = 2
+
 EPI_REWARD = 100
 END_RANGE = 0.005
 STEP_RANGE = 0.05
@@ -142,23 +145,29 @@ class ObsPredictorNetwork(nn.Module):
         self.state_encode = nn.Sequential(
             nn.Linear(DIM_STATE, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            nn.LeakyReLU(0.2),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            nn.LeakyReLU(0.2),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, self.dim),
-            nn.LeakyReLU(0.2)
+            #nn.LeakyReLU(0.2)
+            nn.ReLU()
         )
         self.op_net = nn.Sequential(
-            nn.Linear(self.dim, DIM_HIDDEN),
-            nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            nn.LeakyReLU(0.2),
+            nn.Linear(self.dim * 2, DIM_HIDDEN),
+            #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
-            nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            nn.LeakyReLU(0.2),
+            #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
-            nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            nn.LeakyReLU(0.2),
+            #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_OBS)
         )
 
@@ -169,8 +178,8 @@ class ObsPredictorNetwork(nn.Module):
         #state_enc = state_enc.squeeze(2)
         state_enc = state_enc.repeat(num_obs, 1)  # (batch * num_obs, self.dim)
         z = torch.randn_like(state_enc)  # (batch * num_obs, self.dim)
-        #x = torch.cat([state_enc, z], -1)  # (batch * num_obs, 2 * self.dim)
-        x = torch.multiply(state_enc, z)
+        x = torch.cat([state_enc, z], -1)  # (batch * num_obs, 2 * self.dim)
+        #x = torch.multiply(state_enc, z)
         #x = state_enc
         obs_prediction = self.op_net(x)  # [batch * num_obs, 2]
         return obs_prediction
@@ -179,25 +188,36 @@ class ObsPredictorNetwork(nn.Module):
 class MeasureNetwork(nn.Module):
     def __init__(self):
         super(MeasureNetwork, self).__init__()
-        #self.dim = 16
+        #self.dim_m = 16
         self.obs_encode = nn.Sequential(
             nn.Linear(DIM_OBS, DIM_HIDDEN),
-            nn.Dropout(0.4),
-            nn.LeakyReLU(0.2),
+            #nn.Dropout(0.4),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
-            nn.Dropout(0.4),
-            nn.LeakyReLU(0.2),
+            #nn.Dropout(0.4),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
-            nn.Dropout(0.4),
-            nn.LeakyReLU(0.2)
+            #nn.Dropout(0.4),
+            #nn.LeakyReLU(0.2)
+            nn.ReLU()
         )
+        # self.lstm = nn.LSTM(DIM_HIDDEN, DIM_LSTM_HIDDEN, NUM_LSTM_LAYER)
+        # self.lstm_out = nn.Sequential(
+        #     nn.Linear(DIM_LSTM_HIDDEN, self.dim_m),
+        #     nn.ReLU()
+        # )
         self.m_net = nn.Sequential(
+            #nn.Linear(self.dim_m + DIM_STATE, DIM_HIDDEN),
             nn.Linear(DIM_HIDDEN + DIM_STATE, DIM_HIDDEN),
-            nn.Dropout(0.4),
-            nn.LeakyReLU(0.2),
+            #nn.Dropout(0.4),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
-            nn.Dropout(0.4),
-            nn.LeakyReLU(0.2),
+            #nn.Dropout(0.4),
+            #nn.LeakyReLU(0.2),
+            nn.ReLU(),
             nn.Linear(DIM_HIDDEN, 1),
             nn.Sigmoid()   # Comment this line out for Wasserstein
         )
@@ -210,6 +230,15 @@ class MeasureNetwork(nn.Module):
         x = torch.cat((obs_enc, state), -1)   # (batch * num_obs, DIM_HIDDEN + 2)
         likelihood = self.m_net(x).view(-1, num_obs)  # (batch, num_obs)
         return likelihood
+
+        # obs_enc = self.obs_encode(obs)  # (batch, dim_m)
+        # x = obs_enc.unsqueeze(0)  # -> [1, batch_size, dim_obs]
+        # x, (h, c) = self.lstm(x, (hidden, cell))
+        # x = self.lstm_out(x[0])  # (batch, dim_m)
+        # x = x.repeat(num_par, 1)  # (batch * num_par, dim_m)
+        # x = torch.cat((x, state), -1)  # (batch * num_par, dim_m + 2)
+        # lik = self.m_net(x).view(-1, num_par)  # (batch, num_par)
+        # return lik, h, c
 
 
 def make_batch(batch_size):
@@ -226,10 +255,20 @@ def make_batch(batch_size):
 
     return states_batch, obs_batch
 
-def make_simple_batch(batch_size):
+def make_simple_batch_old(batch_size):
     #states_batch = np.zeros((batch_size, 2))
     states_batch = np.tile(np.random.rand(2), batch_size).reshape((batch_size, 2))
     obs_batch = states_batch + np.random.normal(0, 1, (batch_size, 2))
+    states_batch = torch.from_numpy(states_batch).float()
+    obs_batch = torch.from_numpy(obs_batch).float()
+
+    return states_batch, obs_batch
+
+
+def make_simple_batch(batch_size):
+    states_batch = np.random.rand(batch_size, 2)
+    #states_batch = np.tile(np.random.rand(2), batch_size).reshape((batch_size, 2))
+    obs_batch = states_batch + np.random.normal(0, 0.1, (batch_size, 2))
     states_batch = torch.from_numpy(states_batch).float()
     obs_batch = torch.from_numpy(obs_batch).float()
 
@@ -325,12 +364,12 @@ class Trainer():
 
             # Make batch of training data
             #states_batch, obs_batch = make_batch(self.batch_size)
-            #states_batch, obs_batch = make_simple_batch(self.batch_size)
+            states_batch, obs_batch = make_simple_batch(self.batch_size)
 
             #mode = np.random.randint(3)
             #states_batch, obs_batch = make_simple_batch_mode(self.batch_size, mode)
 
-            states_batch, obs_batch = make_simple_batch_multiple_modes(self.batch_size)
+            #states_batch, obs_batch = make_simple_batch_multiple_modes(self.batch_size)
 
             # ------------------------
             #  Train Observation Predictor
@@ -354,8 +393,12 @@ class Trainer():
             # ------------------------
             if step % self.generator_freq == 0:
                 self.measure_optimizer.zero_grad()
-                fake_logit = self.measure_net.m_model(states_batch, obs_predicted.detach())  # (B, K)
+                fake_logit_op = self.measure_net.m_model(states_batch, obs_predicted.detach())  # (B, K)
                 real_logit = self.measure_net.m_model(states_batch, obs_batch)  # (batch, num_obs)
+
+                curr_obs = torch.from_numpy(np.random.rand(self.batch_size, 2)).float()
+                fake_logit = self.measure_net.m_model(states_batch, curr_obs.view(-1, DIM_OBS))  # (B, K)
+                fake_logit = torch.cat((fake_logit, fake_logit_op), -1)  # (B, 2K)
 
                 if self.generator_freq != 1:  # Wasserstein
                     OM_loss = -torch.mean(real_logit) + torch.mean(fake_logit)
@@ -432,8 +475,10 @@ class Tester():
 
 
         #state = np.array([np.zeros(2)])
-        states = [ np.array([np.array([0., 0.])]), np.array([np.array([1., 0.])]),
-                  np.array([np.array([0., 1.])]) ]
+        # states = [ np.array([np.array([0., 0.])]), np.array([np.array([1., 0.])]),
+        #           np.array([np.array([0., 1.])]) ]
+        states = [np.array([np.random.rand(2)]), np.array([np.random.rand(2)]),
+                  np.array([np.random.rand(2)])]
         for state in states:
             print("STATE", state)
             #state = np.array([np.array([1., 0.])])
@@ -477,6 +522,7 @@ class Tester():
             print("PROBABILITIES FOR FAKE DATA\n", torch.mean(probabilities_fake))
             probabilities_real = self.measure_net.m_model(states_batch, obs_batch)
             print("PROBABILITIES FOR REAL DATA\n", torch.mean(probabilities_real))
+            print("\n")
 
             # states_batch = states_batch.numpy()
             # diff_obs_pred_states = obs_predicted[:, :2].detach().numpy() - states_batch
@@ -538,13 +584,13 @@ if __name__ == "__main__":
     lr = 1e-3
     betas = (0.5, 0.9)   # for the Adam optimizer
     batch_size = 64
-    num_training_steps = 30000
+    num_training_steps = 5000
     print_freq = num_training_steps/100
     chkpt_freq = num_training_steps/5
-    measure_model_path = "../../measure_checkpoints_tuning2/"
-    op_model_path = "../../op_checkpoints_tuning2/"
-    measure_pickle_path = "m_losses_tuning2.p"
-    op_pickle_path = "op_losses_tuning2.p"
+    measure_model_path = "../../measure_checkpoints_tuning10/"
+    op_model_path = "../../op_checkpoints_tuning10/"
+    measure_pickle_path = "m_losses_tuning10.p"
+    op_pickle_path = "op_losses_tuning10.p"
     generator_freq = 1 # Set to 1 if not Wasserstein
 
     args = {"lr": lr, "betas": betas, "batch_size": batch_size, "num_training_steps": num_training_steps,
