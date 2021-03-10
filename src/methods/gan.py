@@ -391,7 +391,8 @@ class Trainer():
             # ------------------------
             #  Train Observation Model
             # ------------------------
-            if step % self.generator_freq == 0:
+            if step % 1 == 0:
+            #if step % self.generator_freq == 0:
                 self.measure_optimizer.zero_grad()
                 fake_logit_op = self.measure_net.m_model(states_batch, obs_predicted.detach())  # (B, K)
                 real_logit = self.measure_net.m_model(states_batch, obs_batch)  # (batch, num_obs)
@@ -475,10 +476,10 @@ class Tester():
 
 
         #state = np.array([np.zeros(2)])
-        # states = [ np.array([np.array([0., 0.])]), np.array([np.array([1., 0.])]),
-        #           np.array([np.array([0., 1.])]) ]
-        states = [np.array([np.random.rand(2)]), np.array([np.random.rand(2)]),
-                  np.array([np.random.rand(2)])]
+        states = [ np.array([np.array([0., 0.])]), np.array([np.array([1., 0.])]),
+                  np.array([np.array([0., 1.])]) ]
+        # states = [np.array([np.random.rand(2) + 0 * np.ones(2)]), np.array([np.random.rand(2) + 0 * np.ones(2)]),
+        #           np.array([np.random.rand(2) + 0 * np.ones(2)])]
         for state in states:
             print("STATE", state)
             #state = np.array([np.array([1., 0.])])
@@ -587,10 +588,10 @@ if __name__ == "__main__":
     num_training_steps = 5000
     print_freq = num_training_steps/100
     chkpt_freq = num_training_steps/5
-    measure_model_path = "../../measure_checkpoints_tuning10/"
-    op_model_path = "../../op_checkpoints_tuning10/"
-    measure_pickle_path = "m_losses_tuning10.p"
-    op_pickle_path = "op_losses_tuning10.p"
+    measure_model_path = "../../measure_checkpoints_tuning9/"
+    op_model_path = "../../op_checkpoints_tuning9/"
+    measure_pickle_path = "m_losses_tuning9.p"
+    op_pickle_path = "op_losses_tuning9.p"
     generator_freq = 1 # Set to 1 if not Wasserstein
 
     args = {"lr": lr, "betas": betas, "batch_size": batch_size, "num_training_steps": num_training_steps,
