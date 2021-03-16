@@ -7,6 +7,7 @@ from torch.distributions import Normal
 from torch.optim import Adam
 import ctypes
 ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
+from experiments.configs import *
 
 
 ########################

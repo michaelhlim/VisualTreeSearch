@@ -1,12 +1,13 @@
 import random
 import torch
 import ctypes
-# ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
+ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.optim import Adam
 from utils.utils import *
+from experiments.configs import *
 
 
 class Network(nn.Module):

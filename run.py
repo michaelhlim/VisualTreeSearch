@@ -8,9 +8,14 @@ import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
 from src.methods.DualSMC import DUAL_SMC
 from src.environments.env import *
+from plotting.plotting import *
+from experiments.configs import *
 
 
 def dualsmc():
+    settings = "DUALSMC_BranchingEncoder"
+    foldername = settings + get_datetime()
+    os.mkdir(foldername)
     model = DUAL_SMC()
     step_list = []
     dist_list = []
@@ -26,7 +31,7 @@ def dualsmc():
     check_path(save_path)
     check_path(img_path)
     str123 = experiment_id + ".txt"
-    file1 = open(str123, 'w+')
+    file1 = open(foldername + "/" + str123, 'w+')
     for episode in range(MAX_EPISODES):
         episode += 1
         env = Environment()

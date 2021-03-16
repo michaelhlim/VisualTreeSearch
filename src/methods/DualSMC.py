@@ -13,6 +13,7 @@ from src.methods.DynamicNetwork import DynamicNetwork
 from src.methods.Network import MeasureNetwork
 from src.methods.GaussianPolicy import GaussianPolicy
 from src.methods.Network import ProposerNetwork
+from experiments.configs import *
 
 
 #########################
