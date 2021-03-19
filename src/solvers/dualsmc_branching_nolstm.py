@@ -12,11 +12,11 @@ from configs.environments.floor import *
 from configs.solver.dualsmc import *
 
 # Methods for no LSTM dual smc with branching
-from src.methods.dualsmc.ReplayMemory import *
-from src.methods.dualsmc.QNetwork import *
-from src.methods.dualsmc.DynamicNetwork import *
-from src.methods.dualsmc_nolstm.ObservationNetworkBranching import *
-from src.methods.dualsmc.GaussianPolicy import *
+from src.methods.dualsmc.replay_memory import *
+from src.methods.dualsmc.q_network import *
+from src.methods.dualsmc.dynamic_network import *
+from src.methods.dualsmc_nolstm.observation_network_branching import *
+from src.methods.dualsmc.gaussian_policy import *
 
 
 #########################
