@@ -7,16 +7,16 @@ from torch.distributions import Normal
 from torch.optim import Adam
 from utils.utils import *
 
-# Configs for floor and no LSTM dual smc with branching
+# Configs for floor and no LSTM dual smc
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
 
-# Methods for no LSTM dual smc with branching
-from src.methods.dualsmc.ReplayMemory import *
-from src.methods.dualsmc.QNetwork import *
-from src.methods.dualsmc.DynamicNetwork import *
-from src.methods.dualsmc_nolstm.ObservationNetwork import *
-from src.methods.dualsmc.GaussianPolicy import *
+# Methods for no LSTM dual smc
+from src.methods.dualsmc.replay_memory import *
+from src.methods.dualsmc.q_network import *
+from src.methods.dualsmc.dynamic_network import *
+from src.methods.dualsmc_nolstm.observation_network import *
+from src.methods.dualsmc.gaussian_policy import *
 
 
 #########################
