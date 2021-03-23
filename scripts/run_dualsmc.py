@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
 
 # DualSMC
-from src.solvers.dual_smc import DualSMC
+from src.solvers.dualsmc import DualSMC
 from src.environments.env import *
 from plotting.floor import *
 from configs.environments.floor import *

@@ -12,10 +12,10 @@ from configs.environments.floor import *
 from configs.solver.dualsmc import *
 
 # Methods for no LSTM dual smc
-from src.methods.dualsmc.replay_memory import *
+from src.methods.dualsmc_nolstm.replay_memory import *
 from src.methods.dualsmc.q_network import *
 from src.methods.dualsmc.dynamic_network import *
-from src.methods.dualsmc_nolstm.observation_network import *
+from src.methods.dualsmc_nolstm.observation_network_nolstm import *
 from src.methods.dualsmc.gaussian_policy import *
 
 
@@ -113,8 +113,6 @@ class DualSMC:
         return q
 
     def soft_q_update(self):
-        # state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
-        #     obs, curr_par, mean_state, hidden, cell, pf_sample = self.replay_buffer.sample(BATCH_SIZE)
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
         obs, curr_par, mean_state, pf_sample = self.replay_buffer.sample(BATCH_SIZE)
         state_batch = torch.FloatTensor(state_batch).to(device)
@@ -126,11 +124,7 @@ class DualSMC:
         curr_par = torch.FloatTensor(curr_par).to(device)  # (B, K, dim_s)
         mean_state = torch.FloatTensor(mean_state).to(device) # (B, dim_s)
         curr_par_sample = torch.FloatTensor(pf_sample).to(device) # (B, M, 2)
-        # hidden = torch.FloatTensor(hidden).to(device)  # [128, NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN]
-        # hidden = torch.transpose(torch.squeeze(hidden), 0, 1).contiguous()
         hidden = curr_obs
-        # cell = torch.FloatTensor(cell).to(device)
-        # cell = torch.transpose(torch.squeeze(cell), 0, 1).contiguous()
         cell = curr_obs
         # ------------------------
         #  Train Particle Proposer
@@ -161,8 +155,6 @@ class DualSMC:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        # fake_logit, next_hidden, next_cell = self.measure_net.m_model(curr_par.view(-1, DIM_STATE),
-        #                                                               curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
         fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, DIM_STATE),
                                                                       curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
         if PP_EXIST:

@@ -26,10 +26,9 @@ class ObservationNetwork(nn.Module):
 class MeasureNetwork(ObservationNetwork):
     def __init__(self):
         super(MeasureNetwork, self).__init__()
-        self.lstm = nn.LSTM(DIM_HIDDEN, DIM_LSTM_HIDDEN, NUM_LSTM_LAYER)
         self.dim_m = 16
         self.lstm_replace = nn.Sequential(
-            nn.Linear(64, 128),
+            nn.Linear(DIM_ENCODE, DIM_LSTM_HIDDEN),
             nn.ReLU()
             # nn.Linear(192, 128),
             # nn.Sigmoid()
@@ -50,16 +49,12 @@ class MeasureNetwork(ObservationNetwork):
     def m_model(self, state, obs, hidden, cell, num_par=NUM_PAR_PF):
         # state: (B * K, dim_s)
         # obs: (B, dim_s)
-        obs_enc = self.obs_encode(obs)  # (batch, dim_m)
-        # x = obs_enc.unsqueeze(0)  # -> [1, batch_size, dim_obs]
-        # x, (h, c) = self.lstm(x, (hidden, cell))
-        x = self.lstm_replace(obs_enc)
-        # x = self.lstm_out(x[0])  # (batch, dim_m)
-        x = self.lstm_out(x)
+        obs_enc = self.obs_encode(obs)  # (batch, dim_hidden)
+        x = self.lstm_replace(obs_enc) # (batch, dim_lstm_hidden)
+        x = self.lstm_out(x) # (batch, dim_m)
         x = x.repeat(num_par, 1)  # (batch * num_par, dim_m)
         x = torch.cat((x, state), -1)  # (batch * num_par, dim_m + 2)
         lik = self.m_net(x).view(-1, num_par)  # (batch, num_par)
-        # return lik, h, c
         return lik, 0, 0
 
 

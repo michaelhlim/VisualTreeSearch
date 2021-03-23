@@ -71,11 +71,6 @@ def dualsmc():
 
             #######################################
             # Observation model
-            # lik, next_hidden, next_cell = model.measure_net.m_model(
-            #     torch.FloatTensor(par_states).to(device),
-            #     torch.FloatTensor(curr_obs).unsqueeze(0).to(device),
-            #     torch.FloatTensor(hidden).to(device),
-            #     torch.FloatTensor(cell).to(device))
             lik, _, _ = model.measure_net.m_model(
                 torch.FloatTensor(par_states).to(device),
                 torch.FloatTensor(curr_obs).to(device),

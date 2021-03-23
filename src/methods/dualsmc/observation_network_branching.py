@@ -18,7 +18,7 @@ class ObservationNetwork(nn.Module):
             nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             nn.ReLU(),
-            nn.Linear(DIM_HIDDEN, 64),
+            nn.Linear(DIM_HIDDEN, DIM_ENCODE),
             nn.ReLU()
         )
 
@@ -26,9 +26,8 @@ class ObservationNetwork(nn.Module):
 class MeasureNetwork(ObservationNetwork):
     def __init__(self):
         super(MeasureNetwork, self).__init__()
-        self.lstm = nn.LSTM(DIM_HIDDEN, DIM_LSTM_HIDDEN, NUM_LSTM_LAYER)
         self.dim_m = 16
-        self.lstm = nn.LSTM(DIM_HIDDEN, DIM_LSTM_HIDDEN, NUM_LSTM_LAYER)
+        self.lstm = nn.LSTM(DIM_ENCODE, DIM_LSTM_HIDDEN, NUM_LSTM_LAYER)
         self.lstm_out = nn.Sequential(
             nn.Linear(DIM_LSTM_HIDDEN, self.dim_m),
             nn.ReLU()

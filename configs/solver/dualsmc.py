@@ -6,6 +6,7 @@ MODEL_NAME = 'dualsmc'
 DIM_HIDDEN = 256
 DIM_LSTM_HIDDEN = 128
 NUM_LSTM_LAYER = 2
+DIM_ENCODE = 64
 
 ######################
 # Training

@@ -71,11 +71,6 @@ def dualsmc():
 
             #######################################
             # Observation model
-            # lik, next_hidden, next_cell = model.measure_net.m_model(
-            #     torch.FloatTensor(par_states).to(device),
-            #     torch.FloatTensor(curr_obs).unsqueeze(0).to(device),
-            #     torch.FloatTensor(hidden).to(device),
-            #     torch.FloatTensor(cell).to(device))
             lik, _, _ = model.measure_net.m_model(
                 torch.FloatTensor(par_states).to(device),
                 torch.FloatTensor(curr_obs).to(device),
@@ -210,8 +205,6 @@ def dualsmc():
 
             #######################################
             if TRAIN:
-                # model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
-                #                          curr_s, mean_state, hidden, cell, states_init)
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
