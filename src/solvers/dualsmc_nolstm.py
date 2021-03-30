@@ -15,7 +15,7 @@ from configs.solver.dualsmc import *
 from src.methods.dualsmc_nolstm.replay_memory import *
 from src.methods.dualsmc.q_network import *
 from src.methods.dualsmc.dynamic_network import *
-from src.methods.dualsmc_nolstm.observation_network_nolstm import *
+from src.methods.dualsmc_nolstm.observation_network import *
 from src.methods.dualsmc.gaussian_policy import *
 
 

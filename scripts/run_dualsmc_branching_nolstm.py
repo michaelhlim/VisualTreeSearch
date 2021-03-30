@@ -28,7 +28,7 @@ def dualsmc():
         load_path = sys.argv[1]
         model.load_model(load_path)
 
-    experiment_id = "dualsmc" + get_datetime()
+    experiment_id = "dualsmc_branching_nolstm" + get_datetime()
     save_path = CKPT + experiment_id
     img_path = IMG + experiment_id
     check_path(save_path)
