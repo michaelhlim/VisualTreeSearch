@@ -1,6 +1,7 @@
 # author: @wangyunbo, @liubo
-# from experiments.configs import *
+import os.path
 import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import shutil
 import math
 from utils.utils import *
