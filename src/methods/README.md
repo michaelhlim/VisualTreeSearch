@@ -1,1 +1,0 @@
-This folder should contain all the methods (for instance, DualSMC definition).

@@ -1,1 +1,0 @@
-This folder should contain all the utility functions that we do not want to see defined in the actual scripts.
