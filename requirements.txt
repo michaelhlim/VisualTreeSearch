@@ -1,13 +1,19 @@
-cycler==0.10.0
-kiwisolver==1.3.1
-matplotlib==3.3.4
-numpy==1.20.1
-Pillow==8.1.1
-pyparsing==2.4.7
-python-dateutil==2.8.1
-six==1.15.0
+# Most recent version of pip freeze from the Conda environment
 
-# These need to be installed manually with 
-# conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=9.2 -c pytorch
-# torch==1.4.0+cu92
-# torchvision==0.5.0+cu92
+certifi==2020.12.5
+cycler==0.10.0
+kiwisolver @ file:///tmp/build/80754af9/kiwisolver_1612282420641/work
+matplotlib @ file:///tmp/build/80754af9/matplotlib-suite_1613407855456/work
+mkl-fft==1.3.0
+mkl-random==1.1.1
+mkl-service==2.3.0
+numpy @ file:///home/conda/feedstock_root/build_artifacts/numpy_1612953005674/work
+olefile==0.46
+Pillow @ file:///tmp/build/80754af9/pillow_1614711424473/work
+pyparsing @ file:///home/linux1/recipes/ci/pyparsing_1610983426697/work
+python-dateutil @ file:///home/ktietz/src/ci/python-dateutil_1611928101742/work
+sip==4.19.13
+six @ file:///tmp/build/80754af9/six_1605205327372/work
+torch==1.4.0
+torchvision==0.5.0
+tornado @ file:///tmp/build/80754af9/tornado_1606942300299/work
