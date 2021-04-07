@@ -3,6 +3,8 @@
 import sys
 import shutil
 import math
+import time
+import random
 from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
@@ -16,17 +18,20 @@ from configs.solver.dualsmc import *
 
 
 def dualsmc():
-    settings = "dualsmc_nolstm"
+    ################################
+    # This block of code creates the folders for plots
+    ################################
+    settings = "dualsmc_nolstm_indv"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
-    model = DualSMC()
     step_list = []
     dist_list = []
     rmse_per_step = np.zeros((MAX_STEPS))
-
-    if len(sys.argv) > 1:
-        load_path = sys.argv[1]
-        model.load_model(load_path)
+    tot_time = 0
+    # For now we won't worry about loading in previous individually trained models at this step
+    # if len(sys.argv) > 1:
+    #     load_path = sys.argv[1]
+    #     model.load_model(load_path)
 
     experiment_id = "dualsmc" + get_datetime()
     save_path = CKPT + experiment_id
@@ -36,6 +41,39 @@ def dualsmc():
     str123 = experiment_id + ".txt"
     file1 = open(foldername + "/" + str123, 'w+')
 
+    # Create the model. This is where we need to perform individual training
+    # The process for this is to (1) create a new full model with every network.
+    # Then (2) only train Z and P in an adversarial manner using the custom
+    # soft_q_update function
+    model = DualSMC()
+    env = Environment()
+    measure_loss = []
+    proposer_loss = []
+    # First we'll do train individually for 64 batches
+    for batch in range(5000):
+        state_batch, obs_batch = env.make_batch(64)
+        # Pull a random state and observation from the batch
+        # curr_state = random.choice(state_batch)
+        # curr_obs = random.choice(obs_batch)
+        curr_state = state_batch
+        curr_obs = obs_batch
+
+        # Create the current particle variable for soft q update
+        # TODO GIVE 6400 A CONST NAME
+        par_states1 = np.random.rand(6400, 2)
+        par_states1[:, 0] = par_states1[:, 0] * 2
+        par_states1[:, 1] = par_states1[:, 1]
+        curr_s = par_states1.copy()
+
+        # Train Z and P using the soft q update function
+        Z_loss, P_loss = model.soft_q_update_individual(curr_state, curr_obs, curr_s)
+        measure_loss.append(Z_loss)
+        proposer_loss.append(P_loss)
+
+    # Save the model
+    # model.save_model(save_path)
+
+    # After pretraining move into the end to end training
     for episode in range(MAX_EPISODES):
         episode += 1
         env = Environment()
@@ -96,7 +134,7 @@ def dualsmc():
                 plt.close()
 
             curr_s = par_states.copy()
-
+            tic = time.perf_counter()
             #######################################
             # Planning
             if SMCP_MODE == 'topk':
@@ -160,7 +198,7 @@ def dualsmc():
             else:
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
-
+            toc = time.perf_counter()
             #######################################
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
@@ -229,6 +267,12 @@ def dualsmc():
             if env.done:
                 break
 
+            time_this_episode = toc - tic
+
+        # Get the sum of the episode time
+        tot_time = time_this_episode + tot_time
+        # Get the running average of the time
+        avg_time = tot_time/episode
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
         step_list.append(step)
@@ -259,8 +303,19 @@ def dualsmc():
             interaction = 'Episode %s: steps = %s, success = %s, avg_steps = %s, avg_dist = %s' % (
                 episode, step, num_reach / total_iter, sum(step_reach) / (num_reach + const), sum(dist_list) / total_iter)
             print('\r{}'.format(interaction))
-            file1.write('\n{}'.format(interaction))
-            file1.flush()
+
+        # Repeat the above code block for writing to the text file every episode instead of every 10
+        if episode >= SUMMARY_ITER:
+            total_iter = SUMMARY_ITER
+        else:
+            total_iter = episode
+        reach = np.array(step_list) < (MAX_STEPS - 1)
+        num_reach = sum(reach)
+        step_reach = step_list * reach
+        interaction = 'Episode %s: steps = %s, success = %s, avg_steps = %s, avg_dist = %s' % (
+            episode, step, num_reach / total_iter, sum(step_reach) / (num_reach + const), sum(dist_list) / total_iter)
+        file1.write('\n{}'.format(interaction))
+        file1.flush()
 
     rmse_per_step = rmse_per_step / MAX_EPISODES
     print(rmse_per_step)

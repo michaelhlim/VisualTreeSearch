@@ -155,7 +155,8 @@ class DualSMC:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, DIM_STATE),
+        temp = curr_par.view(-1, DIM_STATE)
+        fake_logit, _, _ = self.measure_net.m_model(temp,
                                                                       curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
         if PP_EXIST:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
@@ -221,3 +222,48 @@ class DualSMC:
         self.alpha = self.log_alpha.exp()
 
         soft_update(self.critic_target, self.critic, self.tau)
+
+    def soft_q_update_individual(self, state_batch, obs, curr_par):
+        state_batch = torch.FloatTensor(state_batch).to(device)
+        curr_par = torch.FloatTensor(curr_par).to(device)
+        curr_obs = torch.FloatTensor(obs).to(device)
+        hidden = curr_obs
+        cell = curr_obs
+        # ------------------------
+        #  Train Particle Proposer
+        # ------------------------
+        if PP_EXIST:
+            self.pp_optimizer.zero_grad()
+            state_propose = self.pp_net(curr_obs, NUM_PAR_PF)
+            PP_loss = 0
+            fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+            real_target = torch.ones_like(fake_logit)
+            PP_loss += self.BCE_criterion(fake_logit, real_target)
+            P_loss = PP_loss
+            PP_loss.backward()
+            self.pp_optimizer.step()
+        # ------------------------
+        #  Train Observation Model
+        # ------------------------
+        self.measure_optimizer.zero_grad()
+        temp = curr_par.view(-1, DIM_STATE)
+        fake_logit, _, _ = self.measure_net.m_model(temp,
+                                                    curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+        if PP_EXIST:
+            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
+                                                           curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+            fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # (B, 2K)
+        fake_target = torch.zeros_like(fake_logit)
+        fake_loss = self.BCE_criterion(fake_logit, fake_target)
+        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # (batch, num_pars)
+        real_target = torch.ones_like(real_logit)
+        real_loss = self.BCE_criterion(real_logit, real_target)
+        OM_loss = real_loss + fake_loss
+        Z_loss = OM_loss
+        OM_loss.backward()
+        self.measure_optimizer.step()
+
+        return Z_loss, P_loss
+
+
+

@@ -3,6 +3,7 @@
 import sys
 import shutil
 import math
+import random
 from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
@@ -44,9 +45,11 @@ def dualsmc():
 
         hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
-
-        curr_state = env.state
-        curr_obs = env.get_observation()
+        state_batch, obs_batch = env.make_batch(MAX_STEPS)
+        curr_state = random.choice(state_batch)
+        curr_obs = random.choice(obs_batch)
+        # curr_state = env.state
+        # curr_obs = env.get_observation()
         trajectory.append(curr_state)
 
         par_states = np.random.rand(NUM_PAR_PF, 2)
@@ -96,7 +99,7 @@ def dualsmc():
                 plt.close()
 
             curr_s = par_states.copy()
-
+            # Time between here
             #######################################
             # Planning
             if SMCP_MODE == 'topk':
@@ -160,7 +163,7 @@ def dualsmc():
             else:
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
-
+            # Time between here
             #######################################
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
@@ -200,9 +203,10 @@ def dualsmc():
             #######################################
             # Update the environment
             reward = env.step(action * STEP_RANGE)
-            next_state = env.state
-            next_obs = env.get_observation()
-
+            # next_state = env.state
+            # next_obs = env.get_observation()
+            next_state = random.choice(state_batch)
+            next_obs = random.choice(obs_batch)
             #######################################
             if TRAIN:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
@@ -221,6 +225,7 @@ def dualsmc():
             #######################################
             curr_state = next_state
             curr_obs = next_obs
+
             hidden = next_hidden.detach().cpu().numpy()
             cell = next_cell.detach().cpu().numpy()
             trajectory.append(next_state)

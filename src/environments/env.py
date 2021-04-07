@@ -49,6 +49,39 @@ class Environment(object):
         obs += np.random.normal(0, 0.01, DIM_OBS)
         return obs
 
+
+    def get_observation_batch(self, x, y):
+        obs_x1 = x
+        obs_y1 = y
+        obs_x2 = 1 - x
+        obs_y2 = 1 - y
+        num_wall_x = len(self.walls_x)
+        num_wall_y = len(self.walls_y)
+        for i in range(num_wall_x):
+            wx = self.walls_x[i][0]
+            wy1 = self.walls_x[i][1]
+            wy2 = self.walls_x[i][2]
+            if y > wy1 and y < wy2 and x > wx:
+                dist_x1 = x - wx
+                obs_x1 = min(obs_x1, dist_x1)
+            if y > wy1 and y < wy2 and x < wx:
+                dist_x2 = wx - x
+                obs_x2 = min(obs_x2, dist_x2)
+        for i in range(num_wall_y):
+            wy = self.walls_y[i][0]
+            wx1 = self.walls_y[i][1]
+            wx2 = self.walls_y[i][2]
+            if x > wx1 and x < wx2 and y > wy:
+                dist_y1 = y - wy
+                obs_y1 = min(obs_y1, dist_y1)
+            if x > wx1 and x < wx2 and y < wy:
+                dist_y2 = wy - y
+                obs_y2 = min(obs_y2, dist_y2)
+        obs = np.array([obs_x1, obs_y1, obs_x2, obs_y2])
+        obs += np.random.normal(0, 0.01, DIM_OBS)
+        return obs
+
+
     def step(self, action):
         self.done = False
         curr_state = self.state
@@ -73,3 +106,20 @@ class Environment(object):
         cond_false = (curr_false_dist >= END_RANGE) * (next_false_dist < END_RANGE)
         reward -= EPI_REWARD * cond_false
         return reward
+
+    def make_batch(self, batch_size):
+        states_batch = []
+        obs_batch = []
+        for _ in range(batch_size):
+            state = np.random.rand(2)
+            state[0] = state[0] * 2
+            state[1] = state[1]
+            obs = self.get_observation_batch(state[0], state[1])
+            states_batch.append(state)
+            obs_batch.append(obs)
+        # states_batch = torch.from_numpy(np.array(states_batch)).float()
+        # obs_batch = torch.from_numpy(np.array(obs_batch)).float()
+        states_batch = np.array(states_batch)
+        obs_batch = np.array(obs_batch)
+
+        return states_batch, obs_batch
