@@ -1,9 +1,10 @@
 # author: @wangyunbo
 from utils.utils import *
 from configs.environments.floor import *
+from src.environments.abstract import AbstractEnvironment
 
 
-class Environment(object):
+class Environment(AbstractEnvironment):
     def __init__(self):
         self.done = False
         self.state = np.random.rand(2)
