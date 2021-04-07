@@ -1,5 +1,6 @@
 # author: @wangyunbo
 from utils.utils import *
+import numpy as np
 
 
 class AbstractEnvironment(object):
@@ -17,11 +18,11 @@ class AbstractEnvironment(object):
 
     # New functions to be added
     def transition_state(self, s, a):
-        # Given a state and an action, return the next step state and reward
+        # Given a state and an action, return the next step state and reward. All inputs and outputs are in numpy array format.
         return
 
     def transition_tensor(self, s, a):
-        # Given a state tensor and an action, return the next step state tensor and rewards
+        # Given a state tensor and an action, return the next step state tensor and rewards. All inputs and outputs are in numpy array format.
         return
 
     def is_terminal(self, s):

@@ -84,18 +84,39 @@ class PFTVPW():
 
 	def next_action(self, b_id):
 		# Generate next action from belief id b_id
+		## TODO - make the VPW function
 		return
 
 	def vpw(self, b_id):
+		## TODO - make the VOO function
 		return
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
+		sp, rewards = self.env.transition_tensor(b.states, a)
+
+		# Generate observation if it's the first time
+		## TODO - make generate observation & store observation functions
+		o = 0.0
+
+		# Generate particle belief set
+		## TODO - make density calculation function
+		weights = np.multiply(b.weights, self.Z(sp, o))
+		r = np.dot(rewards, np.array(b.weights))
+
 		return bp, r
 
 	def rollout(self, s, d):
 		# Rollout simulation starting from particle s
-		return
+		r = 0.0
+		for i in range(d):
+			if not self.env.is_terminal(s):
+				s, reward = self.env.transition_state(s, self.rollout_policy(s))
+				r += reward * (self.discount ** i)
+			else:
+				break
+
+		return r
 
 	def rollout_belief(self, b, d):
 		# Rollout simulation starting from belief b
@@ -188,4 +209,3 @@ class PFTVPW():
 		self.tree.q[a_id] += (q - self.tree.q[a_id])/self.tree.n_act_visits[a_id]
 
 		return q
-		
