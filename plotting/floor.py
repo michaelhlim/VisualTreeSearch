@@ -1,6 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
 from configs.environments.floor import *
 
@@ -48,11 +49,19 @@ def plot_maze(figure_name='default', states=None):
     if type(states) is np.ndarray:
         xy = states[:,:2]
         x, y = zip(*xy)
-        ax.plot(x, y, 'ro')
-        ax.plot(x[0],y[0], 'bo')
+        # ax.plot(x, y, 'ro')
+        ax.plot(x[0], y[0], 'bo')
+        # Iterate through x and y with a colormap
+        colorvec = np.linspace(0, 1, len(x))
+        viridis = cm.get_cmap('YlGnBu', len(colorvec))
+        for i in range(len(x)):
+            if i == 0:
+                continue
+            plt.plot(x[i], y[i], color=viridis(colorvec[i]), marker='o')
 
     ax.set_aspect('equal')
     plt.savefig(figure_name)
+    # plt.colorbar()
     plt.close()
 
 
@@ -115,4 +124,71 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
 
     ax.set_aspect('equal')
     plt.savefig(figure_name)
+    plt.close()
+
+
+def visualize_learning(figure_name, episode_loss_list, time_list, step_list, reward_list,
+             num_episodes):
+    '''
+    :param figure_name: path to save the figure in
+    :param episode_loss_list: List of lists that contains the loss for each network. None type if testing
+    :param time_list: List that contains the mean time to plan for each episode
+    :param step_list: List that contains the number of steps for each episode
+    :param reward_list: List that contains the reward for each episode
+    :param num_episodes: The number of episodes trained to this point
+    :return: Plots of loss, mean training time, number of steps, and reward vs episode
+    '''
+    ##################
+    # Loss plot block
+    ##################
+    if episode_loss_list is not None:
+        episode_number_list = np.linspace(1, num_episodes, num_episodes)
+        name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
+        for i in range(len(name_list)):
+            path_str = figure_name + name_list[i] + FIG_FORMAT
+            plt.figure(path_str)
+            ax = plt.axes()
+            ax.plot(episode_number_list, episode_loss_list[i])
+            plt.xlabel("Episodes")
+            plt.ylabel("Average Loss")
+            plt.savefig(path_str)
+            plt.close()
+
+    ##################
+    # Time plot block
+    ##################
+
+    path_str = figure_name + "time_plot" + FIG_FORMAT
+    plt.figure(path_str)
+    ax = plt.axes()
+    ax.plot(episode_number_list, time_list)
+    plt.xlabel("Episodes")
+    plt.ylabel("Average Time to Plan")
+    plt.savefig(path_str)
+    plt.close()
+
+    ##################
+    # Step plot block
+    ##################
+
+    path_str = figure_name + "step_plot" + FIG_FORMAT
+    plt.figure(path_str)
+    ax = plt.axes()
+    ax.plot(episode_number_list, step_list)
+    plt.xlabel("Episodes")
+    plt.ylabel("Number of Steps")
+    plt.savefig(path_str)
+    plt.close()
+
+    ##################
+    # Reward plot block
+    ##################
+
+    path_str = figure_name + "reward_plot" + FIG_FORMAT
+    plt.figure(path_str)
+    ax = plt.axes()
+    ax.plot(episode_number_list, reward_list)
+    plt.xlabel("Episodes")
+    plt.ylabel("Average Reward")
+    plt.savefig(path_str)
     plt.close()

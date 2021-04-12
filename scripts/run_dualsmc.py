@@ -45,11 +45,11 @@ def dualsmc():
 
         hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
-        state_batch, obs_batch = env.make_batch(MAX_STEPS)
-        curr_state = random.choice(state_batch)
-        curr_obs = random.choice(obs_batch)
-        # curr_state = env.state
-        # curr_obs = env.get_observation()
+        # state_batch, obs_batch = env.make_batch(MAX_STEPS)
+        # curr_state = random.choice(state_batch)
+        # curr_obs = random.choice(obs_batch)
+        curr_state = env.state
+        curr_obs = env.get_observation()
         trajectory.append(curr_state)
 
         par_states = np.random.rand(NUM_PAR_PF, 2)
@@ -203,10 +203,10 @@ def dualsmc():
             #######################################
             # Update the environment
             reward = env.step(action * STEP_RANGE)
-            # next_state = env.state
-            # next_obs = env.get_observation()
-            next_state = random.choice(state_batch)
-            next_obs = random.choice(obs_batch)
+            next_state = env.state
+            next_obs = env.get_observation()
+            # next_state = random.choice(state_batch)
+            # next_obs = random.choice(obs_batch)
             #######################################
             if TRAIN:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,

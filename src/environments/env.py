@@ -110,16 +110,24 @@ class Environment(object):
     def make_batch(self, batch_size):
         states_batch = []
         obs_batch = []
-        for _ in range(batch_size):
+        for i in range(batch_size):
             state = np.random.rand(2)
             state[0] = state[0] * 2
             state[1] = state[1]
             obs = self.get_observation_batch(state[0], state[1])
+
+            par_vec_x = np.random.normal(state[0], 0.01, NUM_PAR_PF)
+            par_vec_y = np.random.normal(state[1], 0.01, NUM_PAR_PF)
             states_batch.append(state)
             obs_batch.append(obs)
-        # states_batch = torch.from_numpy(np.array(states_batch)).float()
-        # obs_batch = torch.from_numpy(np.array(obs_batch)).float()
+            middle_var = np.stack((par_vec_x, par_vec_y), 1)
+
+            if i == 0:
+                par_batch = middle_var
+            else:
+                par_batch = np.concatenate((par_batch, middle_var), 0)
+
         states_batch = np.array(states_batch)
         obs_batch = np.array(obs_batch)
 
-        return states_batch, obs_batch
+        return states_batch, obs_batch, par_batch
