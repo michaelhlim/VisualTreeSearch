@@ -3,6 +3,7 @@
 import sys
 import shutil
 import math
+import time
 from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
@@ -13,29 +14,39 @@ from src.environments.env import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
+from statistics import mean, stdev
 
 
-def dualsmc():
-    settings = "dualsmc_branching"
-    foldername = settings + get_datetime()
-    os.mkdir(foldername)
-    model = DualSMC()
+def dualsmc(model, experiment_id, foldername, train):
+    ################################
+    # Create variables necessary for tracking diagnostics
+    ################################
     step_list = []
     dist_list = []
+    time_list_step = []
+    time_list_episode = []
+    reward_list_step = []
+    reward_list_episode = []
+    episode_Z_loss = []
+    episode_P_loss = []
+    episode_T_loss = []
+    episode_q1_loss = []
+    episode_q2_loss = []
     rmse_per_step = np.zeros((MAX_STEPS))
-
-    if len(sys.argv) > 1:
-        load_path = sys.argv[1]
-        model.load_model(load_path)
-
-    experiment_id = "dualsmc" + get_datetime()
+    tot_time = 0
+    ################################
+    # Create logs for diagnostics
+    ################################
     save_path = CKPT + experiment_id
     img_path = IMG + experiment_id
     check_path(save_path)
     check_path(img_path)
     str123 = experiment_id + ".txt"
+    str1234 = experiment_id + "every_10_eps" + ".txt"
     file1 = open(foldername + "/" + str123, 'w+')
+    file2 = open(foldername + "/" + str1234, 'w+')
 
+    # Begin main dualSMC loop
     for episode in range(MAX_EPISODES):
         episode += 1
         env = Environment()
@@ -68,7 +79,11 @@ def dualsmc():
             # 2. planning
             # 3. re-sample
             # 4. transition model
-
+            step_Z_loss = []
+            step_P_loss = []
+            step_T_loss = []
+            step_q1_loss = []
+            step_q2_loss = []
             #######################################
             # Observation model
             lik, next_hidden, next_cell = model.measure_net.m_model(
@@ -96,7 +111,7 @@ def dualsmc():
                 plt.close()
 
             curr_s = par_states.copy()
-
+            tic = time.perf_counter()
             #######################################
             # Planning
             if SMCP_MODE == 'topk':
@@ -160,7 +175,7 @@ def dualsmc():
             else:
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
-
+            toc = time.perf_counter()
             #######################################
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
@@ -208,7 +223,13 @@ def dualsmc():
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, hidden, cell, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
-                    model.soft_q_update()
+                    p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update()
+
+                    step_P_loss.append(p_loss.item())
+                    step_T_loss.append(t_loss.item())
+                    step_Z_loss.append(z_loss.item())
+                    step_q1_loss.append(q1_loss.item())
+                    step_q2_loss.append(q2_loss.item())
 
             #######################################
             # Transition Model
@@ -227,6 +248,28 @@ def dualsmc():
             if env.done:
                 break
 
+            time_this_step = toc - tic
+            time_list_step.append(time_this_step)
+            reward_list_step.append(reward)
+
+        # Get the average loss of each model for this episode if we are training
+        if train:
+            episode_P_loss.append(mean(step_P_loss))
+            episode_T_loss.append(mean(step_T_loss))
+            episode_Z_loss.append(mean(step_Z_loss))
+            episode_q1_loss.append(mean(step_q1_loss))
+            episode_q2_loss.append(mean(step_q2_loss))
+        # Get the sum of the episode time
+        tot_time = sum(time_list_step)
+        # Get the running average of the time
+        avg_time_this_episode = tot_time / len(time_list_step)
+        time_list_episode.append(avg_time_this_episode)
+
+        # Get the average reward this episode
+        tot_reward = sum(reward_list_step)
+        avg_reward_this_episode = tot_reward / len(reward_list_step)
+        reward_list_episode.append(avg_reward_this_episode)
+
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
         step_list.append(step)
@@ -241,6 +284,12 @@ def dualsmc():
             print("save model to %s" % model_path)
 
         if episode % DISPLAY_ITER == 0:
+            episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
+            st2 = img_path + "/" + str(episode)
+            if train:
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode)
+            else:
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode)
             st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
             print("plotting ... save to %s" % st)
             plot_maze(figure_name=st, states=np.array(trajectory))
@@ -249,22 +298,60 @@ def dualsmc():
                 total_iter = SUMMARY_ITER
             else:
                 total_iter = episode
-            reach = np.array(step_list) < (MAX_STEPS - 1)
-            num_reach = sum(reach)
-            step_reach = step_list * reach
 
+            interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, mean(step_list), stdev(step_list), mean(reward_list_episode), stdev(reward_list_episode),
+                mean(time_list_episode), stdev(time_list_episode), mean(dist_list), stdev(dist_list))
+            file2.write('\n{}'.format(interaction))
+            file2.flush()
 
-            interaction = 'Episode %s: steps = %s, success = %s, avg_steps = %s, avg_dist = %s' % (
-                episode, step, num_reach / total_iter, sum(step_reach) / (num_reach + const), sum(dist_list) / total_iter)
-            print('\r{}'.format(interaction))
-            file1.write('\n{}'.format(interaction))
-            file1.flush()
+            # Repeat the above code block for writing to the text file every episode instead of every 10
+        if episode >= SUMMARY_ITER:
+            total_iter = SUMMARY_ITER
+        else:
+            total_iter = episode
+
+        interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
+            episode, step, avg_reward_this_episode, avg_time_this_episode, sum(dist_list) / total_iter)
+        file1.write('\n{}'.format(interaction))
+        file1.flush()
 
     rmse_per_step = rmse_per_step / MAX_EPISODES
     print(rmse_per_step)
     file1.close()
+    file2.close()
+
+
+def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
+    # This block of code creates the folders for plots
+    settings = "dualsmc_vanilla"
+    foldername = settings + get_datetime()
+    os.mkdir(foldername)
+    experiment_id = "dualsmc" + get_datetime()
+    save_path = CKPT + experiment_id
+
+    # Create a model object
+    model = DualSMC()
+
+    # Let the user load in a previous model
+    if load_path is not None:
+        model.load_model(load_path)
+
+    if end_to_end:
+        train = True
+        # After pretraining move into the end to end training
+        dualsmc(model, experiment_id, foldername, train)
+
+    if save_model:
+        # Save the model
+        model.save_model(save_path)
+        print("saving model to %s" % save_path)
+
+    if test:
+        train = False
+        dualsmc(model, experiment_id, foldername, train)
 
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        dualsmc()
+        dualsmc_driver()

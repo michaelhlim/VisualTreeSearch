@@ -8,14 +8,14 @@ import random
 from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
-from statistics import mean, stdev
+
 # DualSMC w/ No LSTM
 from src.solvers.dualsmc_nolstm import DualSMC
 from src.environments.env import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
-
+from statistics import mean, stdev
 
 def dualsmc(model, experiment_id, foldername, train):
     ################################
@@ -217,7 +217,6 @@ def dualsmc(model, experiment_id, foldername, train):
             reward = env.step(action * STEP_RANGE)
             next_state = env.state
             next_obs = env.get_observation()
-
             #######################################
             if train:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
@@ -270,6 +269,7 @@ def dualsmc(model, experiment_id, foldername, train):
         tot_reward = sum(reward_list_step)
         avg_reward_this_episode = tot_reward / len(reward_list_step)
         reward_list_episode.append(avg_reward_this_episode)
+
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
         step_list.append(step)
@@ -298,9 +298,6 @@ def dualsmc(model, experiment_id, foldername, train):
                 total_iter = SUMMARY_ITER
             else:
                 total_iter = episode
-            reach = np.array(step_list) < (MAX_STEPS - 1)
-            num_reach = sum(reach)
-            step_reach = step_list * reach
 
             interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, mean(step_list), stdev(step_list), mean(reward_list_episode), stdev(reward_list_episode),
@@ -348,6 +345,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
     # soft_q_update function
 
     if pre_training:
+        print("Beginning pre-training")
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
