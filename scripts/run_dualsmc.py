@@ -1,5 +1,5 @@
 # author: @wangyunbo, @liubo
-# from experiments.configs import *
+import os.path
 import sys
 import shutil
 import math

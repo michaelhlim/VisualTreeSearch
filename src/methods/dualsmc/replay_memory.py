@@ -5,8 +5,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.optim import Adam
-import ctypes
-ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
 from configs.solver.dualsmc import *
 
 
