@@ -49,7 +49,6 @@ def plot_maze(figure_name='default', states=None):
     if type(states) is np.ndarray:
         xy = states[:,:2]
         x, y = zip(*xy)
-        # ax.plot(x, y, 'ro')
         ax.plot(x[0], y[0], 'bo')
         # Iterate through x and y with a colormap
         colorvec = np.linspace(0, 1, len(x))
@@ -61,7 +60,6 @@ def plot_maze(figure_name='default', states=None):
 
     ax.set_aspect('equal')
     plt.savefig(figure_name)
-    # plt.colorbar()
     plt.close()
 
 

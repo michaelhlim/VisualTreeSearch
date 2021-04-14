@@ -1,10 +1,10 @@
 # author: @wangyunbo, @liubo
 import os.path
 import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import shutil
 import math
 import time
-import random
 from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
