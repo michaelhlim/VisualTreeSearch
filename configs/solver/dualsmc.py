@@ -11,7 +11,7 @@ DIM_ENCODE = 64
 ######################
 # Training
 TRAIN = True
-MAX_EPISODES = 20000
+MAX_EPISODES = 10000
 BATCH_SIZE = 64
 FIL_LR = 1e-3 # filtering
 PLA_LR = 1e-3 # planning
