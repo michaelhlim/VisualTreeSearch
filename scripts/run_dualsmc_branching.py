@@ -303,6 +303,7 @@ def dualsmc(model, experiment_id, foldername, train):
             interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, mean(step_list), stdev(step_list), mean(reward_list_episode), stdev(reward_list_episode),
                 mean(time_list_episode), stdev(time_list_episode), mean(dist_list), stdev(dist_list))
+            print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
 
@@ -325,7 +326,7 @@ def dualsmc(model, experiment_id, foldername, train):
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "dualsmc_vanilla"
+    settings = "dualsmc_vanilla_branching"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
     experiment_id = "dualsmc" + get_datetime()
