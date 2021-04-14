@@ -326,7 +326,7 @@ def dualsmc(model, experiment_id, foldername, train):
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "dualsmc_vanilla"
+    settings = "dualsmc_vanilla_branching"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
     experiment_id = "dualsmc" + get_datetime()
