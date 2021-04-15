@@ -17,11 +17,15 @@ DIM_HIDDEN = 256
 LATENT_DIM = 64
 
 BATCH_SIZE = 64
-
 LR = 1e-4
+BETA = 0.5
+LEAK = 0.9
+
+NUM_TRAINING_STEPS = 5000
 
 pretrain_4d = False
-calibration = False
+calibration = True
+learning_rate_scheduling = False
 
 
 def make_simple_batch(batch_size):
@@ -70,45 +74,45 @@ class VAE(nn.Module):
         self.encoder = nn.Sequential(
             nn.Linear(DIM_STATE + DIM_OBS, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, enc_out_dim),
             #nn.BatchNorm1d(enc_out_dim, 0.8),
-            #nn.LeakyReLU(0.2))
-            nn.ReLU())
+            nn.LeakyReLU(LEAK))
+            #nn.ReLU())
         self.decoder = nn.Sequential(
             nn.Linear(DIM_STATE + latent_dim, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_HIDDEN),
             #nn.BatchNorm1d(DIM_HIDDEN, 0.8),
-            #nn.LeakyReLU(0.2),
-            nn.ReLU(),
+            nn.LeakyReLU(LEAK),
+            #nn.ReLU(),
             nn.Linear(DIM_HIDDEN, DIM_OBS),
             #nn.BatchNorm1d(DIM_OBS, 0.8),
-            #nn.LeakyReLU(0.2))
-            nn.ReLU())
+            nn.LeakyReLU(LEAK))
+            #nn.ReLU())
 
 
         # distribution parameters
@@ -129,6 +133,7 @@ class VAE(nn.Module):
         # measure prob of seeing image under p(x|z)
         log_pxz = dist.log_prob(x)
         return log_pxz.sum(dim=-1)
+
 
     def kl_divergence(self, z, mu, std):
         # --------------------------
@@ -183,26 +188,27 @@ class VAE(nn.Module):
                 return 0.5 * torch.pow((x - mu) / log_sigma.exp(), 2) + log_sigma + 0.5 * np.log(2 * np.pi)
 
             log_sigma = softclip(log_sigma, -6)
-            rec = gaussian_nll(obs_hat, log_sigma, obs_batch).sum()
+            rec = self.gaussian_likelihood(obs_hat, log_sigma, obs_batch)
+            #rec = gaussian_nll(obs_hat, log_sigma, obs_batch).sum()
             recon_loss = rec
 
 
         # kl
-        beta = 1
-        kl = self.kl_divergence(z, mu, std)
-        #kl = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+        beta = BETA
+        #kl = self.kl_divergence(z, mu, std)
+        kl = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
 
         # elbo
         elbo = (beta*kl - recon_loss)
         elbo = elbo.mean()
 
-        return elbo
+        return elbo, kl.mean(), recon_loss.mean()
 
 
 # Train
 
 vae = VAE()
-num_training_steps = 10000
+num_training_steps = NUM_TRAINING_STEPS
 
 load_model = False
 save_model = False
@@ -210,7 +216,7 @@ chkpt_path = "../../vae_checkpoints/"
 if load_model:
     eventfiles = glob.glob(chkpt_path + '*')
     eventfiles.sort(key=os.path.getmtime)
-    path = eventfiles[-2] ###########################################################
+    path = eventfiles[-1]
     #vae.load_state_dict(torch.load(path))
 
     pretrained_dict = torch.load(path)
@@ -236,13 +242,16 @@ losses = []
 testing_errors = []
 chkpt_freq = num_training_steps/5
 
+# Linear learning rate scheduling
 final_lr = 5e-7
 num_steps_interpolate = num_training_steps/2
 slope = (final_lr - LR)/num_steps_interpolate
+
 for step in range(num_training_steps):
-    if step > num_training_steps - num_steps_interpolate:
-       learning_rate = slope * (step - (num_training_steps - num_steps_interpolate))
-       optimizer.param_groups[0]["lr"] = LR + learning_rate
+    if learning_rate_scheduling:
+        if step > num_training_steps - num_steps_interpolate:
+           learning_rate = slope * (step - (num_training_steps - num_steps_interpolate))
+           optimizer.param_groups[0]["lr"] = LR + learning_rate
 
     if DIM_OBS == 4:
         state_batch, obs_batch = make_batch(BATCH_SIZE)
@@ -250,11 +259,11 @@ for step in range(num_training_steps):
         state_batch, obs_batch = make_simple_batch(BATCH_SIZE)
 
     optimizer.zero_grad()
-    loss = vae.training_step(state_batch, obs_batch)
+    loss, kl, recon = vae.training_step(state_batch, obs_batch)
     loss.backward()
     optimizer.step()
     if step % 50 == 0:
-        print(step, loss.item())
+        print(step, loss.item(), kl.item(), recon.item())
         losses.append((step, loss.item()))
 
     if step % 100 == 0:
@@ -289,8 +298,9 @@ for step in range(num_training_steps):
         obs_predicted_mean = np.mean(obs_hat[:, :2].detach().numpy(), axis=0)
         obs_predicted_std = np.std(obs_hat[:, :2].detach().numpy(), axis=0)
 
+        obs_batch_mean = np.mean(obs_batch[:, :2], axis=0)
         obs_batch_std = np.std(obs_batch[:, :2], axis=0)
-        testing_error = (step, np.linalg.norm(obs_predicted_mean - state),
+        testing_error = (step, np.linalg.norm(obs_predicted_mean - obs_batch_mean),
                          np.linalg.norm(obs_predicted_std - 0.1 * np.ones(2)))
         # testing_error = (step, np.linalg.norm(obs_predicted_mean - state),
         #                  np.linalg.norm(obs_predicted_std - obs_batch_std))
@@ -305,6 +315,7 @@ if save_model:
 
 t1 = time.time()
 print("Finished training. That took", t1 - t0, "seconds.")
+
 
 # Plot losses
 
@@ -332,7 +343,12 @@ plt.show()
 
 # Testing
 
-for j in range(2):
+mean_diff = 0
+std_diff = 0
+mean_rest_diff = 0
+std_rest_diff = 0
+num_tests = 2
+for j in range(num_tests):
     if DIM_OBS == 4:
         if pretrain_4d:
             state = torch.from_numpy(np.random.rand(DIM_STATE)).reshape((1, DIM_STATE))
@@ -369,6 +385,9 @@ for j in range(2):
     print("OBS_PREDICTED_MEAN\n", obs_predicted_mean)
     print("OBS_PREDICTED_STD\n", obs_predicted_std)
 
+    mean_diff += np.linalg.norm(obs_predicted_mean - obs_batch_mean)/num_tests
+    std_diff += np.linalg.norm(obs_predicted_std - obs_batch_std)/num_tests
+
     if DIM_OBS == 4:
         rest_batch_mean = np.mean(obs_batch[:, 2:4], axis=0)
         rest_batch_std = np.std(obs_batch[:, 2:4], axis=0)
@@ -378,6 +397,9 @@ for j in range(2):
         rest_predicted_std = np.std(obs_hat[:, 2:4].detach().numpy(), axis=0)
         print("REST_PREDICTED_MEAN\n", rest_predicted_mean)
         print("REST_PREDICTED_STD\n", rest_predicted_std)
+
+        mean_rest_diff += np.linalg.norm(rest_predicted_mean - rest_batch_mean) / num_tests
+        std_rest_diff += np.linalg.norm(rest_predicted_std - rest_batch_std) / num_tests
 
     plt.scatter([state[0][0]], [state[0][1]], color='k')
     plt.scatter([obs[0] for obs in obs_batch], [obs[1] for obs in obs_batch], color='g')
@@ -389,5 +411,10 @@ for j in range(2):
                     [obs[3] for obs in obs_hat.detach().numpy()], color='m')
     plt.show()
 
+print("OBS_MEAN_DIFF\n", mean_diff)
+print("OBS_STD_DIFF\n", std_diff)
+if DIM_OBS == 4:
+    print("REST_MEAN_DIFF\n", mean_rest_diff)
+    print("REST_STD_DIFF\n", std_rest_diff)
 
 
