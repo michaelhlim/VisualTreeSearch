@@ -11,13 +11,15 @@ from torch.distributions.categorical import Categorical
 
 # DualSMC w/ No LSTM
 from src.solvers.dualsmc_nolstm import DualSMC
+##################### MY STUFF HERE #################
+from src.solvers.generative_observation_prediction import *
 from src.environments.env import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
 from statistics import mean, stdev
 
-def dualsmc(model, experiment_id, foldername, train):
+def dualsmc(model, observation_generator, experiment_id, foldername, train):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -222,7 +224,9 @@ def dualsmc(model, experiment_id, foldername, train):
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
-                    p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update()
+                    ##################### MY STUFF HERE #################
+                    p_loss, t_loss, z_loss, q1_loss, q2_loss, obs_gen_loss = \
+                        model.soft_q_update(observation_generator)
 
                     step_P_loss.append(p_loss.item())
                     step_T_loss.append(t_loss.item())
@@ -336,6 +340,9 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
     model = DualSMC()
     env = Environment()
 
+    ##################### MY STUFF HERE #################
+    observation_generator = ObservationGenerator()
+
     # Let the user load in a previous model
     if load_path is not None:
         model.load_model(load_path)
@@ -366,6 +373,9 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
             measure_loss.append(Z_loss)
             proposer_loss.append(P_loss)
 
+        ##################### MY STUFF HERE #################
+        training_time = observation_generator.pretrain()
+
         if save_pretrained_model:
             model_path = save_path + "pre_trained_" + str(pre_training)
             model.save_model(model_path)
@@ -374,7 +384,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        dualsmc(model, experiment_id, foldername, train)
+        dualsmc(model, observation_generator, experiment_id, foldername, train)
 
     if save_model:
         # Save the model
@@ -383,7 +393,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
 
     if test:
         train = False
-        dualsmc(model, experiment_id, foldername, train)
+        dualsmc(model, observation_generator, experiment_id, foldername, train)
 
 
 if __name__ == "__main__":

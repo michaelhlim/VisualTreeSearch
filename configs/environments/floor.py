@@ -13,3 +13,6 @@ FIG_FORMAT = '.png'
 IMG = 'img/'
 CKPT = 'ckpt/'
 device = 'cuda'
+
+
+OBS_STD = 0.01

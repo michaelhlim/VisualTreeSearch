@@ -2,7 +2,6 @@
 from utils.utils import *
 from configs.environments.floor import *
 
-
 class Environment(object):
     def __init__(self):
         self.done = False
@@ -46,7 +45,7 @@ class Environment(object):
                 dist_y2 = wy - y
                 obs_y2 = min(obs_y2, dist_y2)
         obs = np.array([obs_x1, obs_y1, obs_x2, obs_y2])
-        obs += np.random.normal(0, 0.01, DIM_OBS)
+        obs += np.random.normal(0, OBS_STD, DIM_OBS)
         return obs
 
 
@@ -78,7 +77,7 @@ class Environment(object):
                 dist_y2 = wy - y
                 obs_y2 = min(obs_y2, dist_y2)
         obs = np.array([obs_x1, obs_y1, obs_x2, obs_y2])
-        obs += np.random.normal(0, 0.01, DIM_OBS)
+        obs += np.random.normal(0, OBS_STD, DIM_OBS)
         return obs
 
 
@@ -114,10 +113,14 @@ class Environment(object):
             state = np.random.rand(2)
             state[0] = state[0] * 2
             state[1] = state[1]
+
+            # state[0] = state[0] * 0.4 + 0.8
+            # state[1] = state[1] * 0.3 + 0.1 + np.random.randint(2) * 0.5
+
             obs = self.get_observation_batch(state[0], state[1])
 
-            par_vec_x = np.random.normal(state[0], 0.01, NUM_PAR_PF)
-            par_vec_y = np.random.normal(state[1], 0.01, NUM_PAR_PF)
+            par_vec_x = np.random.normal(state[0], OBS_STD, NUM_PAR_PF)
+            par_vec_y = np.random.normal(state[1], OBS_STD, NUM_PAR_PF)
             states_batch.append(state)
             obs_batch.append(obs)
             middle_var = np.stack((par_vec_x, par_vec_y), 1)
@@ -131,3 +134,12 @@ class Environment(object):
         obs_batch = np.array(obs_batch)
 
         return states_batch, obs_batch, par_batch
+
+    def make_batch_single_state(self, batch_size):
+        state = np.random.rand(2)
+        state[0] = state[0] * 2
+        state[1] = state[1]
+
+        obs_batch = np.array([self.get_observation_batch(state[0], state[1]) for _ in range(batch_size)])
+
+        return state, obs_batch
