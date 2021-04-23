@@ -127,8 +127,7 @@ class DualSMC:
         hidden = curr_obs
         cell = curr_obs
 
-
-        ##################### MY STUFF HERE #################
+        # Observation generative model
         obs_gen_loss = observation_generator.online_training(state_batch, curr_obs)
 
 

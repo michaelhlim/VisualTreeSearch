@@ -11,7 +11,6 @@ from torch.distributions.categorical import Categorical
 
 # DualSMC w/ No LSTM
 from src.solvers.dualsmc_nolstm import DualSMC
-##################### MY STUFF HERE #################
 from src.solvers.generative_observation_prediction import *
 from src.environments.env import *
 from plotting.floor import *
@@ -224,7 +223,6 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
-                    ##################### MY STUFF HERE #################
                     p_loss, t_loss, z_loss, q1_loss, q2_loss, obs_gen_loss = \
                         model.soft_q_update(observation_generator)
 
@@ -340,7 +338,6 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
     model = DualSMC()
     env = Environment()
 
-    ##################### MY STUFF HERE #################
     observation_generator = ObservationGenerator()
 
     # Let the user load in a previous model
@@ -373,7 +370,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
             measure_loss.append(Z_loss)
             proposer_loss.append(P_loss)
 
-        ##################### MY STUFF HERE #################
+        # Observation generative model
         training_time = observation_generator.pretrain()
 
         if save_pretrained_model:

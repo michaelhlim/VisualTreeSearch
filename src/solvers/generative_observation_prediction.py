@@ -78,21 +78,21 @@ class ObservationGenerator(nn.Module):
 
     def training_step(self, state_batch, obs_batch):
         # encode x to get the mu and variance parameters
-        encoder_input = torch.cat([state_batch, obs_batch], -1)
-        obs_encoded = self.encoder(encoder_input)
-        mu, log_var = self.fc_mu(obs_encoded), self.fc_var(obs_encoded)
+        encoder_input = torch.cat([state_batch, obs_batch], -1)  # [batch_size, dim_state + dim_obs]
+        obs_encoded = self.encoder(encoder_input)  # [batch_size, enc_out_dim]
+        mu, log_var = self.fc_mu(obs_encoded), self.fc_var(obs_encoded)  # [batch_size, latent_dim]
 
         # sample z from q
         std = torch.exp(log_var / 2)
         q = torch.distributions.Normal(mu, std)
-        z = q.rsample()
-        decoder_input = torch.cat([state_batch, z], -1)
+        z = q.rsample()  # [batch_size, latent_dim]
+        decoder_input = torch.cat([state_batch, z], -1)  # [batch_size, latent_dim + dim_state]
 
         # decoded
-        obs_hat = self.decoder(decoder_input)
+        obs_hat = self.decoder(decoder_input)  # [batch_size, dim_obs]
 
         # reconstruction loss
-        recon_loss = self.gaussian_likelihood(obs_hat, self.log_scale, obs_batch)
+        recon_loss = self.gaussian_likelihood(obs_hat, self.log_scale, obs_batch) # [batch_size]
 
         if cvae_params.calibration:
             log_sigma = ((obs_batch - obs_hat) ** 2).mean([0, 1], keepdim=True).sqrt().log()
@@ -104,12 +104,12 @@ class ObservationGenerator(nn.Module):
                 return result_tensor
 
             log_sigma = softclip(log_sigma, -6)
-            rec = self.gaussian_likelihood(obs_hat, log_sigma, obs_batch)
+            rec = self.gaussian_likelihood(obs_hat, log_sigma, obs_batch)  # [batch_size]
             recon_loss = rec
 
         # kl
         beta = cvae_params.beta
-        kl = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+        kl = -0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1)  # [batch_size]
 
         # elbo
         elbo = (beta*kl - recon_loss)
@@ -141,12 +141,20 @@ class ObservationGenerator(nn.Module):
         print_freq = 50
         test_freq = 100
 
+        wall_step = 0 #int(2 * cvae_params.num_training_steps/3)
+        walls_arr = [0.1, 0.4, 0.6, 0.9, 0, 0, 0, 0] # wall 0 means no wall
+
         t0 = time.time()
 
         for step in range(cvae_params.num_training_steps):
             batch_size = cvae_params.batch_size
 
-            state_batch, obs_batch, _ = self.env.make_batch(batch_size)
+            if step >= wall_step:
+                index = np.random.randint(len(walls_arr))
+                state_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr[index])
+                #state_batch, obs_batch = self.env.make_batch_multiple_walls(batch_size, walls_arr)
+            else:
+                state_batch, obs_batch, _ = self.env.make_batch(batch_size)
             state_batch = torch.from_numpy(state_batch).float()
             obs_batch = torch.from_numpy(obs_batch).float()
 
@@ -185,10 +193,10 @@ class ObservationGenerator(nn.Module):
     def sample(self, batch_size, states_batch):
         pz = torch.distributions.Normal(torch.zeros(batch_size, cvae_params.latent_dim),
                                         torch.ones(batch_size, cvae_params.latent_dim))
-        z = pz.rsample()
-        decoder_input = torch.cat([states_batch, z], -1)
+        z = pz.rsample()  # [batch_size, latent_dim]
+        decoder_input = torch.cat([states_batch, z], -1)  # [batch_size, latent_dim + dim_state]
 
-        obs_hat = self.decoder(decoder_input.detach())
+        obs_hat = self.decoder(decoder_input.detach()) # [batch_size, dim_obs]
 
         return obs_hat
 
@@ -283,7 +291,7 @@ class ObservationGenerator(nn.Module):
 
         return test_result
 
-    def test_with_prints(self, num_tests=5, load_model=False, checkpoint_path=None):
+    def test_with_prints(self, load_model=False, checkpoint_path=None):
         # Testing after pretraining
 
         if load_model:
@@ -294,7 +302,7 @@ class ObservationGenerator(nn.Module):
         mean_rest_diff = 0
         std_rest_diff = 0
 
-        batch_size = cvae_params.batch_size
+        num_tests = cvae_params.num_tests
 
         for j in range(num_tests):
             test_result = self.test()
@@ -349,7 +357,8 @@ class ObservationGenerator(nn.Module):
 
 ##################### TESTING ###########################
 cvae = ObservationGenerator()
-cvae.pretrain()
+t = cvae.pretrain()
+print("Time to pretrain", str(t))
 cvae.test_with_prints()
 cvae.plot_training_losses()
 cvae.plot_testing_losses()

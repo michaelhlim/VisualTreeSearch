@@ -114,9 +114,6 @@ class Environment(object):
             state[0] = state[0] * 2
             state[1] = state[1]
 
-            # state[0] = state[0] * 0.4 + 0.8
-            # state[1] = state[1] * 0.3 + 0.1 + np.random.randint(2) * 0.5
-
             obs = self.get_observation_batch(state[0], state[1])
 
             par_vec_x = np.random.normal(state[0], OBS_STD, NUM_PAR_PF)
@@ -135,7 +132,10 @@ class Environment(object):
 
         return states_batch, obs_batch, par_batch
 
+
     def make_batch_single_state(self, batch_size):
+        # Used for testing observation generative model
+
         state = np.random.rand(2)
         state[0] = state[0] * 2
         state[1] = state[1]
@@ -143,3 +143,55 @@ class Environment(object):
         obs_batch = np.array([self.get_observation_batch(state[0], state[1]) for _ in range(batch_size)])
 
         return state, obs_batch
+
+
+    def make_batch_wall(self, batch_size, wall):
+        # Make a whole batch from just one state in one of the 4 walls
+
+        state = np.random.rand(2)
+        state[0] = state[0] * 2
+        if wall == 0.1:
+            state[1] = state[1] * 0.1
+        elif wall == 0.4:
+            state[1] = state[1] * 0.1 + 0.4
+        elif wall == 0.6:
+            state[1] = state[1] * 0.1 + 0.5
+        elif wall == 0.9:
+            state[1] = state[1] * 0.1 + 0.9
+
+        obs_batch = np.array([self.get_observation_batch(state[0], state[1]) for _ in range(batch_size)])
+        states_batch = np.tile(state, (batch_size, 1))
+
+        return states_batch, obs_batch
+
+
+    def make_batch_multiple_walls(self, batch_size, walls_arr):
+        # Make a batch from just wall states, mixture from all 4 walls
+
+        states_batch = []
+        obs_batch = []
+        for i in range(batch_size):
+            state = np.random.rand(2)
+            state[0] = state[0] * 2
+
+            index = np.random.randint(len(walls_arr))
+            wall = walls_arr[index]
+
+            if wall == 0.1:
+                state[1] = state[1] * 0.1
+            elif wall == 0.4:
+                state[1] = state[1] * 0.1 + 0.4
+            elif wall == 0.6:
+                state[1] = state[1] * 0.1 + 0.5
+            elif wall == 0.9:
+                state[1] = state[1] * 0.1 + 0.9
+
+            obs = self.get_observation_batch(state[0], state[1])
+
+            states_batch.append(state)
+            obs_batch.append(obs)
+
+        states_batch = np.array(states_batch)
+        obs_batch = np.array(obs_batch)
+
+        return states_batch, obs_batch
