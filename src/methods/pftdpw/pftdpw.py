@@ -1,16 +1,15 @@
-import random
 import torch
 import numpy as np
 from numpy import random
 from dataclasses import dataclass
 from utils.utils import *
-from configs.solver.pftvpw import *
+from configs.solver.pftdpw import *
 
 
 @dataclass
 class BeliefNode:
-	states: list
-	weights: list
+	states: list # List of lists of floats
+	weights: list # List of floats
 
 
 @dataclass
@@ -26,15 +25,17 @@ class PFTTree:
 	transitions: dict # action_id -> [(belief_id, r)] (action_id determines the (b,a) pair since all actions are unique)
 
 
-class PFTVPW():
-	def __init__(self, environment, obs_density_module, obs_generator_module, rollout_policy):
+class PFTDPW():
+	def __init__(self, environment, transition_module, obs_density_module, obs_generator_module, rollout_function, rollout_policy):
 		# Initialize tree
 		self.initialize_tree()
 
 		# Set up modules
 		self.env = environment
-		self.Z = obs_dens
-		self.G = obs_gen
+		self.T = transition_module
+		self.Z = obs_density_module
+		self.G = obs_generator_module
+		self.rollout_function = rollout_function
 		self.rollout_policy = rollout_policy
 
 		# Set up parameters
@@ -52,7 +53,7 @@ class PFTVPW():
 		self.tree = PFTTree(child_actions={}, n_b_visits=[], belief_ids=[], n_act_visits=[], q=[], action_ids=[], transitions={})
 
 	def insert_belief_node(self, b):
-		# Insert a belief node into the VPW tree
+		# Insert a belief node into the DPW tree
 		b_id = len(self.tree.belief_ids)
 		self.tree.n_b_visits.append(0)
 		self.tree.belief_ids.append(b)
@@ -61,7 +62,7 @@ class PFTVPW():
 		return b_id
 
 	def insert_action_node(self, b_id, a):
-		# Insert an action node stemming from a belief node into the VPW tree
+		# Insert an action node stemming from a belief node into the DPW tree
 		a_id = len(self.tree.action_ids)
 		self.tree.n_act_visits.append(0)
 		self.tree.q.append(0)
@@ -74,58 +75,56 @@ class PFTVPW():
 		# Insert a new transition a_id -> bp_id (Basically inserting (b,a) -> b', r)
 		self.tree.transitions[a_id].append((bp_id, r))
 
+	def transition_step(self, b, a):
+		# State transitions from the particles in b
+		states_tensor = np.array(b.states)
+		action = np.array(a)
+		next_states = self.T.t_model(
+			torch.FloatTensor(states_tensor).to(device), torch.FloatTensor(action).to(device))
+		next_states = next_states.detach().cpu().numpy() # Passed as an np array for convenience in particle filter
+
+		# Getting rewards
+		rewards = self.env.reward(next_states)
+
+		return next_states, rewards
+
 	def is_terminal(self, b):
 		# Check if the belief node is terminal (i.e. all particles are terminal)
-		for i in range(len(b)):
-			if not self.env.is_terminal(b.states[i]):
-				return False
-
-		return True
+		return self.env.is_terminal(b.states)
 
 	def next_action(self, b_id):
 		# Generate next action from belief id b_id
-		## TODO - make the VPW function
-		return
-
-	def vpw(self, b_id):
-		## TODO - make the VOO function
-		return
+		return self.env.action_sample()
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
-		sp, rewards = self.env.transition_tensor(b.states, a)
+		sp, rewards = self.transition_step(b.states, a)
 
-		# Generate observation if it's the first time
-		## TODO - make generate observation & store observation functions
-		o = 0.0
+		# Generate an observation from a random state
+		s_idx = np.random.choice(len(b.states), 1)
+		o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(device))
 
 		# Generate particle belief set
-		## TODO - make density calculation function
-		weights = np.multiply(b.weights, self.Z(sp, o))
-		r = np.dot(rewards, np.array(b.weights))
+		lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
+				o, self.n_par)
+		new_weights = np.multiply(np.array(b.weights), lik.detach().cpu().numpy())
+		r = np.dot(rewards, new_weights)
+
+		# Resample states (naive resampling)
+		sp = sp[np.random.choice(len(new_weights), len(new_weights), p = new_weights)]
+		resample_weights = [1/len(new_weights)] * len(new_weights)
+		bp = BeliefNode(states=sp.tolist(), weights=resample_weights)
 
 		return bp, r
 
-	def rollout(self, s, d):
-		# Rollout simulation starting from particle s
-		r = 0.0
-		for i in range(d):
-			if not self.env.is_terminal(s):
-				s, reward = self.env.transition_state(s, self.rollout_policy(s))
-				r += reward * (self.discount ** i)
-			else:
-				break
-
-		return r
-
-	def rollout_belief(self, b, d):
+	def rollout(self, b):
 		# Rollout simulation starting from belief b
-		s = b.states[random.choice(len(b.weights), 1, p = b.weights)]
-		return self.rollout(s, d)
+		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)]
+		return self.rollout_function(s)
 
 	def plan(self, b):
-		# Builds a VPW tree and returns the best next action
-		# Construct the VPW tree
+		# Builds a DPW tree and returns the best next action
+		# Construct the DPW tree
 		self.initialize_tree()
 		b_init = self.insert_belief_node(b)
 
@@ -146,12 +145,12 @@ class PFTVPW():
 		return best_a
 
 	def simulate(self, b_id, d):
-		# Simulates dynamics with a VPW tree
+		# Simulates dynamics with a DPW tree
 		b = self.tree.belief_ids[b_id]
 
 		# Check if d == 0 (full depth) or belief is terminal
 		if d == 0:
-			return self.rollout_belief(b, d)
+			return self.rollout(b)
 		elif self.is_terminal(b):
 			return 0.0
 
@@ -195,11 +194,11 @@ class PFTVPW():
 			new_node = True
 		else:
 			# Otherwise pick a belief node at random
-			bp_id, r = self.tree.transitions[a_id][random.choice(range(len(self.tree.transitions[a_id])), 1)]
+			bp_id, r = self.tree.transitions[a_id][np.random.choice(range(len(self.tree.transitions[a_id])), 1)]
 
 		# Simulate recursively
 		if new_node:
-			q = r + self.discount * self.rollout_belief(bp_id, d-1)
+			q = r + self.discount * self.rollout(bp_id)
 		else:
 			q = r + self.discount * self.simulate(bp_id, d-1)
 

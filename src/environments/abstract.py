@@ -1,7 +1,4 @@
 # author: @wangyunbo
-from utils.utils import *
-import numpy as np
-
 
 class AbstractEnvironment(object):
     def __init__(self):
@@ -16,14 +13,14 @@ class AbstractEnvironment(object):
         # Takes a step from the current environment state with a supplied action and updates the environment state
         return
 
-    # New functions to be added
-    def transition_state(self, s, a):
-        # Given a state and an action, return the next step state and reward. All inputs and outputs are in numpy array format.
-        return
+    # # New functions to be added
+    # def transition_state(self, s, a):
+    #     # Given a state and an action, return the next step state and reward. All inputs and outputs are in numpy array format.
+    #     return
 
-    def transition_tensor(self, s, a):
-        # Given a state tensor and an action, return the next step state tensor and rewards. All inputs and outputs are in numpy array format.
-        return
+    # def transition_tensor(self, s, a):
+    #     # Given a state tensor and an action, return the next step state tensor and rewards. All inputs and outputs are in numpy array format.
+    #     return
 
     def is_terminal(self, s):
         # Check if a given state is a terminal state
@@ -33,6 +30,6 @@ class AbstractEnvironment(object):
         # Gives back a uniformly sampled random action
         return
 
-    def action_sample_centered(self, a):
-        # Gives back a random action sampled around a center a
+    def reward(self, s):
+        # Gives back reward for corresponding state
         return

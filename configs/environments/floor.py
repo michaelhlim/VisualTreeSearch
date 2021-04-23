@@ -3,6 +3,7 @@
 ######################
 # Environment
 EPI_REWARD = 100
+STEP_REWARD = -1
 DIM_ACTION = 2
 DIM_STATE = 2
 DIM_OBS = 4

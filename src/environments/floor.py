@@ -2,6 +2,8 @@
 from utils.utils import *
 from configs.environments.floor import *
 from src.environments.abstract import AbstractEnvironment
+import random
+import numpy as np
 
 
 class Environment(AbstractEnvironment):
@@ -73,4 +75,39 @@ class Environment(AbstractEnvironment):
         next_false_dist = l2_distance(next_state, false_target)
         cond_false = (curr_false_dist >= END_RANGE) * (next_false_dist < END_RANGE)
         reward -= EPI_REWARD * cond_false
+        return reward
+
+    def is_terminal(self, s):
+        # Check if a given state/state tensor is a terminal state
+        cond = (self.state[1] <= 0.5)
+        target = cond * self.target1 + (1 - cond) * self.target2
+
+        return all(l2_distance_np(s, target) <= END_RANGE)
+
+    def action_sample(self):
+        # Gives back a uniformly sampled random action
+        rnd = int(random.random()*9)
+
+        # No blank move
+        while rnd == 5:
+            rnd = int(random.random()*9)
+
+        action = STEP_RANGE * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
+
+        return action
+
+    def reward(self, s):
+        # Check if a given state/state tensor is a terminal state and give corresponding reward
+        cond = (self.state[1] <= 0.5)
+        target = cond * self.target1 + (1 - cond) * self.target2
+        false_target = cond * self.false_target1 + (1 - cond) * self.false_target2
+
+        dist = l2_distance_np(s, target)
+        false_dist = l2_distance_np(s, false_target)
+
+        cond_true = (dist <= END_RANGE)
+        cond_false = (false_dist <= END_RANGE)
+
+        reward = EPI_REWARD * cond_true - EPI_REWARD * cond_false + STEP_REWARD * np.logical_not((cond_true | cond_false))
+
         return reward
