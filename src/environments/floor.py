@@ -5,12 +5,7 @@ from src.environments.abstract import AbstractEnvironment
 import random
 import numpy as np
 
-<<<<<<< HEAD:src/environments/floor.py
-
 class Environment(AbstractEnvironment):
-=======
-class Environment(object):
->>>>>>> origin/development:src/environments/env.py
     def __init__(self):
         self.done = False
         self.state = np.random.rand(2)
