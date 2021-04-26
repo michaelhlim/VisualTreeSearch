@@ -26,7 +26,7 @@ class PFTTree:
 
 
 class PFTDPW():
-	def __init__(self, environment, transition_module, obs_density_module, obs_generator_module, rollout_function, rollout_policy):
+	def __init__(self, environment, transition_module, obs_density_module, obs_generator_module, rollout_policy):
 		# Initialize tree
 		self.initialize_tree()
 
@@ -35,7 +35,6 @@ class PFTDPW():
 		self.T = transition_module
 		self.Z = obs_density_module
 		self.G = obs_generator_module
-		self.rollout_function = rollout_function
 		self.rollout_policy = rollout_policy
 
 		# Set up parameters
@@ -120,7 +119,7 @@ class PFTDPW():
 	def rollout(self, b):
 		# Rollout simulation starting from belief b
 		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)]
-		return self.rollout_function(s)
+		return self.env.rollout(s)
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action

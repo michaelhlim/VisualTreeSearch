@@ -111,3 +111,6 @@ class Environment(AbstractEnvironment):
         reward = EPI_REWARD * cond_true - EPI_REWARD * cond_false + STEP_REWARD * np.logical_not((cond_true | cond_false))
 
         return reward
+
+    def rollout(self, s):
+        # Roll out from state s, calculating the naive distance & reward to the goal       
