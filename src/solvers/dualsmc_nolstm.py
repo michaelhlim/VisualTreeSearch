@@ -112,7 +112,7 @@ class DualSMC:
         q = torch.min(qf1, qf2)
         return q
 
-    def soft_q_update(self):
+    def soft_q_update(self, observation_generator):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
         obs, curr_par, mean_state, pf_sample = self.replay_buffer.sample(BATCH_SIZE)
         state_batch = torch.FloatTensor(state_batch).to(device)
@@ -126,6 +126,11 @@ class DualSMC:
         curr_par_sample = torch.FloatTensor(pf_sample).to(device) # (B, M, 2)
         hidden = curr_obs
         cell = curr_obs
+
+        # Observation generative model
+        obs_gen_loss = observation_generator.online_training(state_batch, curr_obs)
+
+
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
@@ -230,7 +235,9 @@ class DualSMC:
         self.alpha = self.log_alpha.exp()
 
         soft_update(self.critic_target, self.critic, self.tau)
-        return P_loss, T_loss, Z_loss, q1_loss, q2_loss
+
+
+        return P_loss, T_loss, Z_loss, q1_loss, q2_loss, obs_gen_loss
 
     def soft_q_update_individual(self, state_batch, obs, curr_par):
         state_batch = torch.FloatTensor(state_batch).to(device)
