@@ -1,6 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
 from experiments.configs import *
 
@@ -48,8 +49,14 @@ def plot_maze(figure_name='default', states=None):
     if type(states) is np.ndarray:
         xy = states[:,:2]
         x, y = zip(*xy)
-        ax.plot(x, y, 'ro')
         ax.plot(x[0],y[0], 'bo')
+        # Iterate through x and y with a colormap
+        colorvec = np.linspace(0, 1, len(x))
+        viridis = cm.get_cmap('viridis', 12)
+        for i in range(len(x)):
+            if i == 0:
+                pass
+            ax.plot(x[i], y[i], viridis(colorvec[i]))
 
     ax.set_aspect('equal')
     plt.savefig(figure_name)
