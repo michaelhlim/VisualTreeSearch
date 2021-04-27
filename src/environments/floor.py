@@ -93,7 +93,7 @@ class Environment(AbstractEnvironment):
         target = cond * self.target1 + (1 - cond) * self.target2
 
         next_dist = l2_distance(next_state, target)
-        cond_hit = detect_collison(curr_state, next_state)
+        cond_hit = detect_collision(curr_state, next_state)
 
         if next_dist <= END_RANGE:
             self.state = next_state
@@ -110,7 +110,7 @@ class Environment(AbstractEnvironment):
         return reward
 
     def is_terminal(self, s):
-        # Check if a given state/state tensor is a terminal state
+        # Check if a given state tensor is a terminal state
         cond = (self.state[1] <= 0.5)
         target = cond * self.target1 + (1 - cond) * self.target2
 
@@ -129,23 +129,69 @@ class Environment(AbstractEnvironment):
         return action
 
     def reward(self, s):
-        # Check if a given state/state tensor is a terminal state and give corresponding reward
-        cond = (self.state[1] <= 0.5)
-        target = cond * self.target1 + (1 - cond) * self.target2
-        false_target = cond * self.false_target1 + (1 - cond) * self.false_target2
+        # Check if a given state tensor is a terminal state and give corresponding reward
+        cond = (self.state[:, 1] <= 0.5)
+        true_targets = np.zeros(np.shape(s))
+        false_targets = np.zeros(np.shape(s))
+        for i in range(len(cond)):
+            if cond[i]:
+                true_targets[i, :] = self.target1
+                false_targets[i, :] = self.false_target1
+            else:
+                true_targets[i, :] = self.target2
+                false_targets[i, :] = self.false_target2
 
-        dist = l2_distance_np(s, target)
-        false_dist = l2_distance_np(s, false_target)
+        true_dist = l2_distance_np(s, true_targets)
+        false_dist = l2_distance_np(s, false_targets)
 
-        cond_true = (dist <= END_RANGE)
+        cond_true = (true_dist <= END_RANGE)
         cond_false = (false_dist <= END_RANGE)
 
         reward = EPI_REWARD * cond_true - EPI_REWARD * cond_false + STEP_REWARD * np.logical_not((cond_true | cond_false))
 
         return reward
 
+    def transition(self, s, a):
+        # transition each state in state tensor s with actions in action/action tensor a
+        next_state = np.copy(s)
+        sp = s + a
+
+        cond = (self.state[:, 1] <= 0.5)
+        true_targets = np.zeros(np.shape(s))
+        for i in range(len(cond)):
+            if cond[i]:
+                true_targets[i, :] = self.target1
+            else:
+                true_targets[i, :] = self.target2
+
+        next_dist = l2_distance_np(sp, true_targets)
+        cond_hit = detect_collision(s, sp)
+
+        for i in range(len(next_dist)):
+            if next_dist[i] <= END_RANGE:
+                next_state[i, :] = sp[i, :]
+            elif cond_hit[i] == False:
+                next_state[i, :] = sp[i, :]
+                
+        return next_state
+
     def rollout(self, s):
         # Roll out from state s, calculating the naive distance & reward to the goal       
+        cond = (curr_state[1] <= 0.5)
+        target = cond * self.target1 + (1 - cond) * self.target2
+        dist = np.sqrt(l2_distance(state, target))
+        steps = np.floor(dist/STEP_RANGE)
+        
+        gamma = 1.0
+        reward = 0.0
+
+        for i in range(steps):
+            reward += gamma * STEP_REWARD
+            gamma *= DISCOUNT
+
+        reward += gamma * EPI_REWARD
+
+        return reward
 
     def make_batch(self, batch_size):
         states_batch = []

@@ -19,7 +19,7 @@ def get_datetime():
     return currentDT.strftime("%m%d%H%M")
 
 
-def detect_collison(curr_state, next_state):
+def detect_collision(curr_state, next_state):
     if len(curr_state.shape) == 1:
         cx = curr_state[0]
         cy = curr_state[1]
@@ -51,6 +51,10 @@ def l2_distance(state, goal):
         dist = (state[:, 0] - goal[:, 0]).pow(2) + (state[:, 1] - goal[:, 1]).pow(2) + const
     elif len(state.shape) == 3:
         dist = (state[:, :, 0] - goal[:, :, 0]).pow(2) + (state[:, :, 1] - goal[:, :, 1]).pow(2) + const
+    return dist
+
+def l2_distance_np(states, goals):
+    dist = np.sum(np.power((states - goals), 2), axis=1) + const
     return dist
 
 

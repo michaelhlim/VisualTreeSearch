@@ -26,16 +26,14 @@ class PFTTree:
 
 
 class PFTDPW():
-	def __init__(self, environment, transition_module, obs_density_module, obs_generator_module, rollout_policy):
+	def __init__(self, environment, obs_density_module, obs_generator_module):
 		# Initialize tree
 		self.initialize_tree()
 
 		# Set up modules
 		self.env = environment
-		self.T = transition_module
 		self.Z = obs_density_module
 		self.G = obs_generator_module
-		self.rollout_policy = rollout_policy
 
 		# Set up parameters
 		self.n_query = NUM_QUERY
@@ -78,9 +76,7 @@ class PFTDPW():
 		# State transitions from the particles in b
 		states_tensor = np.array(b.states)
 		action = np.array(a)
-		next_states = self.T.t_model(
-			torch.FloatTensor(states_tensor).to(device), torch.FloatTensor(action).to(device))
-		next_states = next_states.detach().cpu().numpy() # Passed as an np array for convenience in particle filter
+		next_states = self.env.transition(states_tensor, action)
 
 		# Getting rewards
 		rewards = self.env.reward(next_states)
@@ -120,6 +116,13 @@ class PFTDPW():
 		# Rollout simulation starting from belief b
 		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)]
 		return self.env.rollout(s)
+
+	def solve(self, s, w):
+		# call plan when given states and weights
+		b = BeliefNode(states=s, weights=w)
+		a = self.plan(b)
+		
+		return a
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action

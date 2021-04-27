@@ -125,8 +125,7 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     plt.close()
 
 
-def visualize_learning(figure_name, episode_loss_list, time_list, step_list, reward_list,
-             num_episodes):
+def visualize_learning(figure_name, episode_loss_list, time_list, step_list, reward_list, num_episodes, name_list):
     '''
     :param figure_name: path to save the figure in
     :param episode_loss_list: List of lists that contains the loss for each network. None type if testing
@@ -141,7 +140,6 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     ##################
     if episode_loss_list is not None:
         episode_number_list = np.linspace(1, num_episodes, num_episodes)
-        name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
         for i in range(len(name_list)):
             path_str = figure_name + name_list[i] + FIG_FORMAT
             plt.figure(path_str)

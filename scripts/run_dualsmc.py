@@ -286,10 +286,11 @@ def dualsmc(model, experiment_id, foldername, train):
         if episode % DISPLAY_ITER == 0:
             episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
             st2 = img_path + "/" + str(episode)
+            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
             if train:
-                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode)
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
-                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode)
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
             print("plotting ... save to %s" % st)
             plot_maze(figure_name=st, states=np.array(trajectory))

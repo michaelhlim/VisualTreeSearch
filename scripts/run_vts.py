@@ -9,16 +9,18 @@ from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
 
-# DualSMC w/ No LSTM
-from src.solvers.dualsmc_nolstm import DualSMC
+# VTS w/ No LSTM
+from src.solvers.vts import VTS
 from src.solvers.generative_observation_prediction import *
-from src.environments.env import *
+from src.methods.pftdpw.pftdpw import *
+from src.environments.floor import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
+from configs.solver.pftdpw import *
 from statistics import mean, stdev
 
-def dualsmc(model, observation_generator, experiment_id, foldername, train):
+def vts(model, observation_generator, experiment_id, foldername, train):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -30,9 +32,7 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
     reward_list_episode = []
     episode_Z_loss = []
     episode_P_loss = []
-    episode_T_loss = []
-    episode_q1_loss = []
-    episode_q2_loss = []
+    episode_G_loss = []
     rmse_per_step = np.zeros((MAX_STEPS))
     tot_time = 0
     ################################
@@ -68,6 +68,8 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
+        pft_planner = PFTDPW(env, model.measure_net, observation_generator)
+
         if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
             traj_dir = img_path + "/iter-" + str(episode)
             if os.path.exists(traj_dir):
@@ -82,9 +84,7 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
             # 4. transition model
             step_Z_loss = []
             step_P_loss = []
-            step_T_loss = []
-            step_q1_loss = []
-            step_q2_loss = []
+            step_G_loss = []
             #######################################
             # Observation model
             lik, _, _ = model.measure_net.m_model(
@@ -115,91 +115,14 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
             tic = time.perf_counter()
             #######################################
             # Planning
-            if SMCP_MODE == 'topk':
-                weight_init, idx = torch.topk(par_weight, NUM_PAR_SMC_INIT)
-                idx = idx.detach().cpu().numpy()
-            elif SMCP_MODE == 'samp':
-                idx = torch.multinomial(normalized_weights, NUM_PAR_SMC_INIT, replacement=True).detach().cpu().numpy()
-                weight_init = par_weight[idx]
-            weight_init = torch.softmax(weight_init, -1).unsqueeze(1).repeat(1, NUM_PAR_SMC)  # [M, N]
-            states_init = par_states[idx]  # [K, C] -> [M, C]
-            states_init_ = np.reshape(states_init, (1, NUM_PAR_SMC_INIT, 1, DIM_STATE))  # [1, M, 1, C]
-            smc_states = np.tile(states_init_, (HORIZON, 1, NUM_PAR_SMC, 1))  # [1, M, 1, C] -> [T, M, N, C]
-            smc_action = np.zeros((HORIZON, NUM_PAR_SMC, DIM_ACTION))  # [T, N, dim_a]
-            smc_weight = torch.log(torch.ones((NUM_PAR_SMC)).to(device) * (1.0 / float(NUM_PAR_SMC)))  # [N]
-            mean_state = np.reshape(mean_state, (1, 1, DIM_STATE))  # [1, 1, C]
-            smc_mean_state = np.tile(mean_state, (HORIZON, NUM_PAR_SMC, 1))  # [T, N, C]
-            prev_q = 0
-
-            for i in range(HORIZON):
-                curr_smc_state = torch.FloatTensor(smc_states[i]).to(device)  # [M, N, C]
-                action, log_prob = model.policy.get_action(
-                    torch.FloatTensor(smc_mean_state[i]).to(device),  # [N, C]
-                    torch.transpose(curr_smc_state, 0, 1).contiguous().view(NUM_PAR_SMC, -1))  # [N, M * C]
-                action_tile = action.unsqueeze(0).repeat(NUM_PAR_SMC_INIT, 1, 1).view(-1, DIM_ACTION)
-
-                next_smc_state = model.dynamic_net.t_model(
-                    torch.FloatTensor(smc_states[i]).to(device).view(-1, DIM_STATE), action_tile * STEP_RANGE)
-                next_smc_state[:, 0] = torch.clamp(next_smc_state[:, 0], 0, 2)
-                next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], 0, 1)
-                next_smc_state = next_smc_state.view(NUM_PAR_SMC_INIT, NUM_PAR_SMC, DIM_STATE)
-
-                mean_par = model.dynamic_net.t_model(
-                    torch.FloatTensor(smc_mean_state[i]).to(device), action * STEP_RANGE)
-                mean_par[:, 0] = torch.clamp(mean_par[:, 0], 0, 2)
-                mean_par[:, 1] = torch.clamp(mean_par[:, 1], 0, 1)
-
-                if i < HORIZON - 1:
-                    smc_action[i] = action.detach().cpu().numpy()
-                    smc_states[i + 1] = next_smc_state.detach().cpu().numpy()
-                    smc_mean_state[i + 1] = mean_par.detach().cpu().numpy()
-
-                q = model.get_q(curr_smc_state.view(-1, DIM_STATE), action_tile).view(NUM_PAR_SMC_INIT, -1)
-                advantage = q - prev_q - log_prob.unsqueeze(0).repeat(NUM_PAR_SMC_INIT, 1)  # [M, N]
-                advantage = torch.sum(weight_init * advantage, 0).squeeze()  # [N]
-                smc_weight += advantage
-                prev_q = q
-                normalized_smc_weight = F.softmax(smc_weight, -1)  # [N]
-
-                if SMCP_RESAMPLE and (i % SMCP_RESAMPLE_STEP == 1):
-                    idx = torch.multinomial(normalized_smc_weight, NUM_PAR_SMC, replacement=True).detach().cpu().numpy()
-                    smc_action = smc_action[:, idx, :]
-                    smc_states = smc_states[:, :, idx, :]
-                    smc_mean_state = smc_mean_state[:, idx, :]
-                    smc_weight = torch.log(torch.ones((NUM_PAR_SMC)).to(device) * (1.0 / float(NUM_PAR_SMC)))
-                    normalized_smc_weight = F.softmax(smc_weight, -1)  # [N]
-
-            smc_xy = np.reshape(smc_states[:, :, :, :2], (-1, NUM_PAR_SMC_INIT * NUM_PAR_SMC, 2))
-
-            if SMCP_RESAMPLE and (HORIZON % SMCP_RESAMPLE_STEP == 0):
-                n = np.random.randint(NUM_PAR_SMC, size=1)[0]
-            else:
-                n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
-            action = smc_action[0, n, :]
-            toc = time.perf_counter()
-            #######################################
-            if step % PF_RESAMPLE_STEP == 0:
-                if PP_EXIST:
-                    idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
-                                            replacement=True).detach().cpu().numpy()
-                    resample_state = par_states[idx]
-                    proposal_state = model.pp_net(torch.FloatTensor(curr_obs).unsqueeze(0).to(device), num_par_propose)
-                    proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
-                    proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
-                    proposal_state = proposal_state.detach().cpu().numpy()
-                    par_states = np.concatenate((resample_state, proposal_state), 0)
-                else:
-                    idx = torch.multinomial(normalized_weights, NUM_PAR_PF, replacement=True).detach().cpu().numpy()
-                    par_states = par_states[idx]
-
-                par_weight = torch.log(torch.ones((NUM_PAR_PF)).to(device) * (1.0 / float(NUM_PAR_PF)))
-                normalized_weights = torch.softmax(par_weight, -1)
+            action = pft_planner.plan(par_states, normalized_weights.detach().cpu().numpy())
 
             mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
             filter_rmse = math.sqrt(pow(mean_state[0] - curr_state[0], 2) + pow(mean_state[1] - curr_state[1], 2))
             rmse_per_step[step] += filter_rmse
             filter_dist += filter_rmse
 
+            toc = time.perf_counter()
             #######################################
             if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
                 if step < 10:
@@ -215,7 +138,7 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
 
             #######################################
             # Update the environment
-            reward = env.step(action * STEP_RANGE)
+            reward = env.step(action)
             next_state = env.state
             next_obs = env.get_observation()
             #######################################
@@ -223,21 +146,15 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
-                    p_loss, t_loss, z_loss, q1_loss, q2_loss, obs_gen_loss = \
+                    p_loss, z_loss, obs_gen_loss = \
                         model.soft_q_update(observation_generator)
 
                     step_P_loss.append(p_loss.item())
-                    step_T_loss.append(t_loss.item())
                     step_Z_loss.append(z_loss.item())
-                    step_q1_loss.append(q1_loss.item())
-                    step_q2_loss.append(q2_loss.item())
+                    step_G_loss.append(obs_gen_loss.item())
             #######################################
             # Transition Model
-            par_states = model.dynamic_net.t_model(torch.FloatTensor(par_states).to(device),
-                                                   torch.FloatTensor(action * STEP_RANGE).to(device))
-            par_states[:, 0] = torch.clamp(par_states[:, 0], 0, 2)
-            par_states[:, 1] = torch.clamp(par_states[:, 1], 0, 1)
-            par_states = par_states.detach().cpu().numpy()
+            par_states = env.transition(par_states, action)
 
             #######################################
             curr_state = next_state
@@ -256,10 +173,8 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
         # Get the average loss of each model for this episode if we are training
         if train:
             episode_P_loss.append(mean(step_P_loss))
-            episode_T_loss.append(mean(step_T_loss))
             episode_Z_loss.append(mean(step_Z_loss))
-            episode_q1_loss.append(mean(step_q1_loss))
-            episode_q2_loss.append(mean(step_q2_loss))
+            episode_G_loss.append(mean(step_G_loss))
 
         # Get the sum of the episode time
         tot_time = sum(time_list_step)
@@ -286,12 +201,13 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
             print("save model to %s" % model_path)
 
         if episode % DISPLAY_ITER == 0:
-            episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
+            episode_list = [episode_P_loss, episode_Z_loss, episode_G_loss]
             st2 = img_path + "/" + str(episode)
+            name_list = ['particle_loss', 'observation_loss', 'generative_loss']
             if train:
-                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode)
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
-                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode)
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
             print("plotting ... save to %s" % st)
             plot_maze(figure_name=st, states=np.array(trajectory))
@@ -325,17 +241,17 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
     file2.close()
 
 
-def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "dualsmc_nolstm_indv"
+    settings = "vts_indv"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
-    experiment_id = "dualsmc" + get_datetime()
+    experiment_id = "vts" + get_datetime()
     save_path = CKPT + experiment_id
 
     # Create a model and environment object
-    model = DualSMC()
+    model = VTS()
     env = Environment()
 
     observation_generator = ObservationGenerator()
@@ -381,7 +297,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        dualsmc(model, observation_generator, experiment_id, foldername, train)
+        vts(model, observation_generator, experiment_id, foldername, train)
 
     if save_model:
         # Save the model
@@ -390,7 +306,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
 
     if test:
         train = False
-        dualsmc(model, observation_generator, experiment_id, foldername, train)
+        vts(model, observation_generator, experiment_id, foldername, train)
 
 
 if __name__ == "__main__":
