@@ -333,6 +333,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
     os.mkdir(foldername)
     experiment_id = "dualsmc" + get_datetime()
     save_path = CKPT + experiment_id
+    check_path(save_path)
 
     # Create a model and environment object
     model = DualSMC()
@@ -385,7 +386,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
 
     if save_model:
         # Save the model
-        model.save_model(save_path)
+        model.save_model(save_path + "after_training")
         print("saving model to %s" % save_path)
 
     if test:
