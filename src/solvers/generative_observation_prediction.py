@@ -35,7 +35,7 @@ class ObservationGenerator(nn.Module):
             nn.Linear(dim_hidden, dim_hidden),
             nn.LeakyReLU(leak_rate),
             nn.Linear(dim_hidden, enc_out_dim),
-            nn.LeakyReLU(leak_rate))
+            nn.LeakyReLU(leak_rate)).to(device)
 
         self.decoder = nn.Sequential(
             nn.Linear(DIM_STATE + latent_dim, dim_hidden),
@@ -47,14 +47,14 @@ class ObservationGenerator(nn.Module):
             nn.Linear(dim_hidden, dim_hidden),
             nn.LeakyReLU(leak_rate),
             nn.Linear(dim_hidden, DIM_OBS),
-            nn.LeakyReLU(leak_rate))
+            nn.LeakyReLU(leak_rate)).to(device)
 
         # distribution parameters
-        self.fc_mu = nn.Linear(enc_out_dim, latent_dim)
-        self.fc_var = nn.Linear(enc_out_dim, latent_dim)
+        self.fc_mu = nn.Linear(enc_out_dim, latent_dim).to(device)
+        self.fc_var = nn.Linear(enc_out_dim, latent_dim).to(device)
 
         # for the gaussian likelihood
-        self.log_scale = nn.Parameter(torch.Tensor([0.0]))
+        self.log_scale = nn.Parameter(torch.Tensor([0.0])).to(device)
 
         self.env = Environment()
         self.replay_buffer = ReplayMemory(replay_buffer_size)
@@ -78,18 +78,18 @@ class ObservationGenerator(nn.Module):
 
     def training_step(self, state_batch, obs_batch):
         # encode x to get the mu and variance parameters
-        encoder_input = torch.cat([state_batch, obs_batch], -1)  # [batch_size, dim_state + dim_obs]
-        obs_encoded = self.encoder(encoder_input)  # [batch_size, enc_out_dim]
+        encoder_input = torch.cat([state_batch, obs_batch], -1).to(device)  # [batch_size, dim_state + dim_obs]
+        obs_encoded = self.encoder(encoder_input).to(device)  # [batch_size, enc_out_dim]
         mu, log_var = self.fc_mu(obs_encoded), self.fc_var(obs_encoded)  # [batch_size, latent_dim]
 
         # sample z from q
         std = torch.exp(log_var / 2)
         q = torch.distributions.Normal(mu, std)
         z = q.rsample()  # [batch_size, latent_dim]
-        decoder_input = torch.cat([state_batch, z], -1)  # [batch_size, latent_dim + dim_state]
+        decoder_input = torch.cat([state_batch, z], -1).to(device)  # [batch_size, latent_dim + dim_state]
 
         # decoded
-        obs_hat = self.decoder(decoder_input)  # [batch_size, dim_obs]
+        obs_hat = self.decoder(decoder_input).to(device)  # [batch_size, dim_obs]
 
         # reconstruction loss
         recon_loss = self.gaussian_likelihood(obs_hat, self.log_scale, obs_batch) # [batch_size]
@@ -194,7 +194,7 @@ class ObservationGenerator(nn.Module):
         pz = torch.distributions.Normal(torch.zeros(batch_size, cvae_params.latent_dim),
                                         torch.ones(batch_size, cvae_params.latent_dim))
         z = pz.rsample()  # [batch_size, latent_dim]
-        decoder_input = torch.cat([states_batch, z], -1)  # [batch_size, latent_dim + dim_state]
+        decoder_input = torch.cat([states_batch, z], -1).to(device)  # [batch_size, latent_dim + dim_state]
 
         obs_hat = self.decoder(decoder_input.detach()) # [batch_size, dim_obs]
 
