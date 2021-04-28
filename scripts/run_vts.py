@@ -193,10 +193,11 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
 
-            if step % 3 == 0:
-                cond = (curr_state[1] <= 0.5)
-                target = cond * env.target1 + (1 - cond) * env.target2
-                print(step, curr_state, mean_state, target, action)
+            # # Printing states for debugging
+            # if step % 3 == 0:
+            #     cond = (curr_state[1] <= 0.5)
+            #     target = cond * env.target1 + (1 - cond) * env.target2
+            #     print(step, curr_state, mean_state, target, action)
             if env.done:
                 break
 
@@ -232,17 +233,14 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             print("save model to %s" % model_path)
 
         if episode % DISPLAY_ITER == 0:
+            st2 = img_path + "/"
             episode_list = [episode_P_loss, episode_Z_loss, episode_G_loss]
-            st2 = img_path + "/" 
             name_list = ['particle_loss', 'observation_loss', 'generative_loss']
             if train:
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
-            st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
-            print("plotting ... save to %s" % st)
-            plot_maze(figure_name=st, states=np.array(trajectory))
-
+            
             if episode >= SUMMARY_ITER:
                 total_iter = SUMMARY_ITER
             else:
@@ -254,6 +252,11 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
+        
+        # Plot every trajectory
+        check_path(img_path + "/traj/")
+        st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
+        plot_maze(figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         if episode >= SUMMARY_ITER:
@@ -280,6 +283,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     foldername = "data/" + experiment_id
     check_path(foldername)
     save_path = "data/nets/" + experiment_id
+    check_path(save_path)
 
     # Create a model and environment object
     model = VTS()
@@ -304,7 +308,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(100):
+        for batch in range(10000):
             state_batch, obs_batch, par_batch = env.make_batch(64)
 
             # Train Z and P using the soft q update function
@@ -322,7 +326,6 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         training_time = observation_generator.pretrain(save_pretrained_model, save_path)
 
         if save_pretrained_model:
-            check_path(save_path)
             model_path = save_path + "/dpf_pre_trained"
             model.save_model(model_path)
             print("Saving pre-trained Z, P models to %s" % model_path)
@@ -334,7 +337,6 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
     if save_model:
         # Save the model
-        check_path(save_path)
         model.save_model(save_path + "/dpf_online_trained")
         print("Saving online trained Z, P models to %s" % save_path)
 
@@ -345,7 +347,6 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        vts_driver(load_path="vts0428074103/dpf_pre_trained",
-                   gen_load_path="vts0428074103/gen_pre_trained", pre_training=False)
-        # vts_driver()
+        # vts_driver(load_path="vts0428083518/dpf_pre_trained", gen_load_path="vts0428083518/gen_pre_trained", pre_training=False)
+        vts_driver()
 

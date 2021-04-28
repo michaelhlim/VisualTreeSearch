@@ -128,7 +128,10 @@ class PFTDPW():
 		b = BeliefNode(states=s, weights=w)
 		a_id = self.plan(b)
 		
-		return self.tree.action_ids[a_id]
+		if a_id == None:
+			return self.env.action_sample()
+		else:
+			return self.tree.action_ids[a_id]
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action
@@ -150,8 +153,6 @@ class PFTDPW():
 				best_q = self.tree.q[child]
 				best_a = child
 
-		if best_a == None:
-			print("hmmm")
 		return best_a
 
 	def simulate(self, b_id, d):
