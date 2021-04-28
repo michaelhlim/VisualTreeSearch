@@ -113,12 +113,9 @@ class Environment(AbstractEnvironment):
         # Check if a given state tensor is a terminal state
         cond = (s[:, 1] <= 0.5)
         true_targets = np.zeros(np.shape(s))
-        for i in range(len(cond)):
-            if cond[i]:
-                true_targets[i, :] = self.target1
-            else:
-                true_targets[i, :] = self.target2
-
+        true_targets[cond, :] = self.target1
+        true_targets[~cond, :] = self.target2
+        
         true_dist = l2_distance_np(s, true_targets)
         
         return all(true_dist <= END_RANGE)
@@ -147,39 +144,44 @@ class Environment(AbstractEnvironment):
         sp = s + a
         reward = 0.0
 
+        # Determine targets
         cond = (s[:, 1] <= 0.5)
         true_targets = np.zeros(np.shape(s))
+        true_targets[cond, :] = self.target1
+        true_targets[~cond, :] = self.target2
         false_targets = np.zeros(np.shape(s))
-        for i in range(len(cond)):
-            if cond[i]:
-                true_targets[i, :] = self.target1
-                false_targets[i, :] = self.false_target1
-            else:
-                true_targets[i, :] = self.target2
-                false_targets[i, :] = self.false_target2
+        false_targets[cond, :] = self.false_target1
+        false_targets[~cond, :] = self.false_target2
 
+        # Calculate distances
         next_true_dist = l2_distance_np(sp, true_targets)
         curr_false_dist = l2_distance_np(s, false_targets)
         next_false_dist = l2_distance_np(sp, false_targets)
+
+        # Check collision & goal
         cond_hit = detect_collision(s, sp)
+        goal_achieved = (next_true_dist <= END_RANGE)
+        step_ok = (cond_hit | goal_achieved)
 
-        for i in range(len(next_true_dist)):
-            if next_true_dist[i] <= END_RANGE:
-                next_state[i, :] = sp[i, :]
-                next_weights[i] = 0.0
-                reward += w[i] * EPI_REWARD
-            else:
-                if cond_hit[i] == False:
-                    next_state[i, :] = sp[i, :]
+        # Check false goal
+        false_goal = (curr_false_dist > END_RANGE) * (next_false_dist <= END_RANGE)
+        normal_step = ~(goal_achieved | false_goal)
 
-                if curr_false_dist[i] > END_RANGE and next_false_dist[i] <= END_RANGE:
-                    reward -= w[i] * EPI_REWARD
-                else:
-                    reward += w[i] * STEP_REWARD
+        # If goal reached
+        next_state[step_ok, :] = sp[step_ok, :]
+        next_weights[goal_achieved] = 0.0
+        reward += np.sum(w[goal_achieved]) * EPI_REWARD
 
-        w = w / np.sum(w)
+        # If false goal reached
+        reward -= np.sum(w[false_goal]) * EPI_REWARD
+
+        # Else
+        reward += np.sum(w[normal_step]) * STEP_REWARD
+
+        # Reweight
+        next_weights = next_weights / np.sum(next_weights)
                 
-        return next_state, w, reward
+        return next_state, next_weights, reward
 
     def rollout(self, s, ss, ws):
         # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
@@ -188,16 +190,13 @@ class Environment(AbstractEnvironment):
         dist = np.sqrt(l2_distance(s, target))
         steps = int(np.floor(dist/STEP_RANGE))
         
-        gamma = 1.0
-        reward = 0.0
-
-        for i in range(steps):
-            reward += gamma * STEP_REWARD
-            gamma *= DISCOUNT
+        # Going stepping number of times will provide the following intermediate rewards (geometric series result)
+        gamma = np.power(DISCOUNT, steps)
+        reward = STEP_REWARD * (1.0 - gamma)/(1.0 - DISCOUNT)
 
         # Basically check if the targets are same (1) or different (-1)
         cond_all = -2 * (cond ^ (ss[:, 1] <= 0.5)) + 1
-        reward += np.dot(cond_all, ws) * EPI_REWARD
+        reward += gamma * np.dot(cond_all, ws) * EPI_REWARD
 
         return reward
 

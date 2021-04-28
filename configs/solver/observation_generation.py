@@ -7,7 +7,7 @@ class CVAE_Params():
         self.lr = 5e-5
         self.beta = 1
         self.leak = 0.2
-        self.num_training_steps = 1000 # 70000
+        self.num_training_steps = 100 # 70000
         self.calibration = True
         self.save_model = False
         self.save_path = "data/pretrain_cvae"

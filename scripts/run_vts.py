@@ -118,7 +118,32 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             states_init = par_states
             action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
 
-            mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
+            # Resampling
+            if step % PF_RESAMPLE_STEP == 0:
+                if PP_EXIST:
+                    idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
+                                            replacement=True).detach().cpu().numpy()
+                    resample_state = par_states[idx]
+                    proposal_state = model.pp_net(torch.FloatTensor(
+                        curr_obs).unsqueeze(0).to(device), num_par_propose)
+                    proposal_state[:, 0] = torch.clamp(
+                        proposal_state[:, 0], 0, 2)
+                    proposal_state[:, 1] = torch.clamp(
+                        proposal_state[:, 1], 0, 1)
+                    proposal_state = proposal_state.detach().cpu().numpy()
+                    par_states = np.concatenate(
+                        (resample_state, proposal_state), 0)
+                else:
+                    idx = torch.multinomial(
+                        normalized_weights, NUM_PAR_PF, replacement=True).detach().cpu().numpy()
+                    par_states = par_states[idx]
+
+                par_weight = torch.log(torch.ones((NUM_PAR_PF)).to(
+                    device) * (1.0 / float(NUM_PAR_PF)))
+                normalized_weights = torch.softmax(par_weight, -1)
+
+            mean_state = model.get_mean_state(
+                par_states, normalized_weights).detach().cpu().numpy()
             filter_rmse = math.sqrt(pow(mean_state[0] - curr_state[0], 2) + pow(mean_state[1] - curr_state[1], 2))
             rmse_per_step[step] += filter_rmse
             filter_dist += filter_rmse
@@ -171,7 +196,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             if step % 3 == 0:
                 cond = (curr_state[1] <= 0.5)
                 target = cond * env.target1 + (1 - cond) * env.target2
-                print(step, curr_state, target, action)
+                print(step, curr_state, mean_state, target, action)
             if env.done:
                 break
 
@@ -279,7 +304,7 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(1000):
+        for batch in range(100):
             state_batch, obs_batch, par_batch = env.make_batch(64)
             # Pull a random state and observation from the batch
             # curr_state = random.choice(state_batch)
