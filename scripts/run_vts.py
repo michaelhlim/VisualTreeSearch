@@ -156,18 +156,19 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             # Transition Model
             par_states = env.transition(par_states, action)
 
-            #######################################
+            #######################################            
             curr_state = next_state
             curr_obs = next_obs
             hidden = 0
             cell = 0
             trajectory.append(next_state)
-            if env.done:
-                break
-
+            # Recording data
             time_this_step = toc - tic
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
+
+            if env.done:
+                break
 
         # TODO TRY BOTH MEAN AND NOT FOR THE LOSS PLOTS
         # Get the average loss of each model for this episode if we are training
@@ -232,6 +233,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
 
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
             episode, step, avg_reward_this_episode, avg_time_this_episode, sum(dist_list) / total_iter)
+        print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
 
@@ -244,7 +246,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
 def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "vts_indv"
+    settings = "data/vts_indv"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
     experiment_id = "vts" + get_datetime()

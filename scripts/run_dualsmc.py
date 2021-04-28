@@ -24,9 +24,7 @@ def dualsmc(model, experiment_id, foldername, train):
     ################################
     step_list = []
     dist_list = []
-    time_list_step = []
     time_list_episode = []
-    reward_list_step = []
     reward_list_episode = []
     episode_Z_loss = []
     episode_P_loss = []
@@ -53,6 +51,8 @@ def dualsmc(model, experiment_id, foldername, train):
         env = Environment()
         filter_dist = 0
         trajectory = []
+        time_list_step = []
+        reward_list_step = []
 
         hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
@@ -241,15 +241,16 @@ def dualsmc(model, experiment_id, foldername, train):
             #######################################
             curr_state = next_state
             curr_obs = next_obs
-            hidden = next_hidden.detach().cpu().numpy()
-            cell = next_cell.detach().cpu().numpy()
+            hidden = 0
+            cell = 0
             trajectory.append(next_state)
-            if env.done:
-                break
-
+            # Recording data
             time_this_step = toc - tic
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
+            
+            if env.done:
+                break
 
         # Get the average loss of each model for this episode if we are training
         if train:
@@ -315,6 +316,7 @@ def dualsmc(model, experiment_id, foldername, train):
 
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
             episode, step, avg_reward_this_episode, avg_time_this_episode, sum(dist_list) / total_iter)
+        print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
 
