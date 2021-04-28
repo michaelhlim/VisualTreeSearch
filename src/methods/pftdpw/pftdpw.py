@@ -74,14 +74,12 @@ class PFTDPW():
 
 	def transition_step(self, b, a):
 		# State transitions from the particles in b
-		states_tensor = np.array(b.states)
-		action = np.array(a)
-		next_states = self.env.transition(states_tensor, action)
+		states_tensor = b.states
+		weights_vector = b.weights
+		action = a
+		next_states, new_weights, rewards = self.env.transition(states_tensor, weights_vector, action)
 
-		# Getting rewards
-		rewards = self.env.reward(next_states)
-
-		return next_states, rewards
+		return next_states, new_weights, reward
 
 	def is_terminal(self, b):
 		# Check if the belief node is terminal (i.e. all particles are terminal)
@@ -93,29 +91,31 @@ class PFTDPW():
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
-		sp, rewards = self.transition_step(b.states, a)
+		sp, new_weights, reward = self.transition_step(b, a)
 
 		# Generate an observation from a random state
-		s_idx = np.random.choice(len(b.states), 1)
+		s_idx = np.random.choice(len(new_weights), 1, p = new_weights))
 		o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(device))
 
 		# Generate particle belief set
 		lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
 				o, self.n_par)
-		new_weights = np.multiply(np.array(b.weights), lik.detach().cpu().numpy())
-		r = np.dot(rewards, new_weights)
+		new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
+		new_weights = new_weights / np.sum(new_weights)
 
 		# Resample states (naive resampling)
 		sp = sp[np.random.choice(len(new_weights), len(new_weights), p = new_weights)]
-		resample_weights = [1/len(new_weights)] * len(new_weights)
-		bp = BeliefNode(states=sp.tolist(), weights=resample_weights)
+		resample_weights = np.array([1/len(new_weights)] * len(new_weights))
+		bp = BeliefNode(states=sp, weights=resample_weights)
 
-		return bp, r
+		return bp, reward
 
 	def rollout(self, b):
 		# Rollout simulation starting from belief b
 		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)]
-		return self.env.rollout(s)
+		ss = b.states
+		ws = b.weights
+		return self.env.rollout(s, ss, ws)
 
 	def solve(self, s, w):
 		# call plan when given states and weights

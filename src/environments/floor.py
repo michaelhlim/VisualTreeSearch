@@ -111,10 +111,17 @@ class Environment(AbstractEnvironment):
 
     def is_terminal(self, s):
         # Check if a given state tensor is a terminal state
-        cond = (self.state[1] <= 0.5)
-        target = cond * self.target1 + (1 - cond) * self.target2
+        cond = (s[:, 1] <= 0.5)
+        true_targets = np.zeros(np.shape(s))
+        for i in range(len(cond)):
+            if cond[i]:
+                true_targets[i, :] = self.target1
+            else:
+                true_targets[i, :] = self.target2
 
-        return all(l2_distance_np(s, target) <= END_RANGE)
+        true_dist = l2_distance_np(s, true_targets)
+        
+        return all(true_dist <= END_RANGE)
 
     def action_sample(self):
         # Gives back a uniformly sampled random action
@@ -128,9 +135,14 @@ class Environment(AbstractEnvironment):
 
         return action
 
-    def reward(self, s):
-        # Check if a given state tensor is a terminal state and give corresponding reward
-        cond = (self.state[:, 1] <= 0.5)
+    def transition(self, s, w, a):
+        # transition each state in state tensor s with actions in action/action tensor a
+        next_state = np.copy(s)
+        next_weights = np.copy(w)
+        sp = s + a
+        reward = 0.0
+
+        cond = (s[:, 1] <= 0.5)
         true_targets = np.zeros(np.shape(s))
         false_targets = np.zeros(np.shape(s))
         for i in range(len(cond)):
@@ -141,45 +153,34 @@ class Environment(AbstractEnvironment):
                 true_targets[i, :] = self.target2
                 false_targets[i, :] = self.false_target2
 
-        true_dist = l2_distance_np(s, true_targets)
-        false_dist = l2_distance_np(s, false_targets)
-
-        cond_true = (true_dist <= END_RANGE)
-        cond_false = (false_dist <= END_RANGE)
-
-        reward = EPI_REWARD * cond_true - EPI_REWARD * cond_false + STEP_REWARD * np.logical_not((cond_true | cond_false))
-
-        return reward
-
-    def transition(self, s, a):
-        # transition each state in state tensor s with actions in action/action tensor a
-        next_state = np.copy(s)
-        sp = s + a
-
-        cond = (self.state[:, 1] <= 0.5)
-        true_targets = np.zeros(np.shape(s))
-        for i in range(len(cond)):
-            if cond[i]:
-                true_targets[i, :] = self.target1
-            else:
-                true_targets[i, :] = self.target2
-
-        next_dist = l2_distance_np(sp, true_targets)
+        next_true_dist = l2_distance_np(sp, true_targets)
+        curr_false_dist = l2_distance_np(s, false_targets)
+        next_false_dist = l2_distance_np(sp, false_targets)
         cond_hit = detect_collision(s, sp)
 
-        for i in range(len(next_dist)):
-            if next_dist[i] <= END_RANGE:
+        for i in range(len(next_true_dist)):
+            if next_true_dist[i] <= END_RANGE:
                 next_state[i, :] = sp[i, :]
-            elif cond_hit[i] == False:
-                next_state[i, :] = sp[i, :]
-                
-        return next_state
+                next_weights[i] = 0.0
+                reward += w[i] * EPI_REWARD
+            else:
+                if cond_hit[i] == False:
+                    next_state[i, :] = sp[i, :]
 
-    def rollout(self, s):
-        # Roll out from state s, calculating the naive distance & reward to the goal       
-        cond = (curr_state[1] <= 0.5)
+                if curr_false_dist[i] > END_RANGE and next_false_dist[i] <= END_RANGE:
+                    reward -= w[i] * EPI_REWARD
+                else:
+                    reward += w[i] * STEP_REWARD
+
+        w = w / np.sum(w)
+                
+        return next_state, w, reward
+
+    def rollout(self, s, ss, ws):
+        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        cond = (s[1] <= 0.5)
         target = cond * self.target1 + (1 - cond) * self.target2
-        dist = np.sqrt(l2_distance(state, target))
+        dist = np.sqrt(l2_distance(s, target))
         steps = np.floor(dist/STEP_RANGE)
         
         gamma = 1.0
@@ -189,7 +190,9 @@ class Environment(AbstractEnvironment):
             reward += gamma * STEP_REWARD
             gamma *= DISCOUNT
 
-        reward += gamma * EPI_REWARD
+        # Basically check if the targets are same (1) or different (-1)
+        cond_all = -2 * (cond ^ (ss[:, 1] <= 0.5)) + 1
+        reward += np.dot(cond_all, ws) * EPI_REWARD
 
         return reward
 
