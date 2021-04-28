@@ -17,7 +17,7 @@ FIL_LR = 1e-3 # filtering
 PLA_LR = 1e-3 # planning
 SAVE_ITER = 100
 SUMMARY_ITER = 10000
-DISPLAY_ITER = 10
+DISPLAY_ITER = 1
 SHOW_TRAJ = True
 SHOW_DISTR = False
 

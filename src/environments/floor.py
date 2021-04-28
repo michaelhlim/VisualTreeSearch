@@ -289,10 +289,18 @@ class Environment(AbstractEnvironment):
 
             obs = self.get_observation_batch(state[0], state[1])
 
+            par_vec_x = np.random.normal(state[0], OBS_STD, NUM_PAR_PF)
+            par_vec_y = np.random.normal(state[1], OBS_STD, NUM_PAR_PF)
             states_batch.append(state)
             obs_batch.append(obs)
+            middle_var = np.stack((par_vec_x, par_vec_y), 1)
+
+            if i == 0:
+                par_batch = middle_var
+            else:
+                par_batch = np.concatenate((par_batch, middle_var), 0)
 
         states_batch = np.array(states_batch)
         obs_batch = np.array(obs_batch)
 
-        return states_batch, obs_batch
+        return states_batch, obs_batch, par_batch

@@ -309,7 +309,9 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         proposer_loss = []
         # First we'll do train individually for 64 batches
         for batch in range(10000):
-            state_batch, obs_batch, par_batch = env.make_batch(64)
+            walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
+                         0, 0, 0]  # wall 0 means no wall
+            state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
 
             # Train Z and P using the soft q update function
             Z_loss, P_loss = model.soft_q_update_individual(

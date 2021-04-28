@@ -1,6 +1,6 @@
 ######################
 # Planning
-NUM_QUERY = 1
+NUM_QUERY = 100
 UCB_EXPLORATION = 10.0
 K_OBSERVATION = 5.0
 ALPHA_OBSERVATION = 0.1
