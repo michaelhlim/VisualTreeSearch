@@ -125,8 +125,7 @@ class ObservationGenerator(nn.Module):
 
         return loss
 
-
-    def pretrain(self):
+    def pretrain(self, save_model, save_path):
         print("Pretraining observation generator")
         optimizer = self.configure_optimizers()
         self.training_losses = []
@@ -175,8 +174,11 @@ class ObservationGenerator(nn.Module):
 
         t1 = time.time()
 
-        if cvae_params.save_model:
-            torch.save(self.state_dict(), cvae_params.save_path + str(time.time()))
+        if save_model:
+            torch.save(self.state_dict(), save_path + "/gen_pre_trained")
+            print("Saving pre-trained generative model to %s" %
+                  (save_path + "/gen_pre_trained"))
+
 
         print("Done pretraining")
 

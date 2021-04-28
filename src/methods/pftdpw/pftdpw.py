@@ -79,9 +79,9 @@ class PFTDPW():
 		states_tensor = b.states
 		weights_vector = b.weights
 		action = a
-		next_states, new_weights, reward = self.env.transition(states_tensor, weights_vector, action)
+		next_states, new_weights, reward, is_terminal = self.env.transition(states_tensor, weights_vector, action)
 
-		return next_states, new_weights, reward
+		return next_states, new_weights, reward, is_terminal
 
 	def is_terminal(self, b):
 		# Check if the belief node is terminal (i.e. all particles are terminal)
@@ -93,22 +93,26 @@ class PFTDPW():
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
-		sp, new_weights, reward = self.transition_step(b, a)
+		sp, new_weights, reward, is_terminal = self.transition_step(b, a)
 
-		# Generate an observation from a random state
-		s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
-		o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(device))
+		if is_terminal:
+			dummy_weights = np.array([1/len(new_weights)] * len(new_weights))
+			bp = BeliefNode(states=sp, weights=dummy_weights)
+		else:
+			# Generate an observation from a random state
+			s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
+			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(device))
 
-		# Generate particle belief set
-		lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
-				o, 0, 0, self.n_par)
-		new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
-		new_weights = new_weights / np.sum(new_weights)
+			# Generate particle belief set
+			lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
+					o, 0, 0, self.n_par)
+			new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
+			new_weights = new_weights / np.sum(new_weights)
 
-		# Resample states (naive resampling)
-		sp = sp[np.random.choice(len(new_weights), len(new_weights), p = new_weights)]
-		resample_weights = np.array([1/len(new_weights)] * len(new_weights))
-		bp = BeliefNode(states=sp, weights=resample_weights)
+			# Resample states (naive resampling)
+			sp = sp[np.random.choice(len(new_weights), len(new_weights), p = new_weights)]
+			resample_weights = np.array([1/len(new_weights)] * len(new_weights))
+			bp = BeliefNode(states=sp, weights=resample_weights)
 
 		return bp, reward
 
@@ -146,6 +150,8 @@ class PFTDPW():
 				best_q = self.tree.q[child]
 				best_a = child
 
+		if best_a == None:
+			print("hmmm")
 		return best_a
 
 	def simulate(self, b_id, d):

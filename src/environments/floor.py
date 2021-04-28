@@ -161,7 +161,7 @@ class Environment(AbstractEnvironment):
         # Check collision & goal
         cond_hit = detect_collision(s, sp)
         goal_achieved = (next_true_dist <= END_RANGE)
-        step_ok = (cond_hit | goal_achieved)
+        step_ok = (~cond_hit | goal_achieved)
 
         # Check false goal
         false_goal = (curr_false_dist > END_RANGE) * (next_false_dist <= END_RANGE)
@@ -178,10 +178,17 @@ class Environment(AbstractEnvironment):
         # Else
         reward += np.sum(w[normal_step]) * STEP_REWARD
 
-        # Reweight
-        next_weights = next_weights / np.sum(next_weights)
+        # Is the transition terminal?
+        is_terminal = all(goal_achieved)
+
+        if is_terminal:
+            # Dummy weight
+            next_weights = np.array([1/len(next_weights)] * len(next_weights))  
+        else:
+            # Reweight
+            next_weights = next_weights / np.sum(next_weights)
                 
-        return next_state, next_weights, reward
+        return next_state, next_weights, reward, is_terminal
 
     def rollout(self, s, ss, ws):
         # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles

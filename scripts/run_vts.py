@@ -180,7 +180,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
                     step_G_loss.append(obs_gen_loss.item())
             #######################################
             # Transition Model
-            par_states, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
+            par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
 
             #######################################            
             curr_state = next_state
@@ -273,15 +273,13 @@ def vts(model, observation_generator, experiment_id, foldername, train):
     file2.close()
 
 
-def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "data/vts_indv"
-    foldername = settings + get_datetime()
-    os.mkdir(foldername)
     experiment_id = "vts" + get_datetime()
-    save_path = CKPT + experiment_id
-    check_path(save_path)
+    foldername = "data/" + experiment_id
+    check_path(foldername)
+    save_path = "data/nets/" + experiment_id
 
     # Create a model and environment object
     model = VTS()
@@ -291,7 +289,9 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
 
     # Let the user load in a previous model
     if load_path is not None:
-        model.load_model(load_path)
+        cwd = os.getcwd()
+        model.load_model(cwd + "/data/nets/" + load_path)
+        observation_generator.load_model(cwd + "/data/nets/" + gen_load_path)
 
     # This is where we need to perform individual training (if the user wants).
     # The process for this is to (1) create a observation and state batch.
@@ -304,33 +304,28 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(5000):
+        for batch in range(100):
             state_batch, obs_batch, par_batch = env.make_batch(64)
-            # Pull a random state and observation from the batch
-            # curr_state = random.choice(state_batch)
-            # curr_obs = random.choice(obs_batch)
-            curr_state = state_batch
-            curr_obs = obs_batch
-
-            # Create the current particle variable for soft q update
-            curr_s = par_batch
 
             # Train Z and P using the soft q update function
-            Z_loss, P_loss = model.soft_q_update_individual(curr_state, curr_obs, curr_s)
+            Z_loss, P_loss = model.soft_q_update_individual(
+                state_batch, obs_batch, par_batch)
             measure_loss.append(Z_loss.item())
             proposer_loss.append(P_loss.item())
 
-            # Print loss and stuff
+            # Print loss and stuff for the last $print_freq batches
             if batch % print_freq == 0:
-                print(batch, np.mean(measure_loss), np.mean(proposer_loss))
+                print(batch, np.mean(
+                    measure_loss[-50:]), np.mean(proposer_loss[-50:]))
 
         # Observation generative model
-        training_time = observation_generator.pretrain()
+        training_time = observation_generator.pretrain(save_pretrained_model, save_path)
 
         if save_pretrained_model:
-            model_path = save_path + "pre_trained"
+            check_path(save_path)
+            model_path = save_path + "/dpf_pre_trained"
             model.save_model(model_path)
-            print("saving pre-trained model to %s" % model_path)
+            print("Saving pre-trained Z, P models to %s" % model_path)
 
     if end_to_end:
         train = True
@@ -339,8 +334,9 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
 
     if save_model:
         # Save the model
-        model.save_model(save_path + "after_training")
-        print("saving model to %s" % save_path)
+        check_path(save_path)
+        model.save_model(save_path + "/dpf_online_trained")
+        print("Saving online trained Z, P models to %s" % save_path)
 
     if test:
         train = False
@@ -349,5 +345,7 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        vts_driver()
+        vts_driver(load_path="vts0428074103/dpf_pre_trained",
+                   gen_load_path="vts0428074103/gen_pre_trained", pre_training=False)
+        # vts_driver()
 
