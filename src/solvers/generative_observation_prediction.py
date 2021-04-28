@@ -35,7 +35,7 @@ class ObservationGenerator(nn.Module):
             nn.Linear(dim_hidden, dim_hidden),
             nn.LeakyReLU(leak_rate),
             nn.Linear(dim_hidden, enc_out_dim),
-            nn.LeakyReLU(leak_rate))
+            nn.LeakyReLU(leak_rate)).to(device)
 
         self.decoder = nn.Sequential(
             nn.Linear(DIM_STATE + latent_dim, dim_hidden),
@@ -47,17 +47,16 @@ class ObservationGenerator(nn.Module):
             nn.Linear(dim_hidden, dim_hidden),
             nn.LeakyReLU(leak_rate),
             nn.Linear(dim_hidden, DIM_OBS),
-            nn.LeakyReLU(leak_rate))
+            nn.LeakyReLU(leak_rate)).to(device)
 
         # distribution parameters
-        self.fc_mu = nn.Linear(enc_out_dim, latent_dim)
-        self.fc_var = nn.Linear(enc_out_dim, latent_dim)
+        self.fc_mu = nn.Linear(enc_out_dim, latent_dim).to(device)
+        self.fc_var = nn.Linear(enc_out_dim, latent_dim).to(device)
 
         # for the gaussian likelihood
-        self.log_scale = nn.Parameter(torch.Tensor([0.0]))
+        self.log_scale = nn.Parameter(torch.Tensor([0.0])).to(device)
 
         self.env = Environment()
-        self.replay_buffer = ReplayMemory(replay_buffer_size)
 
         self.optimizer = self.configure_optimizers()
 
@@ -78,24 +77,24 @@ class ObservationGenerator(nn.Module):
 
     def training_step(self, state_batch, obs_batch):
         # encode x to get the mu and variance parameters
-        encoder_input = torch.cat([state_batch, obs_batch], -1)  # [batch_size, dim_state + dim_obs]
-        obs_encoded = self.encoder(encoder_input)  # [batch_size, enc_out_dim]
+        encoder_input = torch.cat([state_batch, obs_batch], -1).to(device)  # [batch_size, dim_state + dim_obs]
+        obs_encoded = self.encoder(encoder_input).to(device)  # [batch_size, enc_out_dim]
         mu, log_var = self.fc_mu(obs_encoded), self.fc_var(obs_encoded)  # [batch_size, latent_dim]
 
         # sample z from q
         std = torch.exp(log_var / 2)
         q = torch.distributions.Normal(mu, std)
         z = q.rsample()  # [batch_size, latent_dim]
-        decoder_input = torch.cat([state_batch, z], -1)  # [batch_size, latent_dim + dim_state]
+        decoder_input = torch.cat([state_batch.to(device), z], -1).to(device)  # [batch_size, latent_dim + dim_state]
 
         # decoded
-        obs_hat = self.decoder(decoder_input)  # [batch_size, dim_obs]
+        obs_hat = self.decoder(decoder_input).to(device)  # [batch_size, dim_obs]
 
         # reconstruction loss
-        recon_loss = self.gaussian_likelihood(obs_hat, self.log_scale, obs_batch) # [batch_size]
+        recon_loss = self.gaussian_likelihood(obs_hat, self.log_scale, obs_batch.to(device)) # [batch_size]
 
         if cvae_params.calibration:
-            log_sigma = ((obs_batch - obs_hat) ** 2).mean([0, 1], keepdim=True).sqrt().log()
+            log_sigma = ((obs_batch.to(device) - obs_hat) ** 2).mean([0, 1], keepdim=True).sqrt().log()
 
             def softclip(tensor, min):
                 """ Clips the tensor values at the minimum value min in a softway. Taken from Handful of Trials """
@@ -104,7 +103,7 @@ class ObservationGenerator(nn.Module):
                 return result_tensor
 
             log_sigma = softclip(log_sigma, -6)
-            rec = self.gaussian_likelihood(obs_hat, log_sigma, obs_batch)  # [batch_size]
+            rec = self.gaussian_likelihood(obs_hat, log_sigma, obs_batch.to(device))  # [batch_size]
             recon_loss = rec
 
         # kl
@@ -118,12 +117,7 @@ class ObservationGenerator(nn.Module):
         return elbo, kl.mean(), recon_loss.mean()
 
 
-    def online_training(self):
-        state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
-        obs, curr_par, mean_state, pf_sample = self.replay_buffer.sample(cvae_params.batch_size)
-        state_batch = torch.FloatTensor(state_batch)
-        obs_batch = torch.FloatTensor(obs)
-
+    def online_training(self, state_batch, obs_batch):
         self.optimizer.zero_grad()
         loss, kl, recon = self.training_step(state_batch, obs_batch)
         loss.backward()
@@ -194,7 +188,7 @@ class ObservationGenerator(nn.Module):
         pz = torch.distributions.Normal(torch.zeros(batch_size, cvae_params.latent_dim),
                                         torch.ones(batch_size, cvae_params.latent_dim))
         z = pz.rsample()  # [batch_size, latent_dim]
-        decoder_input = torch.cat([states_batch, z], -1)  # [batch_size, latent_dim + dim_state]
+        decoder_input = torch.cat([states_batch, z], -1).to(device)  # [batch_size, latent_dim + dim_state]
 
         obs_hat = self.decoder(decoder_input.detach()) # [batch_size, dim_obs]
 
@@ -259,11 +253,11 @@ class ObservationGenerator(nn.Module):
 
         obs_hat = self.sample(batch_size, states_batch)
 
-        obs_predicted_mean = np.mean(obs_hat[:, :2].detach().numpy(), axis=0)
-        obs_predicted_std = np.std(obs_hat[:, :2].detach().numpy(), axis=0)
+        obs_predicted_mean = np.mean(obs_hat[:, :2].detach().cpu().numpy(), axis=0)
+        obs_predicted_std = np.std(obs_hat[:, :2].detach().cpu().numpy(), axis=0)
         if DIM_OBS == 4:
-            rest_predicted_mean = np.mean(obs_hat[:, 2:4].detach().numpy(), axis=0)
-            rest_predicted_std = np.std(obs_hat[:, 2:4].detach().numpy(), axis=0)
+            rest_predicted_mean = np.mean(obs_hat[:, 2:4].detach().cpu().numpy(), axis=0)
+            rest_predicted_std = np.std(obs_hat[:, 2:4].detach().cpu().numpy(), axis=0)
         else:
             rest_predicted_mean = None
             rest_predicted_std = None
@@ -339,12 +333,12 @@ class ObservationGenerator(nn.Module):
 
             plt.scatter([state[0][0]], [state[0][1]], color='k')
             plt.scatter([obs[0] for obs in obs_batch], [obs[1] for obs in obs_batch], color='g')
-            plt.scatter([obs[0] for obs in obs_hat.detach().numpy()],
-                        [obs[1] for obs in obs_hat.detach().numpy()], color='r')
+            plt.scatter([obs[0] for obs in obs_hat.detach().cpu().numpy()],
+                        [obs[1] for obs in obs_hat.detach().cpu().numpy()], color='r')
             if DIM_OBS == 4:
                 plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='b')
-                plt.scatter([obs[2] for obs in obs_hat.detach().numpy()],
-                            [obs[3] for obs in obs_hat.detach().numpy()], color='m')
+                plt.scatter([obs[2] for obs in obs_hat.detach().cpu().numpy()],
+                            [obs[3] for obs in obs_hat.detach().cpu().numpy()], color='m')
             plt.show()
 
         print("OBS_MEAN_DIFF\n", mean_diff)
@@ -356,10 +350,10 @@ class ObservationGenerator(nn.Module):
 
 
 ##################### TESTING ###########################
-cvae = ObservationGenerator()
-t = cvae.pretrain()
-print("Time to pretrain", str(t))
-cvae.test_with_prints()
-cvae.plot_training_losses()
-cvae.plot_testing_losses()
+#cvae = ObservationGenerator()
+#t = cvae.pretrain()
+#print("Time to pretrain", str(t))
+#cvae.test_with_prints()
+#cvae.plot_training_losses()
+#cvae.plot_testing_losses()
 
