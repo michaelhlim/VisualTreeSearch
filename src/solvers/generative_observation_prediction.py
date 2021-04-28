@@ -11,7 +11,7 @@ from configs.environments.floor import *
 from configs.solver.observation_generation import *
 from configs.solver.dualsmc import *
 
-from src.environments.env import *
+from src.environments.floor import *
 from src.methods.dualsmc_nolstm.replay_memory import *
 
 cvae_params = CVAE_Params()

@@ -13,8 +13,8 @@ STEP_RANGE = 0.05
 MAX_STEPS = 200
 DISCOUNT = 0.95
 FIG_FORMAT = '.png'
-IMG = 'img/'
-CKPT = 'ckpt/'
+IMG = 'data/img/'
+CKPT = 'data/ckpt/'
 device = 'cuda'
 
 
