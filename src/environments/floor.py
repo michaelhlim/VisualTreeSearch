@@ -181,7 +181,7 @@ class Environment(AbstractEnvironment):
         cond = (s[1] <= 0.5)
         target = cond * self.target1 + (1 - cond) * self.target2
         dist = np.sqrt(l2_distance(s, target))
-        steps = np.floor(dist/STEP_RANGE)
+        steps = int(np.floor(dist/STEP_RANGE))
         
         gamma = 1.0
         reward = 0.0

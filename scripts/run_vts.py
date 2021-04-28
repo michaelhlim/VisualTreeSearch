@@ -115,7 +115,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             tic = time.perf_counter()
             #######################################
             # Planning
-            action = pft_planner.plan(par_states, normalized_weights.detach().cpu().numpy())
+            states_init = par_states
+            action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
 
             mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
             filter_rmse = math.sqrt(pow(mean_state[0] - curr_state[0], 2) + pow(mean_state[1] - curr_state[1], 2))
@@ -154,7 +155,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
                     step_G_loss.append(obs_gen_loss.item())
             #######################################
             # Transition Model
-            par_states = env.transition(par_states, action)
+            par_states, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
 
             #######################################
             curr_state = next_state
@@ -244,7 +245,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
 def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "vts_indv"
+    settings = "data/vts_indv"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
     experiment_id = "vts" + get_datetime()
@@ -271,7 +272,7 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(5000):
+        for batch in range(50):
             state_batch, obs_batch, par_batch = env.make_batch(64)
             # Pull a random state and observation from the batch
             # curr_state = random.choice(state_batch)
@@ -312,5 +313,5 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        dualsmc_driver()
+        vts_driver()
 

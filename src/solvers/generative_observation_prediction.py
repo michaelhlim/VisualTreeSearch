@@ -187,8 +187,8 @@ class ObservationGenerator(nn.Module):
     def sample(self, batch_size, states_batch):
         pz = torch.distributions.Normal(torch.zeros(batch_size, cvae_params.latent_dim),
                                         torch.ones(batch_size, cvae_params.latent_dim))
-        z = pz.rsample()  # [batch_size, latent_dim]
-        decoder_input = torch.cat([states_batch, z], -1).to(device)  # [batch_size, latent_dim + dim_state]
+        z = pz.rsample().to(device)  # [batch_size, latent_dim]
+        decoder_input = torch.cat([states_batch.to(device), z], -1)  # [batch_size, latent_dim + dim_state]
 
         obs_hat = self.decoder(decoder_input.detach()) # [batch_size, dim_obs]
 

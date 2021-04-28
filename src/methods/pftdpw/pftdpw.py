@@ -70,6 +70,8 @@ class PFTDPW():
 
 	def insert_transition(self, a_id, bp_id, r):
 		# Insert a new transition a_id -> bp_id (Basically inserting (b,a) -> b', r)
+		if self.tree.transitions.get(a_id, -1) == -1:
+			self.tree.transitions[a_id] = []
 		self.tree.transitions[a_id].append((bp_id, r))
 
 	def transition_step(self, b, a):
@@ -77,7 +79,7 @@ class PFTDPW():
 		states_tensor = b.states
 		weights_vector = b.weights
 		action = a
-		next_states, new_weights, rewards = self.env.transition(states_tensor, weights_vector, action)
+		next_states, new_weights, reward = self.env.transition(states_tensor, weights_vector, action)
 
 		return next_states, new_weights, reward
 
@@ -94,12 +96,12 @@ class PFTDPW():
 		sp, new_weights, reward = self.transition_step(b, a)
 
 		# Generate an observation from a random state
-		s_idx = np.random.choice(len(new_weights), 1, p = new_weights))
+		s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
 		o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(device))
 
 		# Generate particle belief set
 		lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
-				o, self.n_par)
+				o, 0, 0, self.n_par)
 		new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
 		new_weights = new_weights / np.sum(new_weights)
 
@@ -112,7 +114,7 @@ class PFTDPW():
 
 	def rollout(self, b):
 		# Rollout simulation starting from belief b
-		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)]
+		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
 		ss = b.states
 		ws = b.weights
 		return self.env.rollout(s, ss, ws)
@@ -139,7 +141,7 @@ class PFTDPW():
 		# Find the best action from the root node
 		best_q = -np.inf
 		best_a = None
-		for child in child_actions[b_init]:
+		for child in self.tree.child_actions[b_init]:
 			if self.tree.q[child] > best_q:
 				best_q = self.tree.q[child]
 				best_a = child
@@ -188,7 +190,7 @@ class PFTDPW():
 
 		# State PW
 		new_node = False
-		if not self.tree.transitions[a_id] or len(self.tree.transitions[a_id]) <= self.k_obs * (self.tree.n_act_visits[a_id] ** self.alpha_obs):
+		if (self.tree.transitions.get(a_id, -1) == -1) or len(self.tree.transitions[a_id]) <= self.k_obs * (self.tree.n_act_visits[a_id] ** self.alpha_obs):
 			# If no state present or PW condition met, do PW
 			bp, r = self.particle_filter_step(b, a)
 			bp_id = self.insert_belief_node(bp)
@@ -196,11 +198,11 @@ class PFTDPW():
 			new_node = True
 		else:
 			# Otherwise pick a belief node at random
-			bp_id, r = self.tree.transitions[a_id][np.random.choice(range(len(self.tree.transitions[a_id])), 1)]
+			bp_id, r = self.tree.transitions[a_id][int(np.random.choice(range(len(self.tree.transitions[a_id])), 1))]
 
 		# Simulate recursively
 		if new_node:
-			q = r + self.discount * self.rollout(bp_id)
+			q = r + self.discount * self.rollout(bp)
 		else:
 			q = r + self.discount * self.simulate(bp_id, d-1)
 

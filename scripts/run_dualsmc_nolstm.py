@@ -24,9 +24,7 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
     ################################
     step_list = []
     dist_list = []
-    time_list_step = []
     time_list_episode = []
-    reward_list_step = []
     reward_list_episode = []
     episode_Z_loss = []
     episode_P_loss = []
@@ -53,6 +51,8 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
         env = Environment()
         filter_dist = 0
         trajectory = []
+        time_list_step = []
+        reward_list_step = []
 
         hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
@@ -267,10 +267,9 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
         avg_time_this_episode = tot_time / len(time_list_step)
         time_list_episode.append(avg_time_this_episode)
 
-        # Get the average reward this episode
+        # Get the total reward this episode
         tot_reward = sum(reward_list_step)
-        avg_reward_this_episode = tot_reward / len(reward_list_step)
-        reward_list_episode.append(avg_reward_this_episode)
+        reward_list_episode.append(tot_reward)
 
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
@@ -288,10 +287,11 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
         if episode % DISPLAY_ITER == 0:
             episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
             st2 = img_path + "/" + str(episode)
+            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
             if train:
-                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode)
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
-                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode)
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
             print("plotting ... save to %s" % st)
             plot_maze(figure_name=st, states=np.array(trajectory))
@@ -315,7 +315,8 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
             total_iter = episode
 
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, avg_reward_this_episode, avg_time_this_episode, sum(dist_list) / total_iter)
+            episode, step, tot_reward, avg_time_this_episode, sum(dist_list) / total_iter)
+        print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
 
@@ -328,7 +329,7 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
 def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "dualsmc_nolstm_indv"
+    settings = "data/dualsmc_nolstm_indv"
     foldername = settings + get_datetime()
     os.mkdir(foldername)
     experiment_id = "dualsmc" + get_datetime()
@@ -355,7 +356,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(5000):
+        for batch in range(50):
             state_batch, obs_batch, par_batch = env.make_batch(64)
             # Pull a random state and observation from the batch
             # curr_state = random.choice(state_batch)
@@ -375,7 +376,7 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
         training_time = observation_generator.pretrain()
 
         if save_pretrained_model:
-            model_path = save_path + "pre_trained_" + str(pre_training)
+            model_path = save_path + "pre_trained"
             model.save_model(model_path)
             print("saving pre-trained model to %s" % model_path)
 
@@ -396,5 +397,6 @@ def dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        dualsmc_driver()
+        dualsmc_driver(load_path=None, pre_training=True, save_pretrained_model=True,
+                   end_to_end=True, save_model=True, test=True)
 

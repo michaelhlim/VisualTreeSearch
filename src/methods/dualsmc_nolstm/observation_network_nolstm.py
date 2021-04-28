@@ -39,7 +39,7 @@ class MeasureNetwork(nn.Module):
             nn.Sigmoid()
         )
 
-    def m_model(self, state, obs, num_par=NUM_PAR_PF):
+    def m_model(self, state, obs, hidden, cell, num_par=NUM_PAR_PF):
         # state: (B * K, dim_s)
         # obs: (B, dim_s)
         obs_enc = self.obs_encode(obs)  # (batch, dim_hidden)
