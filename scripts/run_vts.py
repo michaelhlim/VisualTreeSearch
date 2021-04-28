@@ -168,17 +168,20 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
 
-            if step % 5 == 0:
-                print(step, curr_state, action)
+            if step % 3 == 0:
+                cond = (curr_state[1] <= 0.5)
+                target = cond * env.target1 + (1 - cond) * env.target2
+                print(step, curr_state, target, action)
             if env.done:
                 break
 
         # TODO TRY BOTH MEAN AND NOT FOR THE LOSS PLOTS
         # Get the average loss of each model for this episode if we are training
         if train:
-            episode_P_loss.append(mean(step_P_loss))
-            episode_Z_loss.append(mean(step_Z_loss))
-            episode_G_loss.append(mean(step_G_loss))
+            if len(model.replay_buffer) > BATCH_SIZE:
+                episode_P_loss.append(mean(step_P_loss))
+                episode_Z_loss.append(mean(step_Z_loss))
+                episode_G_loss.append(mean(step_G_loss))
 
         # Get the sum of the episode time
         tot_time = sum(time_list_step)
@@ -271,12 +274,12 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
     # soft_q_update function
 
     if pre_training:
-        print("Beginning pre-training")
+        print("Pretraining observation density and particle proposer")
         print_freq = 50
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(50):
+        for batch in range(1000):
             state_batch, obs_batch, par_batch = env.make_batch(64)
             # Pull a random state and observation from the batch
             # curr_state = random.choice(state_batch)
@@ -300,7 +303,7 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
         training_time = observation_generator.pretrain()
 
         if save_pretrained_model:
-            model_path = save_path + "pre_trained_" + str(pre_training)
+            model_path = save_path + "pre_trained"
             model.save_model(model_path)
             print("saving pre-trained model to %s" % model_path)
 

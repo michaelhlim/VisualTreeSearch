@@ -1,6 +1,0 @@
-
-Episode 1: steps = 199, reward = 0, avg_plan_time = 0.2803322431910783, avg_dist = 0.1730930538439939
-Episode 2: steps = 39, reward = 100, avg_plan_time = 0.2868645932059735, avg_dist = 0.11865996215719586
-Episode 3: steps = 57, reward = 100, avg_plan_time = 0.28172222149140874, avg_dist = 0.12258128746542107
-Episode 4: steps = 20, reward = 100, avg_plan_time = 0.28596798002365087, avg_dist = 0.10670169841900523
-Episode 5: steps = 161, reward = 100, avg_plan_time = 0.2852647387779053, avg_dist = 0.18131806664487932

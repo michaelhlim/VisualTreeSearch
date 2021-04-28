@@ -1,2 +1,0 @@
-
-Episode 1: steps = 123, reward = 100, avg_plan_time = 0.2966522468974994, avg_dist = 0.38320521889112596
