@@ -245,12 +245,13 @@ def dualsmc(model, observation_generator, experiment_id, foldername, train):
             hidden = 0
             cell = 0
             trajectory.append(next_state)
-            if env.done:
-                break
-
+            # Recording data
             time_this_step = toc - tic
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
+            
+            if env.done:
+                break
 
         # TODO TRY BOTH MEAN AND NOT FOR THE LOSS PLOTS
         # Get the average loss of each model for this episode if we are training
