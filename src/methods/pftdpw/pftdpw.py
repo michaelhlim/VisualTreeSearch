@@ -8,8 +8,8 @@ from configs.solver.pftdpw import *
 
 @dataclass
 class BeliefNode:
-	states: list # List of lists of floats
-	weights: list # List of floats
+	states: list # List of lists of floats (it's ok to put in numpy array)
+	weights: list # List of floats (it's ok to put in numpy array)
 
 
 @dataclass
