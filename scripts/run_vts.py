@@ -160,7 +160,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
                 frm_name = traj_dir + '/' + file_name + '_par' + FIG_FORMAT
 
                 if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
-                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, smc_xy)
+                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, None)
 
             #######################################
             # Update the environment
@@ -233,7 +233,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
 
         if episode % DISPLAY_ITER == 0:
             episode_list = [episode_P_loss, episode_Z_loss, episode_G_loss]
-            st2 = img_path + "/" + str(episode)
+            st2 = img_path + "/" 
             name_list = ['particle_loss', 'observation_loss', 'generative_loss']
             if train:
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
@@ -249,8 +249,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
                 total_iter = episode
 
             interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, mean(step_list), stdev(step_list), mean(reward_list_episode), stdev(reward_list_episode),
-                mean(time_list_episode), stdev(time_list_episode), mean(dist_list), stdev(dist_list))
+                episode, np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
@@ -262,7 +262,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             total_iter = episode
 
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, tot_reward, avg_time_this_episode, sum(dist_list) / total_iter)
+            episode, step, tot_reward, avg_time_this_episode, np.sum(dist_list) / total_iter)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
@@ -304,7 +304,7 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(100):
+        for batch in range(5000):
             state_batch, obs_batch, par_batch = env.make_batch(64)
             # Pull a random state and observation from the batch
             # curr_state = random.choice(state_batch)
