@@ -26,9 +26,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
     ################################
     step_list = []
     dist_list = []
-    time_list_step = []
     time_list_episode = []
-    reward_list_step = []
     reward_list_episode = []
     episode_Z_loss = []
     episode_P_loss = []
@@ -53,6 +51,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
         env = Environment()
         filter_dist = 0
         trajectory = []
+        time_list_step = []
+        reward_list_step = []
 
         hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
@@ -168,6 +168,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
 
+            if step % 5 == 0:
+                print(step, curr_state, action)
             if env.done:
                 break
 
@@ -184,10 +186,9 @@ def vts(model, observation_generator, experiment_id, foldername, train):
         avg_time_this_episode = tot_time / len(time_list_step)
         time_list_episode.append(avg_time_this_episode)
 
-        # Get the average reward this episode
+        # Get the total reward this episode
         tot_reward = sum(reward_list_step)
-        avg_reward_this_episode = tot_reward / len(reward_list_step)
-        reward_list_episode.append(avg_reward_this_episode)
+        reward_list_episode.append(tot_reward)
 
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
@@ -233,7 +234,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             total_iter = episode
 
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, avg_reward_this_episode, avg_time_this_episode, sum(dist_list) / total_iter)
+            episode, step, tot_reward, avg_time_this_episode, sum(dist_list) / total_iter)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
@@ -271,6 +272,7 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
 
     if pre_training:
         print("Beginning pre-training")
+        print_freq = 50
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
@@ -287,8 +289,12 @@ def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
 
             # Train Z and P using the soft q update function
             Z_loss, P_loss = model.soft_q_update_individual(curr_state, curr_obs, curr_s)
-            measure_loss.append(Z_loss)
-            proposer_loss.append(P_loss)
+            measure_loss.append(Z_loss.item())
+            proposer_loss.append(P_loss.item())
+
+            # Print loss and stuff
+            if batch % print_freq == 0:
+                print(batch, np.mean(measure_loss), np.mean(proposer_loss))
 
         # Observation generative model
         training_time = observation_generator.pretrain()

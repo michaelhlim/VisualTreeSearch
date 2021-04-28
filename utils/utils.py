@@ -16,7 +16,7 @@ def check_path(path):
 
 def get_datetime():
     currentDT = datetime.datetime.now()
-    return currentDT.strftime("%m%d%H%M")
+    return currentDT.strftime("%m%d%H%M%S")
 
 
 def detect_collision(curr_state, next_state):

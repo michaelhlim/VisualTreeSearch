@@ -122,9 +122,9 @@ class PFTDPW():
 	def solve(self, s, w):
 		# call plan when given states and weights
 		b = BeliefNode(states=s, weights=w)
-		a = self.plan(b)
+		a_id = self.plan(b)
 		
-		return a
+		return self.tree.action_ids[a_id]
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action

@@ -128,7 +128,7 @@ class Environment(AbstractEnvironment):
         rnd = int(random.random()*9)
 
         # No blank move
-        while rnd == 5:
+        while rnd == 4:
             rnd = int(random.random()*9)
 
         action = STEP_RANGE * np.array([(rnd % 3) - 1, (rnd // 3) - 1])

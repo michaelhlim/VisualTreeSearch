@@ -266,10 +266,9 @@ def dualsmc(model, experiment_id, foldername, train):
         avg_time_this_episode = tot_time / len(time_list_step)
         time_list_episode.append(avg_time_this_episode)
 
-        # Get the average reward this episode
+        # Get the total reward this episode
         tot_reward = sum(reward_list_step)
-        avg_reward_this_episode = tot_reward / len(reward_list_step)
-        reward_list_episode.append(avg_reward_this_episode)
+        reward_list_episode.append(tot_reward)
 
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
@@ -315,7 +314,7 @@ def dualsmc(model, experiment_id, foldername, train):
             total_iter = episode
 
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, avg_reward_this_episode, avg_time_this_episode, sum(dist_list) / total_iter)
+            episode, step, tot_reward, avg_time_this_episode, sum(dist_list) / total_iter)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
