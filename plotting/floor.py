@@ -172,6 +172,7 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Step plot block
     ##################
 
+    episode_number_list = np.linspace(1, len(step_list), len(step_list))
     path_str = figure_name + "step_plot" + FIG_FORMAT
     plt.figure(path_str)
     ax = plt.axes()
@@ -185,6 +186,7 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Reward plot block
     ##################
 
+    episode_number_list = np.linspace(1, len(reward_list), len(reward_list))
     path_str = figure_name + "reward_plot" + FIG_FORMAT
     plt.figure(path_str)
     ax = plt.axes()

@@ -369,14 +369,18 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
         # Right into online learning & testing
-        # vts_driver(load_path="test100k",
-        #            gen_load_path="test100k", pre_training=False)
+        # vts_driver(load_path="test500k",
+                #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
         # vts_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        vts_driver(end_to_end=False, save_online_model=False)
+        # vts_driver(end_to_end=False, save_online_model=False)
+
+        # Just testing
+        vts_driver(load_path="test500k",
+                   gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_driver()
