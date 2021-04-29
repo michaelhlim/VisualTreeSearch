@@ -237,7 +237,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
             step_list.pop(0)
             dist_list.pop(0)
 
-        if episode % SAVE_ITER == 0:
+        if episode % SAVE_ITER == 0 and train:
             model_path = save_path + '_' + str(episode)
             model.save_model(model_path)
             print("save model to %s" % model_path)
@@ -287,7 +287,7 @@ def vts(model, observation_generator, experiment_id, foldername, train):
 
 
 def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
-                   end_to_end=True, save_model=True, test=True):
+                   end_to_end=True, save_online_model=True, test=True):
     # This block of code creates the folders for plots
     experiment_id = "vts" + get_datetime()
     foldername = "data/" + experiment_id
@@ -356,7 +356,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         # After pretraining move into the end to end training
         vts(model, observation_generator, experiment_id, foldername, train)
 
-    if save_model:
+    if save_online_model:
         # Save the model
         model.save_model(save_path + "/dpf_online_trained")
         print("Saving online trained Z, P models to %s" % save_path)
@@ -369,10 +369,14 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
         # Right into online learning & testing
-        # vts_driver(load_path="test", gen_load_path="test", pre_training=False)
+        # vts_driver(load_path="test100k",
+        #            gen_load_path="test100k", pre_training=False)
 
         # Just pre-training
-        vts_driver(end_to_end=False, save_model=False, test=False)
+        # vts_driver(end_to_end=False, save_online_model=False, test=False)
+
+        # Pre-training immediately followed by testing
+        vts_driver(end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_driver()
