@@ -292,8 +292,11 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     experiment_id = "vts" + get_datetime()
     foldername = "data/" + experiment_id
     check_path(foldername)
-    save_path = "data/nets/" + experiment_id
+    save_path = "nets/" + experiment_id
     check_path(save_path)
+
+    check_path("data")
+    check_path("nets")
 
     # Create a model and environment object
     model = VTS()
@@ -304,8 +307,9 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/data/nets/" + load_path)
-        observation_generator.load_model(cwd + "/data/nets/" + gen_load_path)
+        model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained")
+        observation_generator.load_model(
+            cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
 
     # This is where we need to perform individual training (if the user wants).
     # The process for this is to (1) create a observation and state batch.
@@ -364,11 +368,11 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        # Right into online learning
-        vts_driver(load_path="test/dpf_pre_trained", gen_load_path="test/gen_pre_trained", pre_training=False)
+        # Right into online learning & testing
+        # vts_driver(load_path="test", gen_load_path="test", pre_training=False)
 
         # Just pre-training
-        # vts_driver(end_to_end=False, save_model=False, test=False)
+        vts_driver(end_to_end=False, save_model=False, test=False)
 
         # Everything
         # vts_driver()

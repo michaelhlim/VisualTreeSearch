@@ -107,10 +107,12 @@ class PFTDPW():
 			lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
 					o, 0, 0, self.n_par)
 			new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
-			new_weights = new_weights / np.sum(new_weights)
-
+			
 			# Resample states (naive resampling)
-			sp = sp[np.random.choice(len(new_weights), len(new_weights), p = new_weights)]
+			if np.sum(new_weights) > 0:
+				new_weights = new_weights / np.sum(new_weights)
+				sp = sp[np.random.choice(len(new_weights), len(new_weights), p = new_weights)]
+
 			resample_weights = np.array([1/len(new_weights)] * len(new_weights))
 			bp = BeliefNode(states=sp, weights=resample_weights)
 
