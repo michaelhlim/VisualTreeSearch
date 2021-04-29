@@ -23,9 +23,6 @@ from src.methods.dualsmc.gaussian_policy import *
 class VTS:
     def __init__(self):
         self.replay_buffer = ReplayMemory(replay_buffer_size)
-        self.gamma = gamma
-        self.tau = tau
-        self.alpha = alpha
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
         # Filtering

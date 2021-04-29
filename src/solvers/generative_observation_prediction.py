@@ -131,7 +131,11 @@ class ObservationGenerator(nn.Module):
         self.training_losses = []
         self.testing_errors = []
 
-        print_freq = 50
+        printing_losses = []
+        printing_kl = []
+        printing_recon = []
+
+        print_freq = 100
         test_freq = 100
 
         wall_step = 0 #int(2 * cvae_params.num_training_steps/3)
@@ -155,9 +159,22 @@ class ObservationGenerator(nn.Module):
             loss, kl, recon = self.training_step(state_batch, obs_batch)
             loss.backward()
             optimizer.step()
+
+            printing_losses.append(loss.item())
+            printing_kl.append(kl.item())
+            printing_recon.append(recon.item())
+
             if step % print_freq == 0:
-                print(step, loss.item(), kl.item(), recon.item())
+                # print(step, loss.item(), kl.item(), recon.item())
+                print("Step: ", step, ", G loss: ", np.mean(
+                    printing_losses), ", KL: ", np.mean(
+                    printing_kl), ", recon: ", np.mean(
+                    printing_recon),)
                 self.training_losses.append((step, loss.item()))
+
+                printing_losses = []
+                printing_kl = []
+                printing_recon = []
 
             if step % test_freq == 0:
                 # Testing

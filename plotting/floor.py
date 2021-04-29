@@ -141,9 +141,10 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Loss plot block
     ##################
     if episode_loss_list is not None:
-        num_records = len(episode_loss_list[0])
-        episode_number_list = np.linspace(1, num_records, num_records)
         for i in range(len(name_list)):
+            num_records = len(episode_loss_list[i])
+            episode_number_list = np.linspace(1, num_records, num_records)
+
             path_str = figure_name + name_list[i] + FIG_FORMAT
             plt.figure(path_str)
             ax = plt.axes()
@@ -157,6 +158,7 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Time plot block
     ##################
 
+    episode_number_list = np.linspace(1, len(time_list), len(time_list))
     path_str = figure_name + "time_plot" + FIG_FORMAT
     plt.figure(path_str)
     ax = plt.axes()

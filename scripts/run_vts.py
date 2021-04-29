@@ -36,17 +36,27 @@ def vts(model, observation_generator, experiment_id, foldername, train):
     ################################
     # Create logs for diagnostics
     ################################
-    save_path = CKPT + experiment_id
-    img_path = IMG + experiment_id
+    if train:
+        experiment_str = experiment_id + "/train"
+        folder_str = foldername + "/train"
+        num_loops = MAX_EPISODES_TRAIN
+    else:
+        experiment_str = experiment_id + "/test"
+        folder_str = foldername + "/test"
+        num_loops = MAX_EPISODES_TEST
+
+    save_path = CKPT + experiment_str
+    img_path = IMG + experiment_str
     check_path(save_path)
     check_path(img_path)
+    check_path(folder_str)
     str123 = experiment_id + ".txt"
     str1234 = experiment_id + "every_10_eps" + ".txt"
-    file1 = open(foldername + "/" + str123, 'w+')
-    file2 = open(foldername + "/" + str1234, 'w+')
+    file1 = open(folder_str + "/" + str123, 'w+')
+    file2 = open(folder_str + "/" + str1234, 'w+')
 
     # Begin main dualSMC loop
-    for episode in range(MAX_EPISODES):
+    for episode in range(num_loops):
         episode += 1
         env = Environment()
         filter_dist = 0
@@ -270,8 +280,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
         file1.write('\n{}'.format(interaction))
         file1.flush()
 
-    rmse_per_step = rmse_per_step / MAX_EPISODES
-    print(rmse_per_step)
+    rmse_per_step = rmse_per_step / num_loops
+    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
@@ -303,12 +313,13 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     # soft_q_update function
 
     if pre_training:
+        tic = time.perf_counter()
         print("Pretraining observation density and particle proposer")
-        print_freq = 50
+        print_freq = 100
         measure_loss = []
         proposer_loss = []
         # First we'll do train individually for 64 batches
-        for batch in range(10000):
+        for batch in range(PRETRAIN):
             walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
                          0, 0, 0]  # wall 0 means no wall
             state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
@@ -321,8 +332,8 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
             # Print loss and stuff for the last $print_freq batches
             if batch % print_freq == 0:
-                print(batch, np.mean(
-                    measure_loss[-50:]), np.mean(proposer_loss[-50:]))
+                print("Step: ", batch, ", Z loss: ", np.mean(
+                    measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
 
         # Observation generative model
         training_time = observation_generator.pretrain(save_pretrained_model, save_path)
@@ -331,6 +342,10 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
             model_path = save_path + "/dpf_pre_trained"
             model.save_model(model_path)
             print("Saving pre-trained Z, P models to %s" % model_path)
+        
+        toc = time.perf_counter()
+        time_this_step = toc - tic
+        print("Time elapsed for pre-training: ", time_this_step, "seconds.")
 
     if end_to_end:
         train = True
@@ -349,6 +364,12 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        # vts_driver(load_path="vts0428083518/dpf_pre_trained", gen_load_path="vts0428083518/gen_pre_trained", pre_training=False)
-        vts_driver()
+        # Right into online learning
+        vts_driver(load_path="test/dpf_pre_trained", gen_load_path="test/gen_pre_trained", pre_training=False)
+
+        # Just pre-training
+        # vts_driver(end_to_end=False, save_model=False, test=False)
+
+        # Everything
+        # vts_driver()
 
