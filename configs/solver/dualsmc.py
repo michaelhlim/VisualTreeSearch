@@ -11,14 +11,13 @@ DIM_ENCODE = 64
 ######################
 # Training
 TRAIN = True
-MAX_EPISODES_TRAIN = 200
-MAX_EPISODES_TEST = 1000
+MAX_EPISODES_TRAIN = 4
+MAX_EPISODES_TEST = 4
 BATCH_SIZE = 64
 FIL_LR = 1e-3 # filtering
 PLA_LR = 1e-3 # planning
-SAVE_ITER = 100
-SUMMARY_ITER = 100
-DISPLAY_ITER = 10
+SAVE_ITER = 2
+DISPLAY_ITER = 2
 PRETRAIN = 500000
 SHOW_TRAJ = True
 SHOW_DISTR = False
@@ -32,21 +31,21 @@ PP_RATIO = 0.3
 PP_LOSS_TYPE = 'adv'  # 'mse', 'adv', 'density'
 
 # ######################
-# # Planning
-# NUM_PAR_SMC_INIT = 3
-# NUM_PAR_SMC = 30
-# HORIZON = 10
-# SMCP_MODE = 'topk' # 'samp', 'topk'
-# SMCP_RESAMPLE = True
-# SMCP_RESAMPLE_STEP = 3
+# Planning
+NUM_PAR_SMC_INIT = 3
+NUM_PAR_SMC = 30
+HORIZON = 10
+SMCP_MODE = 'topk' # 'samp', 'topk'
+SMCP_RESAMPLE = True
+SMCP_RESAMPLE_STEP = 3
 
 # ######################
-# # SAC
-# LOG_SIG_MAX = 2
-# LOG_SIG_MIN = -20
+# SAC
+LOG_SIG_MAX = 2
+LOG_SIG_MIN = -20
 replay_buffer_size = 100000
-# alpha = 1.0
-# gamma = 0.95
-# tau = 0.005
+alpha = 1.0
+gamma = 0.95
+tau = 0.005
 const = 1e-6
 

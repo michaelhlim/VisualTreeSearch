@@ -20,7 +20,7 @@ from configs.solver.dualsmc import *
 from configs.solver.pftdpw import *
 from statistics import mean, stdev
 
-def vts(model, observation_generator, experiment_id, foldername, train):
+def vts(model, observation_generator, experiment_id, train, model_path):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -37,23 +37,22 @@ def vts(model, observation_generator, experiment_id, foldername, train):
     # Create logs for diagnostics
     ################################
     if train:
+        print("=========================\nTraining for iterations:", MAX_EPISODES_TRAIN)
         experiment_str = experiment_id + "/train"
-        folder_str = foldername + "/train"
         num_loops = MAX_EPISODES_TRAIN
     else:
+        print("=========================\nTesting for iterations:", MAX_EPISODES_TEST)
         experiment_str = experiment_id + "/test"
-        folder_str = foldername + "/test"
         num_loops = MAX_EPISODES_TEST
 
     save_path = CKPT + experiment_str
     img_path = IMG + experiment_str
     check_path(save_path)
     check_path(img_path)
-    check_path(folder_str)
     str123 = experiment_id + ".txt"
     str1234 = experiment_id + "every_10_eps" + ".txt"
-    file1 = open(folder_str + "/" + str123, 'w+')
-    file2 = open(folder_str + "/" + str1234, 'w+')
+    file1 = open(save_path + "/" + str123, 'w+')
+    file2 = open(save_path + "/" + str1234, 'w+')
 
     # Begin main dualSMC loop
     for episode in range(num_loops):
@@ -233,13 +232,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        if episode >= SUMMARY_ITER:
-            step_list.pop(0)
-            dist_list.pop(0)
-
         if episode % SAVE_ITER == 0 and train:
-            model_path = save_path + '_' + str(episode)
-            model.save_model(model_path)
+            model.save_model(model_path + "/dualsmc_online")
             print("save model to %s" % model_path)
 
         if episode % DISPLAY_ITER == 0:
@@ -250,11 +244,6 @@ def vts(model, observation_generator, experiment_id, foldername, train):
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
-            
-            if episode >= SUMMARY_ITER:
-                total_iter = SUMMARY_ITER
-            else:
-                total_iter = episode
 
             interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
@@ -269,13 +258,8 @@ def vts(model, observation_generator, experiment_id, foldername, train):
         plot_maze(figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
-        if episode >= SUMMARY_ITER:
-            total_iter = SUMMARY_ITER
-        else:
-            total_iter = episode
-
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, tot_reward, avg_time_this_episode, np.sum(dist_list) / total_iter)
+            episode, step, tot_reward, avg_time_this_episode, filter_dist)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
@@ -292,8 +276,8 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     experiment_id = "vts" + get_datetime()
     foldername = "data/" + experiment_id
     check_path(foldername)
-    save_path = "nets/" + experiment_id
-    check_path(save_path)
+    model_path = "nets/" + experiment_id
+    check_path(model_path)
 
     check_path("data")
     check_path("nets")
@@ -340,11 +324,10 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
                     measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
 
         # Observation generative model
-        training_time = observation_generator.pretrain(save_pretrained_model, save_path)
+        training_time = observation_generator.pretrain(save_pretrained_model, model_path)
 
         if save_pretrained_model:
-            model_path = save_path + "/dpf_pre_trained"
-            model.save_model(model_path)
+            model.save_model(model_path + "/dpf_pre_trained")
             print("Saving pre-trained Z, P models to %s" % model_path)
         
         toc = time.perf_counter()
@@ -354,16 +337,18 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        vts(model, observation_generator, experiment_id, foldername, train)
+        vts(model, observation_generator, experiment_id,
+            train, model_path)
 
     if save_online_model:
         # Save the model
-        model.save_model(save_path + "/dpf_online_trained")
-        print("Saving online trained Z, P models to %s" % save_path)
+        model.save_model(model_path + "/dpf_online_trained")
+        print("Saving online trained Z, P models to %s" % model_path)
 
     if test:
         train = False
-        vts(model, observation_generator, experiment_id, foldername, train)
+        vts(model, observation_generator, experiment_id,
+            train, model_path)
 
 
 if __name__ == "__main__":

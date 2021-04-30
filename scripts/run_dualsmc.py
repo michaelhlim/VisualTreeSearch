@@ -18,7 +18,7 @@ from configs.solver.dualsmc import *
 from statistics import mean, stdev
 
 
-def dualsmc(model, experiment_id, foldername, train):
+def dualsmc(model, experiment_id, train, model_path):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -36,17 +36,26 @@ def dualsmc(model, experiment_id, foldername, train):
     ################################
     # Create logs for diagnostics
     ################################
-    save_path = CKPT + experiment_id
-    img_path = IMG + experiment_id
+    if train:
+        print("=========================\nTraining for iterations:", MAX_EPISODES_TRAIN)
+        experiment_str = experiment_id + "/train"
+        num_loops = MAX_EPISODES_TRAIN
+    else:
+        print("=========================\nTesting for iterations:", MAX_EPISODES_TEST)
+        experiment_str = experiment_id + "/test"
+        num_loops = MAX_EPISODES_TEST
+
+    save_path = CKPT + experiment_str
+    img_path = IMG + experiment_str
     check_path(save_path)
     check_path(img_path)
     str123 = experiment_id + ".txt"
     str1234 = experiment_id + "every_10_eps" + ".txt"
-    file1 = open(foldername + "/" + str123, 'w+')
-    file2 = open(foldername + "/" + str1234, 'w+')
+    file1 = open(save_path + "/" + str123, 'w+')
+    file2 = open(save_path + "/" + str1234, 'w+')
 
     # Begin main dualSMC loop
-    for episode in range(MAX_EPISODES):
+    for episode in range(num_loops):
         episode += 1
         env = Environment()
         filter_dist = 0
@@ -176,7 +185,7 @@ def dualsmc(model, experiment_id, foldername, train):
             else:
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
-            toc = time.perf_counter()
+            
             #######################################
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
@@ -200,6 +209,7 @@ def dualsmc(model, experiment_id, foldername, train):
             rmse_per_step[step] += filter_rmse
             filter_dist += filter_rmse
 
+            toc = time.perf_counter()
             #######################################
             if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
                 if step < 10:
@@ -241,9 +251,8 @@ def dualsmc(model, experiment_id, foldername, train):
             #######################################
             curr_state = next_state
             curr_obs = next_obs
-            hidden = 0
-            cell = 0
-            trajectory.append(next_state)
+            hidden = next_hidden.detach().cpu().numpy()
+            cell = next_cell.detach().cpu().numpy()
             # Recording data
             time_this_step = toc - tic
             time_list_step.append(time_this_step)
@@ -254,11 +263,12 @@ def dualsmc(model, experiment_id, foldername, train):
 
         # Get the average loss of each model for this episode if we are training
         if train:
-            episode_P_loss.append(mean(step_P_loss))
-            episode_T_loss.append(mean(step_T_loss))
-            episode_Z_loss.append(mean(step_Z_loss))
-            episode_q1_loss.append(mean(step_q1_loss))
-            episode_q2_loss.append(mean(step_q2_loss))
+            if len(model.replay_buffer) > BATCH_SIZE:
+                episode_P_loss.append(mean(step_P_loss))
+                episode_T_loss.append(mean(step_T_loss))
+                episode_Z_loss.append(mean(step_Z_loss))
+                episode_q1_loss.append(mean(step_q1_loss))
+                episode_q2_loss.append(mean(step_q2_loss))
 
         # Get the sum of the episode time
         tot_time = sum(time_list_step)
@@ -274,32 +284,19 @@ def dualsmc(model, experiment_id, foldername, train):
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        if episode >= SUMMARY_ITER:
-            step_list.pop(0)
-            dist_list.pop(0)
-
-        if episode % SAVE_ITER == 0:
-            model_path = save_path + '_' + str(episode)
-            model.save_model(model_path)
-            print("save model to %s" % model_path)
+        if episode % SAVE_ITER == 0 and train:
+            model.save_model(model_path + "/dpf_online")
+            print("Saving online trained models to %s" % model_path)
 
         if episode % DISPLAY_ITER == 0:
             episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
-            st2 = img_path + "/" + str(episode)
+            st2 = img_path + "/"
             name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
             if train:
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
-            st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
-            print("plotting ... save to %s" % st)
-            plot_maze(figure_name=st, states=np.array(trajectory))
-
-            if episode >= SUMMARY_ITER:
-                total_iter = SUMMARY_ITER
-            else:
-                total_iter = episode
-
+            
             interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, mean(step_list), stdev(step_list), mean(reward_list_episode), stdev(reward_list_episode),
                 mean(time_list_episode), stdev(time_list_episode), mean(dist_list), stdev(dist_list))
@@ -307,54 +304,62 @@ def dualsmc(model, experiment_id, foldername, train):
             file2.write('\n{}'.format(interaction))
             file2.flush()
 
-            # Repeat the above code block for writing to the text file every episode instead of every 10
-        if episode >= SUMMARY_ITER:
-            total_iter = SUMMARY_ITER
-        else:
-            total_iter = episode
+        # Plot every trajectory
+        check_path(img_path + "/traj/")
+        st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
+        plot_maze(figure_name=st, states=np.array(trajectory))
 
+        # Repeat the above code block for writing to the text file every episode instead of every 10
+        
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, tot_reward, avg_time_this_episode, sum(dist_list) / total_iter)
+            episode, step, tot_reward, avg_time_this_episode, filter_dist)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
 
-    rmse_per_step = rmse_per_step / MAX_EPISODES
-    print(rmse_per_step)
+    rmse_per_step = rmse_per_step / num_loops
+    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
     # This block of code creates the folders for plots
-    settings = "dualsmc_vanilla"
-    foldername = settings + get_datetime()
-    os.mkdir(foldername)
     experiment_id = "dualsmc" + get_datetime()
-    save_path = CKPT + experiment_id
+    model_path = "nets/" + experiment_id
+    check_path(model_path)
+
+    check_path("data")
+    check_path("nets")
 
     # Create a model object
     model = DualSMC()
 
     # Let the user load in a previous model
     if load_path is not None:
-        model.load_model(load_path)
+        cwd = os.getcwd()
+        model.load_model(cwd + "/nets/" + load_path)
 
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        dualsmc(model, experiment_id, foldername, train)
+        dualsmc(model, experiment_id, train, model_path)
 
     if save_model:
         # Save the model
-        model.save_model(save_path)
-        print("saving model to %s" % save_path)
+        model.save_model(model_path + "/dpf_online")
+        print("Saving online trained models to %s" % model_path)
 
     if test:
         train = False
-        dualsmc(model, experiment_id, foldername, train)
+        dualsmc(model, experiment_id, train, model_path)
 
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        dualsmc_driver()
+        # Just training
+        dualsmc_driver(load_path=None, end_to_end=True,
+                       save_model=True, test=False)
+
+        # Everything
+        # dualsmc_driver()

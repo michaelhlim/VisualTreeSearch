@@ -104,7 +104,7 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     ax.plot(walls_dotted[:, :, 0].T, walls_dotted[:, :, 1].T, color=color, linewidth=1.0, linestyle='--')
 
     # planning trajectories
-    if smc_traj:
+    if smc_traj.any():
         num_par_smc = smc_traj.shape[1]
         for k in range(num_par_smc):
             points = smc_traj[:, k, :]
