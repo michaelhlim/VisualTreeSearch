@@ -53,6 +53,11 @@ def dualsmc(model, experiment_id, train, model_path):
     file1 = open(save_path + "/" + str123, 'w+')
     file2 = open(save_path + "/" + str1234, 'w+')
 
+    real_display_iter = DISPLAY_ITER
+    if train:
+        training_tic = time.perf_counter()
+        real_display_iter *= 10
+
     # Begin main dualSMC loop
     for episode in range(num_loops):
         episode += 1
@@ -76,7 +81,7 @@ def dualsmc(model, experiment_id, train, model_path):
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
-        if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
+        if SHOW_TRAJ and episode % real_display_iter == 0:
             traj_dir = img_path + "/iter-" + str(episode)
             if os.path.exists(traj_dir):
                 shutil.rmtree(traj_dir)
@@ -102,7 +107,7 @@ def dualsmc(model, experiment_id, train, model_path):
             par_weight += lik.squeeze()  # (NUM_PAR_PF)
             normalized_weights = torch.softmax(par_weight, -1)
 
-            if SHOW_DISTR and episode % DISPLAY_ITER == 0:
+            if SHOW_DISTR and episode % real_display_iter == 0:
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
@@ -211,7 +216,7 @@ def dualsmc(model, experiment_id, train, model_path):
 
             toc = time.perf_counter()
             #######################################
-            if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
+            if SHOW_TRAJ and episode % real_display_iter == 0:
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
@@ -284,7 +289,7 @@ def dualsmc(model, experiment_id, train, model_path):
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
 
-        if episode % DISPLAY_ITER == 0:
+        if episode % real_display_iter == 0:
             episode_list = [episode_P_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
             st2 = img_path + "/"
             name_list = ['particle_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
@@ -312,6 +317,16 @@ def dualsmc(model, experiment_id, train, model_path):
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
+
+    if train:
+        training_toc = time.perf_counter()
+        training_time = training_toc - training_tic
+        training_time_str = 'Time elapsed for online training:  %s seconds.' % (
+            training_time)
+        print('\r{}'.format(training_time_str))
+        file1.write('\n{}'.format(training_time_str))
+        file1.flush()
+
 
     rmse_per_step = rmse_per_step / num_loops
     # print(rmse_per_step) - not sure why this is relevant...
