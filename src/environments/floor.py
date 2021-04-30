@@ -140,7 +140,13 @@ class Environment(AbstractEnvironment):
     def transition(self, s, w, a):
         # transition each state in state tensor s with actions in action/action tensor a
         next_state = np.copy(s)
-        next_weights = np.copy(w)
+        if w is not None:
+            weights = np.copy(w)
+            next_weights = np.copy(w)
+        else:
+            # Dummy weight
+            weights = np.ones(np.shape(s)[0])
+            next_weights = np.ones(np.shape(s)[0])
         sp = s + a
         reward = 0.0
 
@@ -170,13 +176,13 @@ class Environment(AbstractEnvironment):
         # If goal reached
         next_state[step_ok, :] = sp[step_ok, :]
         next_weights[goal_achieved] = 0.0
-        reward += np.sum(w[goal_achieved]) * EPI_REWARD
+        reward += np.sum(weights[goal_achieved]) * EPI_REWARD
 
         # If false goal reached
-        reward -= np.sum(w[false_goal]) * EPI_REWARD
+        reward -= np.sum(weights[false_goal]) * EPI_REWARD
 
         # Else
-        reward += np.sum(w[normal_step]) * STEP_REWARD
+        reward += np.sum(weights[normal_step]) * STEP_REWARD
 
         # Is the transition terminal?
         is_terminal = all(goal_achieved)
