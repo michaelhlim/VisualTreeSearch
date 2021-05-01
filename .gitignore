@@ -1,4 +1,6 @@
 /venv/
+data/
+nets/
 .vscode
 .DS_Store
 *.pyc
