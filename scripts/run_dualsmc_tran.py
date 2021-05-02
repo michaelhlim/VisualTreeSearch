@@ -305,10 +305,10 @@ def dualsmc(model, experiment_id, train, model_path):
             file2.write('\n{}'.format(interaction))
             file2.flush()
 
-        # Plot every trajectory
-        check_path(img_path + "/traj/")
-        st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
-        plot_maze(figure_name=st, states=np.array(trajectory))
+        if (train and episode % 10 == 0) or (not train):
+            check_path(img_path + "/traj/")
+            st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
+            plot_maze(figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
