@@ -304,7 +304,7 @@ def dualsmc(model, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             
-            interaction = 'Episode %s: cumulative success rate = %s %, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
                 np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
             print('\r{}'.format(interaction))
@@ -318,7 +318,7 @@ def dualsmc(model, experiment_id, train, model_path):
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
-        interaction = 'Episode %s: cumulative success rate = %s %, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
+        interaction = 'Episode %s: cumulative success rate = %s, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
             episode, np.mean(reach), step, tot_reward, avg_time_this_episode, filter_dist)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
