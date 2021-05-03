@@ -214,9 +214,9 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         # Get the average loss of each model for this episode if we are training
         if train:
             if len(model.replay_buffer) > BATCH_SIZE:
-                episode_P_loss.append(mean(step_P_loss))
-                episode_Z_loss.append(mean(step_Z_loss))
-                episode_G_loss.append(mean(step_G_loss))
+                episode_P_loss.append(np.mean(step_P_loss))
+                episode_Z_loss.append(np.mean(step_Z_loss))
+                episode_G_loss.append(np.mean(step_G_loss))
 
         # Get the sum of the episode time
         tot_time = sum(time_list_step)

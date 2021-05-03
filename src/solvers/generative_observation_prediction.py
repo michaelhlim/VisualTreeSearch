@@ -120,10 +120,11 @@ class ObservationGenerator(nn.Module):
     def online_training(self, state_batch, obs_batch):
         self.optimizer.zero_grad()
         loss, kl, recon = self.training_step(state_batch, obs_batch)
+        loss_copy = loss.clone().detach()
         loss.backward()
         self.optimizer.step()
 
-        return loss
+        return loss_copy
 
     def pretrain(self, save_model, save_path):
         print("Pretraining observation generator")

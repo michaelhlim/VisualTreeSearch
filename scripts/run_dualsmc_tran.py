@@ -266,10 +266,10 @@ def dualsmc(model, experiment_id, train, model_path):
         # Get the average loss of each model for this episode if we are training
         if train:
             if len(model.replay_buffer) > BATCH_SIZE:
-                episode_P_loss.append(mean(step_P_loss))
-                episode_Z_loss.append(mean(step_Z_loss))
-                episode_q1_loss.append(mean(step_q1_loss))
-                episode_q2_loss.append(mean(step_q2_loss))
+                episode_P_loss.append(np.mean(step_P_loss))
+                episode_Z_loss.append(np.mean(step_Z_loss))
+                episode_q1_loss.append(np.mean(step_q1_loss))
+                episode_q2_loss.append(np.mean(step_q2_loss))
 
         # Get the sum of the episode time
         tot_time = sum(time_list_step)
@@ -285,6 +285,12 @@ def dualsmc(model, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
+        if episode >= SUMMARY_ITER:
+            step_list.pop(0)
+            dist_list.pop(0)
+
+        reach = np.array(step_list) < (MAX_STEPS - 1)
+
         if episode % SAVE_ITER == 0 and train:
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
@@ -298,22 +304,22 @@ def dualsmc(model, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             
-            interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, mean(step_list), stdev(step_list), mean(reward_list_episode), stdev(reward_list_episode),
-                mean(time_list_episode), stdev(time_list_episode), mean(dist_list), stdev(dist_list))
+            interaction = 'Episode %s: cumulative success rate = %s %, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
 
-        if (train and episode % 10 == 0) or (not train):
+        if (train and episode % DISPLAY_ITER == 0) or (not train):
             check_path(img_path + "/traj/")
             st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
             plot_maze(figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
-        interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, tot_reward, avg_time_this_episode, filter_dist)
+        interaction = 'Episode %s: cumulative success rate = %s %, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
+            episode, np.mean(reach), step, tot_reward, avg_time_this_episode, filter_dist)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
