@@ -20,7 +20,7 @@ class Environment(object):
         y = self.state[1]
         obs_x1 = x
         obs_y1 = y
-        obs_x2 = 1 - x
+        obs_x2 = 2 - x
         obs_y2 = 1 - y
         num_wall_x = len(self.walls_x)
         num_wall_y = len(self.walls_y)
@@ -52,7 +52,7 @@ class Environment(object):
     def get_observation_batch(self, x, y):
         obs_x1 = x
         obs_y1 = y
-        obs_x2 = 1 - x
+        obs_x2 = 2 - x
         obs_y2 = 1 - y
         num_wall_x = len(self.walls_x)
         num_wall_y = len(self.walls_y)
@@ -150,6 +150,12 @@ class Environment(object):
 
         state = np.random.rand(2)
         state[0] = state[0] * 2
+
+        if wall == -1:
+            while (state[1] <= 0.1) or (state[1] >= 0.4 and state[1] <= 0.6) or (state[1] >= 0.9):
+                state = np.random.rand(2)
+                state[0] = state[0] * 2
+
         if wall == 0.1:
             state[1] = state[1] * 0.1
         elif wall == 0.4:

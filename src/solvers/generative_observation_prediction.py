@@ -135,8 +135,9 @@ class ObservationGenerator(nn.Module):
         print_freq = 50
         test_freq = 100
 
-        wall_step = 0 #int(2 * cvae_params.num_training_steps/3)
-        walls_arr = [0.1, 0.4, 0.6, 0.9, 0, 0, 0, 0] # wall 0 means no wall
+        wall_step = int(70e3) #int(2 * cvae_params.num_training_steps/3)
+        walls_arr1 = [-1, -1] # wall 0 means any state, wall -1 means no wall
+        walls_arr2 = [0.1, 0.4, 0.6, 0.9, -1, -1, -1, 0]
 
         t0 = time.time()
 
@@ -144,11 +145,15 @@ class ObservationGenerator(nn.Module):
             batch_size = cvae_params.batch_size
 
             if step >= wall_step:
-                index = np.random.randint(len(walls_arr))
-                state_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr[index])
+                index = np.random.randint(len(walls_arr2))
+                state_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr2[index])
                 #state_batch, obs_batch = self.env.make_batch_multiple_walls(batch_size, walls_arr)
             else:
-                state_batch, obs_batch, _ = self.env.make_batch(batch_size)
+                index = np.random.randint(len(walls_arr1))
+                state_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr1[index])
+            
+            #state_batch, obs_batch, _ = self.env.make_batch(batch_size)
+            
             state_batch = torch.from_numpy(state_batch).float()
             obs_batch = torch.from_numpy(obs_batch).float()
 
@@ -176,7 +181,8 @@ class ObservationGenerator(nn.Module):
         t1 = time.time()
 
         if cvae_params.save_model:
-            torch.save(self.state_dict(), cvae_params.save_path + str(time.time()))
+            #torch.save(self.state_dict(), cvae_params.save_path + str(time.time()))
+            torch.save(self.state_dict(), cvae_params.save_path)
 
         print("Done pretraining")
 
@@ -246,6 +252,18 @@ class ObservationGenerator(nn.Module):
 
     def test(self):
         batch_size = cvae_params.batch_size
+
+        # walls_arr = [0.1, 0.4, 0.6, 0.9] 
+        # index = np.random.randint(len(walls_arr))
+        # states_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr[index])
+        # state = np.array([states_batch[0]])
+        # states_batch = torch.from_numpy(states_batch).float()
+
+        # walls_arr = [-1, -1] 
+        # index = np.random.randint(len(walls_arr))
+        # states_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr[index])
+        # state = np.array([states_batch[0]])
+        # states_batch = torch.from_numpy(states_batch).float()
 
         state, obs_batch = self.env.make_batch_single_state(batch_size)
         state = torch.from_numpy(state).reshape((1, DIM_STATE))
@@ -331,6 +349,7 @@ class ObservationGenerator(nn.Module):
                 mean_rest_diff += np.linalg.norm(rest_predicted_mean - rest_batch_mean) / num_tests
                 std_rest_diff += np.linalg.norm(rest_predicted_std - rest_batch_std) / num_tests
 
+            plt.figure()
             plt.scatter([state[0][0]], [state[0][1]], color='k')
             plt.scatter([obs[0] for obs in obs_batch], [obs[1] for obs in obs_batch], color='g')
             plt.scatter([obs[0] for obs in obs_hat.detach().cpu().numpy()],
@@ -339,7 +358,8 @@ class ObservationGenerator(nn.Module):
                 plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='b')
                 plt.scatter([obs[2] for obs in obs_hat.detach().cpu().numpy()],
                             [obs[3] for obs in obs_hat.detach().cpu().numpy()], color='m')
-            plt.show()
+            plt.savefig("cvae_test" + str(j))                
+            #plt.show()
 
         print("OBS_MEAN_DIFF\n", mean_diff)
         print("OBS_STD_DIFF\n", std_diff)
@@ -350,10 +370,15 @@ class ObservationGenerator(nn.Module):
 
 
 ##################### TESTING ###########################
-#cvae = ObservationGenerator()
-#t = cvae.pretrain()
-#print("Time to pretrain", str(t))
-#cvae.test_with_prints()
-#cvae.plot_training_losses()
-#cvae.plot_testing_losses()
+cvae = ObservationGenerator()
+t = cvae.pretrain()
+print("Time to pretrain", str(t))
+cvae.test_with_prints()
+cvae.plot_training_losses()
+cvae.plot_testing_losses()
+
+# cvae = ObservationGenerator()
+# cvae.load_model("./pretrain_cvae1620173564.pth")
+# cvae.test_with_prints()
+
 
