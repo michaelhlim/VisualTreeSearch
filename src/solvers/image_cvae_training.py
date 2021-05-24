@@ -2,9 +2,10 @@ import cv2
 import glob
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.manifold import TSNE
 import time
 import torch
-from torch import nn
+from torch import nn, reshape
 from torch.nn import functional as F
 
 from configs.solver.image_cvae import *
@@ -15,6 +16,13 @@ image_cvae_params = Image_CVAE_Params()
 torch.backends.cudnn.enabled = False
 
 
+class SaveFeatures():
+    features=None
+    def __init__(self, m): self.hook = m.register_forward_hook(self.hook_fn)
+    def hook_fn(self, module, input, output): self.features = ((output.cpu()).data).numpy()
+    def remove(self): self.hook.remove()
+
+
 class VAETrain:
 
     def __init__(self):
@@ -23,13 +31,14 @@ class VAETrain:
         self.in_channels = image_cvae_params.in_channels
         self.dim_conditional_var = image_cvae_params.dim_conditional_var
         self.latent_dim = image_cvae_params.latent_dim
+        self.mlp_hunits = image_cvae_params.mlp_hunits
         self.img_size = image_cvae_params.img_size
         self.calibration = image_cvae_params.calibration
         self.normalization = image_cvae_params.normalization
 
         args = {'in_channels': self.in_channels, 'dim_conditional_var': self.dim_conditional_var,
-                'latent_dim': self.latent_dim, 'img_size': self.img_size, 'calibration': self.calibration, 
-                'device': self.device}
+                'latent_dim': self.latent_dim, 'mlp_hunits': self.mlp_hunits, 'img_size': self.img_size,
+                'calibration': self.calibration, 'device': self.device}
         self.model = ConditionalVAE(args)
 
         self.num_training_steps = image_cvae_params.num_training_steps
@@ -87,8 +96,9 @@ class VAETrain:
     def get_training_batch(self, batch_size):
         states = []
         images = []
-        precision = 4
-        indices = np.random.randint(0, len(self.data_files), batch_size)
+        remove = 4
+        indices = np.random.choice(range(len(self.data_files)), batch_size, replace=False)
+        #indices = np.random.randint(0, len(self.data_files), batch_size)
         for index in indices:
             img_path = self.data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -106,7 +116,7 @@ class VAETrain:
                 src = (src - src.mean())/src.std()
                 images.append(src)
 
-            splits = img_path[:-precision].split('_')
+            splits = img_path[:-remove].split('_')
             state = np.array([[np.round(float(elem), 3) for elem in splits[-3:]]])
             states.append(state)
         
@@ -116,11 +126,11 @@ class VAETrain:
     def get_testing_batch(self, batch_size):
         states = []
         images = []
-        precision = 4
-        indices = np.random.randint(0, len(self.testing_data_files), batch_size)
+        remove = 4
+        indices = np.random.choice(range(len(self.testing_data_files)), batch_size, replace=False)
+        #indices = np.random.randint(0, len(self.testing_data_files), batch_size)
         for index in indices:
             img_path = self.testing_data_files[index]
-            print(img_path)
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
             
             if self.normalization:
@@ -137,7 +147,7 @@ class VAETrain:
                 src = (src - src.mean())/src.std()
                 images.append(src)
             
-            splits = img_path[:-precision].split('_')
+            splits = img_path[:-remove].split('_')
             state = np.array([[np.round(float(elem), 3) for elem in splits[-3:]]])
             states.append(state)
         
@@ -185,7 +195,7 @@ class VAETrain:
     def test(self):
         self.model.load_state_dict(torch.load(self.test_model_path))
         num_tests = 1
-        
+
         states, images = self.get_testing_batch(num_tests)
         states = torch.from_numpy(states).float().to(self.device)
         images = torch.from_numpy(images).float().to(self.device)
@@ -193,7 +203,7 @@ class VAETrain:
         states = states.detach()
         images = images.detach()
 
-        output = self.model.sample(1, states[0])  # [1, in_channels, 32, 32]
+        output = self.model.sample(num_tests, states[0])  # [1, in_channels, 32, 32]
         output = output.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
         output = output.detach().cpu().numpy()        
         #output = (output + 68./100) * 100.
@@ -222,12 +232,144 @@ class VAETrain:
         state_str = ".png"
         cv2.imwrite(self.test_output_path + state_str, output)
         cv2.imwrite(self.test_true_path + state_str, original)
+    
+
+    def test_interpolate(self):
+        self.model.load_state_dict(torch.load(self.test_model_path))
+        num_tests = 1
+        
+        states, images = self.get_testing_batch(num_tests)
+        states = torch.from_numpy(states).float().to(self.device)
+        images = torch.from_numpy(images).float().to(self.device)
+
+        states = states.detach()
+        images = images.detach()
+
+        output_arr, z_start, z_direction = self.model.sample_interpolate(10, states[0])  # [1, in_channels, 32, 32]
+        for i in range(len(output_arr)):
+            output = output_arr[i]
+        
+            output = output.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
+            output = output.detach().cpu().numpy()        
+            #output = (output + 68./100) * 100.
+            if self.normalization:
+                output[:, :, 0] = (output[:, :, 0] * self.rstd + self.rmean)
+                output[:, :, 1] = (output[:, :, 1] * self.gstd + self.gmean)
+                output[:, :, 2] = (output[:, :, 2] * self.bstd + self.bmean)
+            else:
+                output = (output + (255./2)/100) * 100.  # "Denormalization"
+
+            original = images[0]  # [32, 32, in_channels]
+            original = original.detach().cpu().numpy()
+            if self.normalization:
+                original[:, :, 0] = (original[:, :, 0] * self.rstd + self.rmean)
+                original[:, :, 1] = (original[:, :, 1] * self.gstd + self.gmean)
+                original[:, :, 2] = (original[:, :, 2] * self.bstd + self.bmean)
+            else:
+                original = (original + (255./2)/100) * 100.  # "Denormalization"
+
+            print("STATE", states[0])
+            state = states[0]
+
+            output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
+            original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+            #state_str = '_' + str(state[0][0]) + '_' + str(state[0][1]) + '_' + str(state[0][2]) + ".png"
+            state_str = str(i) + ".png"
+            cv2.imwrite(self.test_output_path + state_str, output)
+            cv2.imwrite(self.test_true_path + state_str, original)
+    
+
+    def test_tsne(self, analysis_dataset, module, reshape):
+        self.model.load_state_dict(torch.load(self.test_model_path))
+
+        layer = self.model._modules.get(module)  
+        activated_features = SaveFeatures(layer)
+
+        if analysis_dataset:
+            num_tests = 500
+        else:
+            num_tests = 150
+
+        states, images = self.get_testing_batch(num_tests)
+        states = torch.from_numpy(states).float().to(self.device)
+        images = torch.from_numpy(images).float().to(self.device)
+
+        states = states.detach()
+        images = images.detach()
+
+        out = self.model(images.permute(0, 3, 1, 2), states)
+        output = self.model.sample(num_tests, states.squeeze(1))  # [num_tests, in_channels, 32, 32]  
+
+        states = states.squeeze(1).cpu().numpy()
+        # (unique, counts) = np.unique(states, axis=0, return_counts=True)
+        # frequencies = np.asarray((unique, counts)).T
+        # print(frequencies)
+
+        e = 0.0
+        ne = np.pi/4
+        n = np.pi/2
+        nw = 3*np.pi/4 
+        w = np.pi
+        sw = 5*np.pi/4 
+        s = 3*np.pi/2 
+        se = 7*np.pi/4
+        eps = 1e-3
+
+        category1_theta = np.argwhere((np.abs(states[:, 2] - e) <= eps) | 
+                                        (np.abs(states[:, 2] - ne) <= eps) | 
+                                        (np.abs(states[:, 2] - n) <= eps)).flatten()
+        category2_theta = np.argwhere((np.abs(states[:, 2] - nw) <= eps) | 
+                                        (np.abs(states[:, 2] - w) <= eps) | 
+                                        (np.abs(states[:, 2] - sw) <= eps)).flatten()
+        category3_theta = np.argwhere((np.abs(states[:, 2] - s) <= eps) | 
+                                        (np.abs(states[:, 2] - se) <= eps)).flatten()
+
+        category1_y = np.argwhere(states[:, 1] <= 21).flatten()
+        category2_y = np.argwhere((states[:, 1] > 21) & (states[:, 1] <= 23)).flatten()
+        category3_y = np.argwhere((states[:, 1] > 23) & (states[:, 1] <= 25)).flatten()
+
+        plotting_dictionary = {}
+
+        if analysis_dataset:
+            plotting_dictionary["20 < y < 21"] = category1_y
+            plotting_dictionary["21 < y < 23"] = category2_y
+            plotting_dictionary["23 < y < 25"] = category3_y
+        else:
+            plotting_dictionary["north/east, 20 < y < 21"] = np.intersect1d(category1_theta, category1_y)
+            plotting_dictionary["north/east, 21 < y < 23"] = np.intersect1d(category1_theta, category2_y)
+            plotting_dictionary["north/east, 23 < y < 25"] = np.intersect1d(category1_theta, category3_y)
+            plotting_dictionary["west, 20 < y < 21"] = np.intersect1d(category2_theta, category1_y)
+            plotting_dictionary["west, 21 < y < 23"] = np.intersect1d(category2_theta, category2_y)
+            plotting_dictionary["west, 23 < y < 25"] = np.intersect1d(category2_theta, category3_y)
+            plotting_dictionary["south/east, 20 < y < 21"] = np.intersect1d(category3_theta, category1_y)
+            plotting_dictionary["south/east, 21 < y < 23"] = np.intersect1d(category3_theta, category2_y)
+            plotting_dictionary["south/east, 23 < y < 25"] = np.intersect1d(category3_theta, category3_y)
+
+
+        tsne_features = activated_features.features.reshape(-1, reshape)
+        feature_embeddings = TSNE(n_components=2).fit_transform(tsne_features)
+        activated_features.remove()
+
+        for (key, value) in plotting_dictionary.items():
+            if len(value) > 0:
+                plt.scatter(feature_embeddings[value, 0], feature_embeddings[value, 1], label=key)
+
+        plt.legend(bbox_to_anchor=(0.85, 1.05), loc='upper left', fontsize='xx-small')
+        plt.savefig("TSNE")
+
 
 
 vae_train = VAETrain()
 if image_cvae_params.train:
     vae_train.train()
 else:
-    vae_train.test()
+    #vae_train.test()
+    analysis_dataset = False
+    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="final_layer", 
+    #                    reshape=vae_train.img_size**2 * vae_train.in_channels)
+    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="encoder", reshape=512)
+    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="decoder_mlp", reshape=512*4)
+    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="encoder_mlp", reshape=128)
+    vae_train.test_tsne(analysis_dataset=analysis_dataset, module="decoder", reshape=32 * vae_train.img_size**2)
 
         

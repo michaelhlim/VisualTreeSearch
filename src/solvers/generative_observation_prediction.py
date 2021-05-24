@@ -358,7 +358,7 @@ class ObservationGenerator(nn.Module):
                 plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='b')
                 plt.scatter([obs[2] for obs in obs_hat.detach().cpu().numpy()],
                             [obs[3] for obs in obs_hat.detach().cpu().numpy()], color='m')
-            plt.savefig("cvae_test" + str(j))                
+            plt.savefig("IMOVERHEREcvae_test" + str(j))                
             #plt.show()
 
         print("OBS_MEAN_DIFF\n", mean_diff)
@@ -371,14 +371,14 @@ class ObservationGenerator(nn.Module):
 
 ##################### TESTING ###########################
 cvae = ObservationGenerator()
-t = cvae.pretrain()
-print("Time to pretrain", str(t))
-cvae.test_with_prints()
-cvae.plot_training_losses()
-cvae.plot_testing_losses()
+#t = cvae.pretrain()
+#print("Time to pretrain", str(t))
+#cvae.test_with_prints()
+#cvae.plot_training_losses()
+#cvae.plot_testing_losses()
 
-# cvae = ObservationGenerator()
-# cvae.load_model("./pretrain_cvae1620173564.pth")
-# cvae.test_with_prints()
+cvae = ObservationGenerator()
+cvae.load_model("/home/sampada_deglurkar/VisualTreeSearch/floor_domain_records/pretrain_cvae_sched_nocalib_500k.pth")
+cvae.test_with_prints()
 
 

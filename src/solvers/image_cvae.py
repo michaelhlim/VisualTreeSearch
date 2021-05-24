@@ -21,6 +21,7 @@ class ConditionalVAE(nn.Module):
         in_channels = args['in_channels']
         dim_conditional_var = args['dim_conditional_var']
         latent_dim = args['latent_dim']
+        mlp_hunits = args['mlp_hunits']
         img_size = args['img_size']
         calibration = args['calibration']
         device = args['device']
@@ -51,21 +52,57 @@ class ConditionalVAE(nn.Module):
                     nn.LeakyReLU())
             )
             in_channels = h_dim
+        
 
         self.encoder = nn.Sequential(*modules).to(self.device)
-        self.fc_mu = nn.Linear(hidden_dims[-1], latent_dim).to(self.device)
-        self.fc_var = nn.Linear(hidden_dims[-1], latent_dim).to(self.device)
+
+        modules = []
+        modules.append(
+            nn.Sequential(
+                nn.Linear(hidden_dims[-1], mlp_hunits),
+                nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, mlp_hunits),
+                nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, mlp_hunits),
+                nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, mlp_hunits),
+                nn.LeakyReLU()
+            )
+        )
+        self.encoder_mlp = nn.Sequential(*modules).to(self.device)
+
+        self.fc_mu = nn.Linear(mlp_hunits, latent_dim).to(self.device)
+        self.fc_var = nn.Linear(mlp_hunits, latent_dim).to(self.device)
+
+        # self.fc_mu = nn.Linear(hidden_dims[-1], latent_dim).to(self.device)
+        # self.fc_var = nn.Linear(hidden_dims[-1], latent_dim).to(self.device)
+
         #self.fc_mu = nn.Linear(hidden_dims[-1]*4, latent_dim)
         #self.fc_var = nn.Linear(hidden_dims[-1]*4, latent_dim)
 
 
-        # Build Decoder
-        modules = []
 
-        self.decoder_input = nn.Linear(latent_dim + dim_conditional_var, hidden_dims[-1] * 4).to(self.device)
+        # Build Decoder
+        #self.decoder_input = nn.Linear(latent_dim + dim_conditional_var, hidden_dims[-1] * 4).to(self.device)
+
+        modules = []
+        modules.append(
+            nn.Sequential(
+                nn.Linear(latent_dim + dim_conditional_var, mlp_hunits),
+                nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, mlp_hunits),
+                nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, mlp_hunits),
+                nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, hidden_dims[-1] * 4),
+                nn.LeakyReLU()
+            )
+        )
+        self.decoder_mlp = nn.Sequential(*modules).to(self.device)
 
         hidden_dims.reverse()
 
+        modules = []
         for i in range(len(hidden_dims) - 1):
             modules.append(
                 nn.Sequential(
@@ -78,8 +115,6 @@ class ConditionalVAE(nn.Module):
                     #nn.BatchNorm2d(hidden_dims[i + 1]),
                     nn.LeakyReLU())
             )
-
-
 
         self.decoder = nn.Sequential(*modules).to(self.device)
 
@@ -114,6 +149,8 @@ class ConditionalVAE(nn.Module):
         result = self.encoder(input)  # input [batch_size, 4, 32, 32]  result [batch_size, 512, 1, 1]
         result = torch.flatten(result, start_dim=1)  # [batch_size, 512]
 
+        result = self.encoder_mlp(result)
+
         # Split the result into mu and var components
         # of the latent Gaussian distribution
         mu = self.fc_mu(result)  # [batch_size, latent_dim]
@@ -128,7 +165,8 @@ class ConditionalVAE(nn.Module):
         :param z: (Tensor) [B x D]
         :return: (Tensor) [B x C x H x W]
         """
-        result = self.decoder_input(z)  # z [batch_size, latent_dim + dim_conditional_var] result [batch_size, 2048]
+        #result = self.decoder_input(z)  # z [batch_size, latent_dim + dim_conditional_var] result [batch_size, 2048]
+        result = self.decoder_mlp(z)  # z [batch_size, latent_dim + dim_conditional_var] result [batch_size, 2048]
         result = result.view(-1, self.hidden_dims[-1], 2, 2)  # [batch_size, 512, 2, 2]
         result = self.decoder(result)  # [batch_size, 32, 32, 32]
         result = self.final_layer(result)  # [batch_size, 3, 32, 32]
@@ -225,6 +263,24 @@ class ConditionalVAE(nn.Module):
         z = torch.cat([z, conditional_var], dim=1)
         samples = self.decode(z)
         return samples
+    
+
+    def sample_interpolate(self, num_interps, conditional_var):
+        z_start = torch.randn(1, self.latent_dim).to(self.device)
+        z_direction = torch.randn(1, self.latent_dim).to(self.device)
+
+        samples_arr = []
+
+        z = z_start
+        for i in range(num_interps):
+            inp = torch.cat([z, conditional_var], dim=1)
+            samples = self.decode(inp)
+            samples_arr.append(samples)
+            z += z_direction
+        
+        return samples_arr, z_start, z_direction
+
+
 
     def generate(self, x, conditional_var):
         """
