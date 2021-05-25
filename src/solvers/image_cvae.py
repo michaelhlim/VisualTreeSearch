@@ -44,13 +44,22 @@ class ConditionalVAE(nn.Module):
 
         # Build Encoder
         for h_dim in hidden_dims:
-            modules.append(
-                nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels=h_dim,
-                              kernel_size= 3, stride= 2, padding  = 1),
-                    #nn.BatchNorm2d(h_dim),
-                    nn.LeakyReLU())
-            )
+            if h_dim == hidden_dims[-1]:
+                modules.append(
+                    nn.Sequential(
+                        nn.Conv2d(in_channels, out_channels=h_dim,
+                                kernel_size= 3, stride= 1, padding  = 1),
+                        #nn.BatchNorm2d(h_dim),
+                        nn.LeakyReLU())
+                )
+            else:    
+                modules.append(
+                    nn.Sequential(
+                        nn.Conv2d(in_channels, out_channels=h_dim,
+                                kernel_size= 3, stride= 2, padding  = 1),
+                        #nn.BatchNorm2d(h_dim),
+                        nn.LeakyReLU())
+                )
             in_channels = h_dim
         
 
@@ -59,7 +68,7 @@ class ConditionalVAE(nn.Module):
         modules = []
         modules.append(
             nn.Sequential(
-                nn.Linear(hidden_dims[-1], mlp_hunits),
+                nn.Linear(hidden_dims[-1] * 4, mlp_hunits),
                 nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
                 nn.LeakyReLU(),
@@ -146,10 +155,10 @@ class ConditionalVAE(nn.Module):
         :param input: (Tensor) Input tensor to encoder [N x C x H x W]
         :return: (Tensor) List of latent codes
         """
-        result = self.encoder(input)  # input [batch_size, 4, 32, 32]  result [batch_size, 512, 1, 1]
-        result = torch.flatten(result, start_dim=1)  # [batch_size, 512]
+        result = self.encoder(input)  # input [batch_size, 4, 32, 32]  result [batch_size, 512, 2, 2]
+        result = torch.flatten(result, start_dim=1)  # [batch_size, 512*4]
 
-        result = self.encoder_mlp(result)
+        result = self.encoder_mlp(result)  # [batch_size, mlp_hunits]
 
         # Split the result into mu and var components
         # of the latent Gaussian distribution

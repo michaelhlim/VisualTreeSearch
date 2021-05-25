@@ -12,21 +12,19 @@ class Image_CVAE_Params():
         self.calibration = False
         self.lr = 1e-3 
         self.beta = 1
-        self.batch_size = 64 #32 #64
-        self.num_training_data = 7000 #500 #7000
-        self.num_epochs = 100 #200 #100
-        self.num_training_steps = int((self.num_training_data/self.batch_size) * self.num_epochs)  
-        self.data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hard/rgbs/*"
-        self.save_path = "image_cvae_hard.pth"
-        self.training_loss_path = "image_cvae_hard"
+        self.batch_size = 64 #32 
+        self.num_training_data = 8000 #7000 #500 
+        self.num_epochs = 200 #100 #200 
+        #self.num_training_steps = int((self.num_training_data/self.batch_size) * self.num_epochs)  
+        self.data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
+        self.save_path = "image_cvae_hallway.pth"
+        self.training_loss_path = "image_cvae_hallway"
         
         # Testing
-        self.test_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_hard/rgbs/*"
-        self.test_model_path = "/home/sampada_deglurkar/VisualTreeSearch/image_cvae_hard.pth"
-        #self.test_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_analysis/rgbs/*"
-        #self.test_model_path = "/home/sampada_deglurkar/VisualTreeSearch/image_cvae_analysis.pth"
-        self.test_output_path = "test_output_hard"
-        self.test_true_path = "test_true_hard"
+        self.test_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_hallway/rgbs/*"
+        self.test_model_path = "/home/sampada_deglurkar/VisualTreeSearch/src/solvers/image_cvae_hallway.pth"
+        self.test_output_path = "test_output_hallway"
+        self.test_true_path = "test_true_hallway"
         
 
         self.train = False

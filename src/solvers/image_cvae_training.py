@@ -41,10 +41,13 @@ class VAETrain:
                 'calibration': self.calibration, 'device': self.device}
         self.model = ConditionalVAE(args)
 
-        self.num_training_steps = image_cvae_params.num_training_steps
+        #self.num_training_steps = image_cvae_params.num_training_steps
+        self.num_epochs = image_cvae_params.num_epochs
+        self.num_training_data = image_cvae_params.num_training_data
+        self.batch_size = image_cvae_params.batch_size
+        self.steps_per_epoch = int(np.ceil(self.num_training_data/self.batch_size))
         self.data_path = image_cvae_params.data_path
         self.test_data_path = image_cvae_params.test_data_path
-        self.batch_size = image_cvae_params.batch_size
         self.beta = image_cvae_params.beta
         self.lr = image_cvae_params.lr
 
@@ -121,12 +124,47 @@ class VAETrain:
             states.append(state)
         
         return np.array(states), np.array(images)
+    
+
+    def get_training_batch(self, batch_size, data_files_indices, epoch_step):
+        states = []
+        images = []
+        remove = 4
+
+        if (epoch_step + 1)*batch_size > len(data_files_indices):
+            indices = data_files_indices[epoch_step*batch_size:]
+        else:
+            indices = data_files_indices[epoch_step*batch_size:(epoch_step + 1)*batch_size]
+
+        for index in indices:
+            img_path = self.data_files[index]
+            src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            
+            if self.normalization:
+                img_rslice = (src[:, :, 0] - self.rmean)/self.rstd
+                img_gslice = (src[:, :, 1] - self.gmean)/self.gstd
+                img_bslice = (src[:, :, 2] - self.bmean)/self.bstd
+
+                img = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
+
+                images.append(img)
+            else:
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
+                src = (src - src.mean())/src.std()
+                images.append(src)
+
+            splits = img_path[:-remove].split('_')
+            state = np.array([[np.round(float(elem), 3) for elem in splits[-3:]]])
+            states.append(state)
+        
+        return np.array(states), np.array(images)
 
 
     def get_testing_batch(self, batch_size):
         states = []
         images = []
         remove = 4
+        #indices = list(range(len(self.testing_data_files)))
         indices = np.random.choice(range(len(self.testing_data_files)), batch_size, replace=False)
         #indices = np.random.randint(0, len(self.testing_data_files), batch_size)
         for index in indices:
@@ -160,25 +198,33 @@ class VAETrain:
         self.training_losses = []
 
         t0 = time.time()
-        for step in range(self.num_training_steps):
-            states, images = self.get_training_batch(self.batch_size)
-            states = torch.from_numpy(states).float().to(self.device)
-            images = torch.from_numpy(images).float().to(self.device)
-            images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
+        #for step in range(self.num_training_steps):
+        for epoch in range(self.num_epochs):
+            print("Epoch:", epoch)
+            data_files_indices = list(range(len(self.data_files)))
+            np.random.shuffle(data_files_indices)
 
-            optimizer.zero_grad()
-            [recons, input, mu, log_var] = self.model.forward(images, states)
-            args = [recons, input, mu, log_var]
-            loss_dict = self.model.loss_function(self.beta, *args)
-            loss = loss_dict['loss']
-            recon_loss = loss_dict['Reconstruction_Loss']
-            kl_loss = loss_dict['KLD']
-            loss.backward()
-            optimizer.step()
+            for step in range(self.steps_per_epoch):
+                states, images = self.get_training_batch(self.batch_size, data_files_indices, step)
+                states = torch.from_numpy(states).float().to(self.device)
+                images = torch.from_numpy(images).float().to(self.device)
+                images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
 
-            if step % print_freq == 0:
-                print(step, loss.item(), kl_loss.item(), recon_loss.item())
-                self.training_losses.append((step, loss.item()))
+                optimizer.zero_grad()
+                [recons, input, mu, log_var] = self.model.forward(images, states)
+                args = [recons, input, mu, log_var]
+                loss_dict = self.model.loss_function(self.beta, *args)
+                loss = loss_dict['loss']
+                recon_loss = loss_dict['Reconstruction_Loss']
+                kl_loss = loss_dict['KLD']
+                loss.backward()
+                optimizer.step()
+
+                if step % print_freq == 0:
+                    true_step = epoch * self.steps_per_epoch + step
+                    print("Step:", step, true_step, "Loss:", loss.item(), "KL Loss:", kl_loss.item(), 
+                            "Recons Loss:", recon_loss.item())
+                    self.training_losses.append((true_step, loss.item()))
         
         t1 = time.time()
         torch.save(self.model.state_dict(), self.save_path)
@@ -279,7 +325,7 @@ class VAETrain:
             cv2.imwrite(self.test_true_path + state_str, original)
     
 
-    def test_tsne(self, analysis_dataset, module, reshape):
+    def test_tsne(self, analysis_dataset, hallway_dataset, module, reshape):
         self.model.load_state_dict(torch.load(self.test_model_path))
 
         layer = self.model._modules.get(module)  
@@ -287,7 +333,9 @@ class VAETrain:
 
         if analysis_dataset:
             num_tests = 500
-        else:
+        elif hallway_dataset:
+            num_tests = 200
+        else:  # This is the hard dataset
             num_tests = 150
 
         states, images = self.get_testing_batch(num_tests)
@@ -328,22 +376,36 @@ class VAETrain:
         category2_y = np.argwhere((states[:, 1] > 21) & (states[:, 1] <= 23)).flatten()
         category3_y = np.argwhere((states[:, 1] > 23) & (states[:, 1] <= 25)).flatten()
 
+        category1_x = np.argwhere(states[:, 0] <= 26).flatten()
+        category2_x = np.argwhere((states[:, 0] > 26) & (states[:, 1] <= 29)).flatten()
+        category3_x = np.argwhere((states[:, 0] > 29) & (states[:, 1] <= 32.5)).flatten()
+
         plotting_dictionary = {}
 
         if analysis_dataset:
             plotting_dictionary["20 < y < 21"] = category1_y
             plotting_dictionary["21 < y < 23"] = category2_y
             plotting_dictionary["23 < y < 25"] = category3_y
+        elif hallway_dataset:
+            plotting_dictionary["north/east, 24 < x < 26"] = np.intersect1d(category1_theta, category1_x)
+            plotting_dictionary["north/east, 26 < x < 29"] = np.intersect1d(category1_theta, category2_x)
+            plotting_dictionary["north/east, 29 < x < 32.5"] = np.intersect1d(category1_theta, category3_x)
+            plotting_dictionary["west, 24 < x < 26"] = np.intersect1d(category2_theta, category1_x)
+            plotting_dictionary["west, 26 < x < 29"] = np.intersect1d(category2_theta, category2_x)
+            plotting_dictionary["west, 29 < x < 32.5"] = np.intersect1d(category2_theta, category3_x)
+            plotting_dictionary["south/east, 24 < x < 26"] = np.intersect1d(category3_theta, category1_x)
+            plotting_dictionary["south/east, 26 < x < 29"] = np.intersect1d(category3_theta, category2_x)
+            plotting_dictionary["south/east, 29 < x < 32.5"] = np.intersect1d(category3_theta, category3_x)
         else:
-            plotting_dictionary["north/east, 20 < y < 21"] = np.intersect1d(category1_theta, category1_y)
-            plotting_dictionary["north/east, 21 < y < 23"] = np.intersect1d(category1_theta, category2_y)
-            plotting_dictionary["north/east, 23 < y < 25"] = np.intersect1d(category1_theta, category3_y)
-            plotting_dictionary["west, 20 < y < 21"] = np.intersect1d(category2_theta, category1_y)
-            plotting_dictionary["west, 21 < y < 23"] = np.intersect1d(category2_theta, category2_y)
-            plotting_dictionary["west, 23 < y < 25"] = np.intersect1d(category2_theta, category3_y)
-            plotting_dictionary["south/east, 20 < y < 21"] = np.intersect1d(category3_theta, category1_y)
-            plotting_dictionary["south/east, 21 < y < 23"] = np.intersect1d(category3_theta, category2_y)
-            plotting_dictionary["south/east, 23 < y < 25"] = np.intersect1d(category3_theta, category3_y)
+            plotting_dictionary["north/east, 20 < y < 21"] = np.intersect1d(category1_theta, category1_x)
+            plotting_dictionary["north/east, 21 < y < 23"] = np.intersect1d(category1_theta, category2_x)
+            plotting_dictionary["north/east, 23 < y < 25"] = np.intersect1d(category1_theta, category3_x)
+            plotting_dictionary["west, 20 < y < 21"] = np.intersect1d(category2_theta, category1_x)
+            plotting_dictionary["west, 21 < y < 23"] = np.intersect1d(category2_theta, category2_x)
+            plotting_dictionary["west, 23 < y < 25"] = np.intersect1d(category2_theta, category3_x)
+            plotting_dictionary["south/east, 20 < y < 21"] = np.intersect1d(category3_theta, category1_x)
+            plotting_dictionary["south/east, 21 < y < 23"] = np.intersect1d(category3_theta, category2_x)
+            plotting_dictionary["south/east, 23 < y < 25"] = np.intersect1d(category3_theta, category3_x)
 
 
         tsne_features = activated_features.features.reshape(-1, reshape)
@@ -365,11 +427,18 @@ if image_cvae_params.train:
 else:
     #vae_train.test()
     analysis_dataset = False
-    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="final_layer", 
-    #                    reshape=vae_train.img_size**2 * vae_train.in_channels)
-    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="encoder", reshape=512)
-    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="decoder_mlp", reshape=512*4)
-    #vae_train.test_tsne(analysis_dataset=analysis_dataset, module="encoder_mlp", reshape=128)
-    vae_train.test_tsne(analysis_dataset=analysis_dataset, module="decoder", reshape=32 * vae_train.img_size**2)
+    hallway_dataset = True
+    # vae_train.test_tsne(analysis_dataset=analysis_dataset, hallway_dataset=hallway_dataset, 
+    #                     module="final_layer", reshape=vae_train.img_size**2 * vae_train.in_channels)
+    # vae_train.test_tsne(analysis_dataset=analysis_dataset, hallway_dataset=hallway_dataset, 
+    #                     module="encoder", reshape=512*4)
+    # vae_train.test_tsne(analysis_dataset=analysis_dataset, hallway_dataset=hallway_dataset,
+    #                     module="decoder_mlp", reshape=512*4)
+    # vae_train.test_tsne(analysis_dataset=analysis_dataset, hallway_dataset=hallway_dataset,
+    #                     module="encoder_mlp", reshape=128)
+    vae_train.test_tsne(analysis_dataset=analysis_dataset, hallway_dataset=hallway_dataset,
+                        module="fc_mu", reshape=64)
+    # vae_train.test_tsne(analysis_dataset=analysis_dataset, hallway_dataset=hallway_dataset,
+    #                     module="decoder", reshape=32*vae_train.img_size**2)
 
         
