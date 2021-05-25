@@ -11,7 +11,7 @@ from configs.environments.floor import *
 from configs.solver.observation_generation import *
 from configs.solver.dualsmc import *
 
-from src.environments.env import *
+from src.environments.floor import *
 from src.methods.dualsmc_nolstm.replay_memory import *
 
 cvae_params = CVAE_Params()
@@ -120,19 +120,23 @@ class ObservationGenerator(nn.Module):
     def online_training(self, state_batch, obs_batch):
         self.optimizer.zero_grad()
         loss, kl, recon = self.training_step(state_batch, obs_batch)
+        loss_copy = loss.clone().detach()
         loss.backward()
         self.optimizer.step()
 
-        return loss
+        return loss_copy
 
-
-    def pretrain(self):
+    def pretrain(self, save_model, save_path):
         print("Pretraining observation generator")
         optimizer = self.configure_optimizers()
         self.training_losses = []
         self.testing_errors = []
 
-        print_freq = 50
+        printing_losses = []
+        printing_kl = []
+        printing_recon = []
+
+        print_freq = 100
         test_freq = 100
 
         wall_step = int(70e3) #int(2 * cvae_params.num_training_steps/3)
@@ -161,9 +165,22 @@ class ObservationGenerator(nn.Module):
             loss, kl, recon = self.training_step(state_batch, obs_batch)
             loss.backward()
             optimizer.step()
+
+            printing_losses.append(loss.item())
+            printing_kl.append(kl.item())
+            printing_recon.append(recon.item())
+
             if step % print_freq == 0:
-                print(step, loss.item(), kl.item(), recon.item())
+                # print(step, loss.item(), kl.item(), recon.item())
+                print("Step: ", step, ", G loss: ", np.mean(
+                    printing_losses), ", KL: ", np.mean(
+                    printing_kl), ", recon: ", np.mean(
+                    printing_recon),)
                 self.training_losses.append((step, loss.item()))
+
+                printing_losses = []
+                printing_kl = []
+                printing_recon = []
 
             if step % test_freq == 0:
                 # Testing
@@ -181,8 +198,10 @@ class ObservationGenerator(nn.Module):
         t1 = time.time()
 
         if cvae_params.save_model:
-            #torch.save(self.state_dict(), cvae_params.save_path + str(time.time()))
-            torch.save(self.state_dict(), cvae_params.save_path)
+            torch.save(self.state_dict(), cvae_params.save_path + "/gen_pre_trained")
+            print("Saving pre-trained generative model to %s" %
+                  (cvae_params.save_path + "/gen_pre_trained"))
+
 
         print("Done pretraining")
 
@@ -193,8 +212,8 @@ class ObservationGenerator(nn.Module):
     def sample(self, batch_size, states_batch):
         pz = torch.distributions.Normal(torch.zeros(batch_size, cvae_params.latent_dim),
                                         torch.ones(batch_size, cvae_params.latent_dim))
-        z = pz.rsample()  # [batch_size, latent_dim]
-        decoder_input = torch.cat([states_batch, z], -1).to(device)  # [batch_size, latent_dim + dim_state]
+        z = pz.rsample().to(device)  # [batch_size, latent_dim]
+        decoder_input = torch.cat([states_batch.to(device), z], -1)  # [batch_size, latent_dim + dim_state]
 
         obs_hat = self.decoder(decoder_input.detach()) # [batch_size, dim_obs]
 

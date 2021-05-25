@@ -11,7 +11,7 @@ from torch.distributions.categorical import Categorical
 
 # DualSMC w/ Branching and No LSTM
 from src.solvers.dualsmc_branching_nolstm import DualSMC
-from src.environments.env import *
+from src.environments.floor import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *

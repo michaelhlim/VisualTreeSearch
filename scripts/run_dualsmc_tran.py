@@ -15,6 +15,7 @@ from src.environments.floor import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
+from statistics import mean, stdev
 
 
 def dualsmc(model, experiment_id, train, model_path):
@@ -27,7 +28,6 @@ def dualsmc(model, experiment_id, train, model_path):
     reward_list_episode = []
     episode_Z_loss = []
     episode_P_loss = []
-    episode_T_loss = []
     episode_q1_loss = []
     episode_q2_loss = []
     rmse_per_step = np.zeros((MAX_STEPS))
@@ -95,7 +95,6 @@ def dualsmc(model, experiment_id, train, model_path):
             # 4. transition model
             step_Z_loss = []
             step_P_loss = []
-            step_T_loss = []
             step_q1_loss = []
             step_q2_loss = []
             #######################################
@@ -151,14 +150,16 @@ def dualsmc(model, experiment_id, train, model_path):
                     torch.transpose(curr_smc_state, 0, 1).contiguous().view(NUM_PAR_SMC, -1)) # [N, M * C]
                 action_tile = action.unsqueeze(0).repeat(NUM_PAR_SMC_INIT, 1, 1).view(-1, DIM_ACTION)
 
-                next_smc_state = model.dynamic_net.t_model(
-                    torch.FloatTensor(smc_states[i]).to(device).view(-1, DIM_STATE),  action_tile * STEP_RANGE)
+                next_smc_state, _, _, _ = env.transition(
+                    smc_states[i].reshape((-1, DIM_STATE)), None, action_tile.detach().cpu().numpy() * STEP_RANGE)
+                next_smc_state = torch.FloatTensor(next_smc_state).to(device)
                 next_smc_state[:, 0] = torch.clamp(next_smc_state[:, 0], 0, 2)
                 next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], 0, 1)
                 next_smc_state = next_smc_state.view(NUM_PAR_SMC_INIT, NUM_PAR_SMC, DIM_STATE)
 
-                mean_par = model.dynamic_net.t_model(
-                    torch.FloatTensor(smc_mean_state[i]).to(device), action * STEP_RANGE)
+                mean_par, _, _, _ = env.transition(
+                    smc_mean_state[i], None, action.detach().cpu().numpy() * STEP_RANGE)
+                mean_par = torch.FloatTensor(mean_par).to(device)
                 mean_par[:, 0] = torch.clamp(mean_par[:, 0], 0, 2)
                 mean_par[:, 1] = torch.clamp(mean_par[:, 1], 0, 1)
 
@@ -237,20 +238,16 @@ def dualsmc(model, experiment_id, train, model_path):
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, hidden, cell, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
-                    p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update()
+                    p_loss, _, z_loss, q1_loss, q2_loss = model.soft_q_update()
 
                     step_P_loss.append(p_loss.item())
-                    step_T_loss.append(t_loss.item())
                     step_Z_loss.append(z_loss.item())
                     step_q1_loss.append(q1_loss.item())
                     step_q2_loss.append(q2_loss.item())
             #######################################
             # Transition Model
-            par_states = model.dynamic_net.t_model(torch.FloatTensor(par_states).to(device),
-                                                   torch.FloatTensor(action * STEP_RANGE).to(device))
-            par_states[:, 0] = torch.clamp(par_states[:, 0], 0, 2)
-            par_states[:, 1] = torch.clamp(par_states[:, 1], 0, 1)
-            par_states = par_states.detach().cpu().numpy()
+            par_states, _, _, _ = env.transition(
+                par_states, None, action * STEP_RANGE)
 
             #######################################
             curr_state = next_state
@@ -270,7 +267,6 @@ def dualsmc(model, experiment_id, train, model_path):
         if train:
             if len(model.replay_buffer) > BATCH_SIZE:
                 episode_P_loss.append(np.mean(step_P_loss))
-                episode_T_loss.append(np.mean(step_T_loss))
                 episode_Z_loss.append(np.mean(step_Z_loss))
                 episode_q1_loss.append(np.mean(step_q1_loss))
                 episode_q2_loss.append(np.mean(step_q2_loss))
@@ -300,9 +296,9 @@ def dualsmc(model, experiment_id, train, model_path):
             print("Saving online trained models to %s" % model_path)
 
         if episode % real_display_iter == 0:
-            episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
+            episode_list = [episode_P_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
             st2 = img_path + "/"
-            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
+            name_list = ['particle_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
             if train:
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:

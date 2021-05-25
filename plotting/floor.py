@@ -104,10 +104,11 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     ax.plot(walls_dotted[:, :, 0].T, walls_dotted[:, :, 1].T, color=color, linewidth=1.0, linestyle='--')
 
     # planning trajectories
-    num_par_smc = smc_traj.shape[1]
-    for k in range(num_par_smc):
-        points = smc_traj[:, k, :]
-        ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
+    if smc_traj.any():
+        num_par_smc = smc_traj.shape[1]
+        for k in range(num_par_smc):
+            points = smc_traj[:, k, :]
+            ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
 
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')
@@ -121,12 +122,12 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     ax.plot(x, y, 'bx')
 
     ax.set_aspect('equal')
+
     plt.savefig(figure_name)
     plt.close()
 
 
-def visualize_learning(figure_name, episode_loss_list, time_list, step_list, reward_list,
-             num_episodes):
+def visualize_learning(figure_name, episode_loss_list, time_list, step_list, reward_list, num_episodes, name_list):
     '''
     :param figure_name: path to save the figure in
     :param episode_loss_list: List of lists that contains the loss for each network. None type if testing
@@ -140,9 +141,10 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Loss plot block
     ##################
     if episode_loss_list is not None:
-        episode_number_list = np.linspace(1, num_episodes, num_episodes)
-        name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
         for i in range(len(name_list)):
+            num_records = len(episode_loss_list[i])
+            episode_number_list = np.linspace(1, num_records, num_records)
+
             path_str = figure_name + name_list[i] + FIG_FORMAT
             plt.figure(path_str)
             ax = plt.axes()
@@ -156,6 +158,7 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Time plot block
     ##################
 
+    episode_number_list = np.linspace(1, len(time_list), len(time_list))
     path_str = figure_name + "time_plot" + FIG_FORMAT
     plt.figure(path_str)
     ax = plt.axes()
@@ -169,6 +172,7 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Step plot block
     ##################
 
+    episode_number_list = np.linspace(1, len(step_list), len(step_list))
     path_str = figure_name + "step_plot" + FIG_FORMAT
     plt.figure(path_str)
     ax = plt.axes()
@@ -182,6 +186,7 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     # Reward plot block
     ##################
 
+    episode_number_list = np.linspace(1, len(reward_list), len(reward_list))
     path_str = figure_name + "reward_plot" + FIG_FORMAT
     plt.figure(path_str)
     ax = plt.axes()

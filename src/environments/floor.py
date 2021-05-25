@@ -1,8 +1,11 @@
 # author: @wangyunbo
 from utils.utils import *
 from configs.environments.floor import *
+from src.environments.abstract import AbstractEnvironment
+import random
+import numpy as np
 
-class Environment(object):
+class Environment(AbstractEnvironment):
     def __init__(self):
         self.done = False
         self.state = np.random.rand(2)
@@ -90,7 +93,7 @@ class Environment(object):
         target = cond * self.target1 + (1 - cond) * self.target2
 
         next_dist = l2_distance(next_state, target)
-        cond_hit = detect_collison(curr_state, next_state)
+        cond_hit = detect_collision(curr_state, next_state)
 
         if next_dist <= END_RANGE:
             self.state = next_state
@@ -104,6 +107,110 @@ class Environment(object):
         next_false_dist = l2_distance(next_state, false_target)
         cond_false = (curr_false_dist >= END_RANGE) * (next_false_dist < END_RANGE)
         reward -= EPI_REWARD * cond_false
+        return reward
+
+    def is_terminal(self, s):
+        # Check if a given state tensor is a terminal state
+        cond = (s[:, 1] <= 0.5)
+        true_targets = np.zeros(np.shape(s))
+        true_targets[cond, :] = self.target1
+        true_targets[~cond, :] = self.target2
+        
+        true_dist = l2_distance_np(s, true_targets)
+        
+        return all(true_dist <= END_RANGE)
+
+    def action_sample(self):
+        # Gives back a uniformly sampled random action
+        rnd = int(random.random()*9)
+
+        # No blank move
+        while rnd == 4:
+            rnd = int(random.random()*9)
+
+        action = STEP_RANGE * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
+
+        # # just generate completely random
+        # action_x = STEP_RANGE * (2 * random.random() - 1)
+        # action_y = STEP_RANGE * (2 * random.random() - 1)
+        # action = np.array([action_x, action_y])
+
+        return action
+
+    def transition(self, s, w, a):
+        # transition each state in state tensor s with actions in action/action tensor a
+        next_state = np.copy(s)
+        if w is not None:
+            weights = np.copy(w)
+            next_weights = np.copy(w)
+        else:
+            # Dummy weight
+            weights = np.ones(np.shape(s)[0])
+            next_weights = np.ones(np.shape(s)[0])
+        sp = s + a
+        reward = 0.0
+
+        # Determine targets
+        cond = (s[:, 1] <= 0.5)
+        true_targets = np.zeros(np.shape(s))
+        true_targets[cond, :] = self.target1
+        true_targets[~cond, :] = self.target2
+        false_targets = np.zeros(np.shape(s))
+        false_targets[cond, :] = self.false_target1
+        false_targets[~cond, :] = self.false_target2
+
+        # Calculate distances
+        next_true_dist = l2_distance_np(sp, true_targets)
+        curr_false_dist = l2_distance_np(s, false_targets)
+        next_false_dist = l2_distance_np(sp, false_targets)
+
+        # Check collision & goal
+        cond_hit = detect_collision(s, sp)
+        goal_achieved = (next_true_dist <= END_RANGE)
+        step_ok = (~cond_hit | goal_achieved)
+
+        # Check false goal
+        false_goal = (curr_false_dist > END_RANGE) * (next_false_dist <= END_RANGE)
+        normal_step = ~(goal_achieved | false_goal)
+
+        # If goal reached
+        next_state[step_ok, :] = sp[step_ok, :]
+        next_weights[goal_achieved] = 0.0
+        reward += np.sum(weights[goal_achieved]) * EPI_REWARD
+
+        # If false goal reached
+        reward -= np.sum(weights[false_goal]) * EPI_REWARD
+
+        # Else
+        reward += np.sum(weights[normal_step]) * STEP_REWARD
+
+        # Is the transition terminal?
+        is_terminal = all(goal_achieved)
+
+        if is_terminal:
+            # Dummy weight
+            next_weights = np.array([1/len(next_weights)] * len(next_weights))  
+        else:
+            # Reweight
+            next_weights = next_weights / np.sum(next_weights)
+                
+        return next_state, next_weights, reward, is_terminal
+
+    def rollout(self, s, ss, ws):
+        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        cond = (s[1] <= 0.5)
+        target = cond * self.target1 + (1 - cond) * self.target2
+        dist = np.sqrt(l2_distance(s, target))
+        steps = int(np.floor(dist/STEP_RANGE))
+        
+        # Going stepping number of times will provide the following intermediate rewards (geometric series result)
+        gamma = np.power(DISCOUNT, steps)
+        reward = STEP_REWARD * (1.0 - gamma)/(1.0 - DISCOUNT)
+
+        # Basically check if the targets are same (1) or different (-1)
+        cond_all = -2 * (cond ^ (ss[:, 1] <= 0.5)) + 1
+        reward += gamma * np.dot(cond_all, ws) * EPI_REWARD
+
         return reward
 
     def make_batch(self, batch_size):
@@ -194,10 +301,18 @@ class Environment(object):
 
             obs = self.get_observation_batch(state[0], state[1])
 
+            par_vec_x = np.random.normal(state[0], OBS_STD, NUM_PAR_PF)
+            par_vec_y = np.random.normal(state[1], OBS_STD, NUM_PAR_PF)
             states_batch.append(state)
             obs_batch.append(obs)
+            middle_var = np.stack((par_vec_x, par_vec_y), 1)
+
+            if i == 0:
+                par_batch = middle_var
+            else:
+                par_batch = np.concatenate((par_batch, middle_var), 0)
 
         states_batch = np.array(states_batch)
         obs_batch = np.array(obs_batch)
 
-        return states_batch, obs_batch
+        return states_batch, obs_batch, par_batch
