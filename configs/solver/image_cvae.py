@@ -14,11 +14,11 @@ class Image_CVAE_Params():
         self.beta = 1
         self.batch_size = 64 #32 
         self.num_training_data = 8000 #7000 #500 
-        self.num_epochs = 200 #100 #200 
+        self.num_epochs = 2 #200 #100 #200 
         #self.num_training_steps = int((self.num_training_data/self.batch_size) * self.num_epochs)  
         self.data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
-        self.save_path = "image_cvae_hallway.pth"
-        self.training_loss_path = "image_cvae_hallway"
+        self.save_path = "image_cvae_hallway_dummy.pth"
+        self.training_loss_path = "image_cvae_hallway_dummy"
         
         # Testing
         self.test_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_hallway/rgbs/*"
@@ -27,6 +27,6 @@ class Image_CVAE_Params():
         self.test_true_path = "test_true_hallway"
         
 
-        self.train = False
+        self.train = True
 
 

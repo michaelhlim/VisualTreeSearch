@@ -107,6 +107,7 @@ class VAETrain:
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
             
             if self.normalization:
+                ####################### I THINK THERE IS A BUG HERE -- SHOULD BE CHANGING TO RGB ##################
                 img_rslice = (src[:, :, 0] - self.rmean)/self.rstd
                 img_gslice = (src[:, :, 1] - self.gmean)/self.gstd
                 img_bslice = (src[:, :, 2] - self.bmean)/self.bstd
@@ -141,6 +142,7 @@ class VAETrain:
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
             
             if self.normalization:
+                ####################### I THINK THERE IS A BUG HERE -- SHOULD BE CHANGING TO RGB ##################
                 img_rslice = (src[:, :, 0] - self.rmean)/self.rstd
                 img_gslice = (src[:, :, 1] - self.gmean)/self.gstd
                 img_bslice = (src[:, :, 2] - self.bmean)/self.bstd
