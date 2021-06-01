@@ -4,12 +4,17 @@ import numpy as np
 import os
 import random
 
-from configs.environments.floor import *
 from src.environments.abstract import AbstractEnvironment
 from utils.utils import *
 
+from configs.environments.stanford import *
+from configs.solver.dualsmc_lightdark import *
+
+dlp = DualSMC_LightDark_Params()
+sep = Stanford_Environment_Params()
 
 from examples.examples import *
+
 
 class StanfordEnvironment(AbstractEnvironment):
     def __init__(self):
@@ -18,7 +23,7 @@ class StanfordEnvironment(AbstractEnvironment):
         self.target = [28.0, 23.0]
         self.xrange = [24, 32.5]
         self.yrange = [23, 24.5]
-        self.thetas = [0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4]
+        self.thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
 
         path = '/home/sampada_deglurkar/VisualTreeSearch/temp/'
         os.mkdir(path)
@@ -78,12 +83,12 @@ class StanfordEnvironment(AbstractEnvironment):
         next_dist = l2_distance(next_state[:2], self.target)
         cond_hit = self.detect_collision(next_state)
 
-        if next_dist <= END_RANGE:
+        if next_dist <= sep.end_range:
             self.state = next_state
             self.done = True
         elif cond_hit == False:
             self.state = next_state
-        reward = EPI_REWARD * self.done
+        reward = sep.epi_reward * self.done
 
         return reward
 
@@ -95,7 +100,7 @@ class StanfordEnvironment(AbstractEnvironment):
         
         true_dist = l2_distance_np(s, targets)
         
-        return all(true_dist <= END_RANGE)
+        return all(true_dist <= sep.end_range)
     
 
     def make_batch(self, batch_size):
@@ -113,11 +118,12 @@ class StanfordEnvironment(AbstractEnvironment):
             img_path, _, _ = self.get_observation(state, path)
             obs = self.read_observation(img_path, normalize=True) 
 
-            par_vec_x = np.random.normal(state[0], OBS_STD, NUM_PAR_PF)
-            par_vec_y = np.random.normal(state[1], OBS_STD, NUM_PAR_PF)
+            par_vec_x = np.random.normal(state[0], sep.obs_std, dlp.num_par_pf)
+            par_vec_y = np.random.normal(state[1], sep.obs_std, dlp.num_par_pf)
+            par_vec_theta = self.thetas[np.random.randint(len(self.thetas), size=(dlp.num_par_pf))]
             states_batch.append(state)
             obs_batch.append(obs)
-            middle_var = np.stack((par_vec_x, par_vec_y), 1)
+            middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
 
             if i == 0:
                 par_batch = middle_var
@@ -231,3 +237,5 @@ class StanfordEnvironment(AbstractEnvironment):
         return reward
 
 
+# stan = StanfordEnvironment()
+# stan.make_batch(3)
