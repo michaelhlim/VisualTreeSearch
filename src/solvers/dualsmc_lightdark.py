@@ -12,10 +12,10 @@ from configs.solver.dualsmc_lightdark import *
 # Methods for DualSMC Light-Dark
 from src.methods.dualsmc_lightdark.dynamic_network import *
 from src.methods.dualsmc_lightdark.gaussian_policy import *
-from src.methods.dualsmc_lightdark.q_network import *
-
 from src.methods.dualsmc_lightdark.observation_network_lightdark import *
+from src.methods.dualsmc_lightdark.q_network import *
 from src.methods.dualsmc_lightdark.replay_memory import *
+
 
 dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
@@ -113,9 +113,9 @@ class DualSMC:
         q = torch.min(qf1, qf2)
         return q
 
-    def soft_q_update(self, observation_generator):
+    def soft_q_update(self):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
-        obs, curr_par, mean_state, pf_sample = self.replay_buffer.sample(dlp.batch_size)
+            obs, curr_par, mean_state, hidden, cell, pf_sample = self.replay_buffer.sample(dlp.batch_size)
         state_batch = torch.FloatTensor(state_batch).to(dlp.device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(dlp.device)
         action_batch = torch.FloatTensor(action_batch).to(dlp.device)
@@ -125,12 +125,10 @@ class DualSMC:
         curr_par = torch.FloatTensor(curr_par).to(dlp.device)  # (B, K, dim_s)
         mean_state = torch.FloatTensor(mean_state).to(dlp.device) # (B, dim_s)
         curr_par_sample = torch.FloatTensor(pf_sample).to(dlp.device) # (B, M, 2)
-        hidden = curr_obs
-        cell = curr_obs
-
-        # Observation generative model
-        obs_gen_loss = observation_generator.online_training(state_batch, curr_obs)
-
+        hidden = torch.FloatTensor(hidden).to(dlp.device)  # [128, NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN]
+        hidden = torch.transpose(torch.squeeze(hidden), 0, 1).contiguous()
+        cell = torch.FloatTensor(cell).to(dlp.device)
+        cell = torch.transpose(torch.squeeze(cell), 0, 1).contiguous()
 
         # ------------------------
         #  Train Particle Proposer
@@ -158,12 +156,12 @@ class DualSMC:
             P_loss = PP_loss.clone().detach()
             PP_loss.backward()
             self.pp_optimizer.step()
+
         # ------------------------
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        temp = curr_par.view(-1, sep.dim_state)
-        fake_logit, _, _ = self.measure_net.m_model(temp,
+        fake_logit, next_hidden, next_cell = self.measure_net.m_model(curr_par.view(-1, sep.dim_state),
                                                                       curr_obs, hidden, cell, dlp.num_par_pf)  # (B, K)
         if dlp.pp_exist:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
@@ -178,6 +176,7 @@ class DualSMC:
         Z_loss = OM_loss.clone().detach()
         OM_loss.backward()
         self.measure_optimizer.step()
+
         # ------------------------
         #  Train Transition Model
         # ------------------------
@@ -235,4 +234,4 @@ class DualSMC:
         soft_update(self.critic_target, self.critic, self.tau)
 
 
-        return P_loss, T_loss, Z_loss, q1_loss, q2_loss, obs_gen_loss
+        return P_loss, T_loss, Z_loss, q1_loss, q2_loss

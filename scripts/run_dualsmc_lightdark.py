@@ -1,5 +1,4 @@
 # author: @wangyunbo, @liubo
-from configs.environments.floor import MAX_STEPS
 import math
 import os.path
 import shutil
@@ -11,7 +10,6 @@ from torch.distributions.categorical import Categorical
 import torch.nn.functional as F
 from utils.utils import *
 
-# DualSMC w/ No LSTM
 from configs.environments.stanford import *
 from configs.solver.dualsmc_lightdark import *
 from src.environments.stanford import *
@@ -22,7 +20,6 @@ sep = Stanford_Environment_Params()
  
 
 def dualsmc(model, experiment_id, train, model_path):
-#def dualsmc(model, observation_generator, experiment_id, foldername, train):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -108,7 +105,7 @@ def dualsmc(model, experiment_id, train, model_path):
             # Observation model
             lik, next_hidden, next_cell = model.measure_net.m_model(
                 torch.FloatTensor(par_states).to(dlp.device),
-                torch.FloatTensor(curr_obs).to(dlp.device),
+                torch.FloatTensor(curr_obs).unsqueeze(0).to(dlp.device),
                 torch.FloatTensor(hidden).to(dlp.device),
                 torch.FloatTensor(cell).to(dlp.device))
             par_weight += lik.squeeze()  # (NUM_PAR_PF)
