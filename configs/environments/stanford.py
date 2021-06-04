@@ -2,7 +2,8 @@ class Stanford_Environment_Params():
     def __init__(self):
         self.epi_reward = 100
         self.step_reward = -1
-        self.dim_action = 3
+        self.dim_action = 1
+        self.velocity = 0.1
         self.dim_state = 3
         self.img_size = 32 
         self.dim_obs = 4

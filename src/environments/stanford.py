@@ -94,7 +94,7 @@ class StanfordEnvironment(AbstractEnvironment):
         return img_path, traversible, dx_m
     
 
-    def read_observation(self, img_path, str, normalize):
+    def read_observation(self, img_path, normalize):
         obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
         obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now obs is in RGB
         if normalize:
@@ -103,6 +103,8 @@ class StanfordEnvironment(AbstractEnvironment):
         # obs = obs * 100 + (255./2)
         # obs = obs[:, :, ::-1]
         # cv2.imwrite(img_path[:-4] + str, obs)
+
+        os.remove(img_path)
 
         return obs
         
@@ -129,7 +131,12 @@ class StanfordEnvironment(AbstractEnvironment):
     def step(self, action):
         self.done = False
         curr_state = self.state
-        next_state = curr_state + action
+        theta = curr_state[2]
+        next_state = np.copy(curr_state) 
+        new_theta = theta + action[0]  # Action is like a delta theta 
+        next_state[2] = new_theta
+        vector = np.array([np.cos(new_theta), np.sin(new_theta)]) * sep.velocity  # Go in the direction the current theta is
+        next_state[:2] = curr_state[:2] + vector
 
         next_dist = l2_distance(next_state[:2], self.target)
         cond_hit = self.detect_collision(next_state)
@@ -141,9 +148,9 @@ class StanfordEnvironment(AbstractEnvironment):
             self.state = next_state
         reward = sep.epi_reward * self.done
 
-        curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) or \
+        curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) and \
                     (curr_state[1] >= self.trap_y[0] and curr_state[1] < self.trap_y[1])
-        next_trap = (next_state[0] >= self.trap_x[0] and next_state[0] <= self.trap_x[1]) or \
+        next_trap = (next_state[0] >= self.trap_x[0] and next_state[0] <= self.trap_x[1]) and \
                     (next_state[1] >= self.trap_y[0] and next_state[1] < self.trap_y[1])  
         cond_false = (not curr_trap) * (next_trap) 
         reward -= sep.epi_reward * cond_false
@@ -162,7 +169,8 @@ class StanfordEnvironment(AbstractEnvironment):
 
     
     def make_pars(self, batch_size):
-        thetas = self.thetas[np.random.randint(len(self.thetas), size=(batch_size, 1))]
+        # thetas = self.thetas[np.random.randint(len(self.thetas), size=(batch_size, 1))]
+        thetas = np.random.rand(batch_size, 1) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
         xs = np.random.rand(batch_size, 1) * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
         ys = np.random.rand(batch_size, 1) * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
 
@@ -178,7 +186,8 @@ class StanfordEnvironment(AbstractEnvironment):
         states_batch = []
         obs_batch = []
         for i in range(batch_size):
-            theta = self.thetas[np.random.randint(len(self.thetas))]
+            # theta = self.thetas[np.random.randint(len(self.thetas))]
+            theta = np.random.rand() * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
             x = np.random.rand() * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
             y = np.random.rand() * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
             state = [x, y, theta]
@@ -188,7 +197,8 @@ class StanfordEnvironment(AbstractEnvironment):
 
             par_vec_x = np.random.normal(state[0], sep.obs_std, dlp.num_par_pf)
             par_vec_y = np.random.normal(state[1], sep.obs_std, dlp.num_par_pf)
-            par_vec_theta = self.thetas[np.random.randint(len(self.thetas), size=(dlp.num_par_pf))]
+            par_vec_theta = np.random.rand(dlp.num_par_pf) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
+            # par_vec_theta = self.thetas[np.random.randint(len(self.thetas), size=(dlp.num_par_pf))]
             states_batch.append(state)
             obs_batch.append(obs)
             middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)

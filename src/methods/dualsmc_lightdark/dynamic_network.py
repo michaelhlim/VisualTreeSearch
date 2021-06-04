@@ -33,5 +33,6 @@ class DynamicNetwork(nn.Module):
         mean = x[:, :sep.dim_state]
         std = x[:, sep.dim_state:].exp()
         delta = torch.randn_like(state) * std + mean
-        next_state = state + action + delta
+        #next_state = state + action + delta
+        next_state = state + delta
         return next_state

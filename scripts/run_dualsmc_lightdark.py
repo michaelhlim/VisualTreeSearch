@@ -165,7 +165,7 @@ def dualsmc(model, experiment_id, train, model_path):
                 #next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], 0, 1)
                 next_smc_state[:, 0] = torch.clamp(next_smc_state[:, 0], env.xrange[0], env.xrange[1])
                 next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], env.yrange[0], env.yrange[1])
-                next_smc_state[:, 2] = torch.clamp(next_smc_state[:, 2], env.thetas[0], env.thetas[1])
+                next_smc_state[:, 2] = torch.clamp(next_smc_state[:, 2], env.thetas[0], env.thetas[-1])
                 next_smc_state = next_smc_state.view(dlp.num_par_smc_init, dlp.num_par_smc, sep.dim_state)
 
                 mean_par = model.dynamic_net.t_model(
@@ -174,7 +174,7 @@ def dualsmc(model, experiment_id, train, model_path):
                 #mean_par[:, 1] = torch.clamp(mean_par[:, 1], 0, 1)
                 mean_par[:, 0] = torch.clamp(mean_par[:, 0], env.xrange[0], env.xrange[1])
                 mean_par[:, 1] = torch.clamp(mean_par[:, 1], env.yrange[0], env.yrange[1])
-                mean_par[:, 2] = torch.clamp(mean_par[:, 2], env.thetas[0], env.thetas[1])
+                mean_par[:, 2] = torch.clamp(mean_par[:, 2], env.thetas[0], env.thetas[-1])
 
                 if i < dlp.horizon - 1:
                     smc_action[i] = action.detach().cpu().numpy()
@@ -214,7 +214,7 @@ def dualsmc(model, experiment_id, train, model_path):
                     # proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
                     proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
                     proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
-                    proposal_state[:, 2] = torch.clamp(proposal_state[:, 2], env.thetas[0], env.thetas[1])
+                    proposal_state[:, 2] = torch.clamp(proposal_state[:, 2], env.thetas[0], env.thetas[-1])
                     proposal_state = proposal_state.detach().cpu().numpy()
                     par_states = np.concatenate((resample_state, proposal_state), 0)  # [num_par_pf, dim_state]
                 else:
@@ -274,7 +274,7 @@ def dualsmc(model, experiment_id, train, model_path):
             # par_states[:, 1] = torch.clamp(par_states[:, 1], 0, 1)
             par_states[:, 0] = torch.clamp(par_states[:, 0], env.xrange[0], env.xrange[1])
             par_states[:, 1] = torch.clamp(par_states[:, 1], env.yrange[0], env.yrange[1])
-            par_states[:, 2] = torch.clamp(par_states[:, 2], env.thetas[0], env.thetas[1])
+            par_states[:, 2] = torch.clamp(par_states[:, 2], env.thetas[0], env.thetas[-1])
             par_states = par_states.detach().cpu().numpy()
 
             #######################################

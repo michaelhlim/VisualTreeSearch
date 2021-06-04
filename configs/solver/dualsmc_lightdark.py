@@ -21,8 +21,8 @@ class DualSMC_LightDark_Params():
         # Training
         self.train = True
         self.num_pretraining_steps = 50
-        self.max_episodes_train = 10000
-        self.max_episodes_test = 1000
+        self.max_episodes_train = 4000 #10000
+        self.max_episodes_test = 400 #1000
         self.batch_size = 64
         self.fil_lr = 1e-3 # filtering
         self.pla_lr = 1e-3 # planning
