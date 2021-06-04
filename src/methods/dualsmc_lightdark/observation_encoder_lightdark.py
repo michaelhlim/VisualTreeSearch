@@ -5,21 +5,21 @@ from configs.environments.stanford import *
 from configs.solver.dualsmc_lightdark import *
 from utils.utils import *
 
-stanford_environment_params = Stanford_Environment_Params()
-dualsmc_lightdark_params = DualSMC_LightDark_Params()
+sep = Stanford_Environment_Params()
+dlp = DualSMC_LightDark_Params()
 
 
 class ObservationEncoder(nn.Module):
     def __init__(self):
         super(ObservationEncoder, self).__init__()
 
-        self.device = dualsmc_lightdark_params.device
+        self.device = dlp.device
 
-        self.latent_dim = dualsmc_lightdark_params.latent_dim
-        self.img_size = stanford_environment_params.img_size
+        self.latent_dim = dlp.latent_dim
+        self.img_size = sep.img_size
 
-        dim_state = stanford_environment_params.dim_state
-        in_channels = dualsmc_lightdark_params.in_channels
+        dim_state = sep.dim_state
+        in_channels = dlp.in_channels
 
         #self.embed_cond_var = nn.Linear(dim_state, self.img_size * self.img_size).to(self.device)
         self.embed_data = nn.Conv2d(in_channels, in_channels, kernel_size=1).to(self.device)
@@ -27,7 +27,7 @@ class ObservationEncoder(nn.Module):
         modules = []
         hidden_dims = [32, 64, 128, 256, 512]
         self.hidden_dims = hidden_dims.copy()
-        in_channels += 1 # To account for the extra channel for the conditional variable
+        #in_channels += 1 # To account for the extra channel for the conditional variable
 
         # Build Encoder
         for h_dim in hidden_dims:

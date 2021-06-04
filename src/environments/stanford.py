@@ -20,10 +20,13 @@ class StanfordEnvironment(AbstractEnvironment):
     def __init__(self):
         self.done = False
         self.state = [24.5, 23.0, np.pi]
-        self.target = [28.0, 23.0]
+        self.target = [32.0, 23.0]
+        self.trap_x = [27, 29]
+        self.trap_y = [23, 23.5]
         self.xrange = [24, 32.5]
         self.yrange = [23, 24.5]
         self.thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
+        self.dark_line = (self.yrange[0] + self.yrange[1])/2
 
         path = '/home/sampada_deglurkar/VisualTreeSearch/temp/'
         os.mkdir(path)
@@ -44,14 +47,62 @@ class StanfordEnvironment(AbstractEnvironment):
         if path == None:
             path = '/home/sampada_deglurkar/VisualTreeSearch/images/'
 
-        return generate_observation(state_arr, path)
+        img_path, traversible, dx_m = generate_observation(state_arr, path)
+        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        out = image
+        # cv2.imwrite(img_path[:-4] + "_ORIGINAL.png", out)
+
+        if state_arr[0][1] <= self.dark_line: 
+            # Dark observation - add salt & pepper noise
+            
+            row,col,ch = image.shape
+            s_vs_p = 0.5
+            amount = 0.15
+            out = np.copy(image)
+            # Salt mode
+            num_salt = np.ceil(amount * image.size * s_vs_p)
+            coords = [np.random.randint(0, i - 1, int(num_salt))
+                    for i in image.shape]
+            out[coords] = 255
+
+            # # Salt mode
+            # num_salt = np.ceil(amount * image.size * s_vs_p)
+            # coords = [np.repeat(np.random.randint(0, i - 1, int(num_salt)), 3)
+            #         for i in image.shape]
+            # coords[2] = np.tile([0, 1, 2], int(num_salt))
+            # out[coords] = 255
+
+            # Pepper mode
+            num_pepper = np.ceil(amount* image.size * (1. - s_vs_p))
+            coords = [np.random.randint(0, i - 1, int(num_pepper))
+                    for i in image.shape]
+            out[coords] = 0
+
+            # # Pepper mode
+            # num_pepper = np.ceil(amount* image.size * (1. - s_vs_p))
+            # coords = [np.repeat(np.random.randint(0, i - 1, int(num_pepper)), 3)
+            #         for i in image.shape]
+            # coords[2] = np.tile([0, 1, 2], int(num_salt))
+            # out[coords] = 0
+
+        
+        cv2.imwrite(img_path, out)
+
+        # obs_orig = self.read_observation(img_path[:-4] + "_ORIGINAL.png", "_DENORMORIG.png", normalize=True)
+        # obs_noisy = self.read_observation(img_path, "_DENORMNOISE.png", normalize=True)
+
+        return img_path, traversible, dx_m
     
 
-    def read_observation(self, img_path, normalize):
+    def read_observation(self, img_path, str, normalize):
         obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
         obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now obs is in RGB
         if normalize:
             obs = (obs - obs.mean())/obs.std()  # "Normalization" -- TODO
+        
+        # obs = obs * 100 + (255./2)
+        # obs = obs[:, :, ::-1]
+        # cv2.imwrite(img_path[:-4] + str, obs)
 
         return obs
         
@@ -90,6 +141,13 @@ class StanfordEnvironment(AbstractEnvironment):
             self.state = next_state
         reward = sep.epi_reward * self.done
 
+        curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) or \
+                    (curr_state[1] >= self.trap_y[0] and curr_state[1] < self.trap_y[1])
+        next_trap = (next_state[0] >= self.trap_x[0] and next_state[0] <= self.trap_x[1]) or \
+                    (next_state[1] >= self.trap_y[0] and next_state[1] < self.trap_y[1])  
+        cond_false = (not curr_trap) * (next_trap) 
+        reward -= sep.epi_reward * cond_false
+
         return reward
 
 
@@ -101,6 +159,16 @@ class StanfordEnvironment(AbstractEnvironment):
         true_dist = l2_distance_np(s, targets)
         
         return all(true_dist <= sep.end_range)
+
+    
+    def make_pars(self, batch_size):
+        thetas = self.thetas[np.random.randint(len(self.thetas), size=(batch_size, 1))]
+        xs = np.random.rand(batch_size, 1) * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
+        ys = np.random.rand(batch_size, 1) * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
+
+        par_batch = np.concatenate((xs, ys, thetas), 1)
+        
+        return par_batch
     
 
     def make_batch(self, batch_size):

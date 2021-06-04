@@ -116,31 +116,31 @@ class DualSMC:
     def soft_q_update(self):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
             obs, curr_par, mean_state, hidden, cell, pf_sample = self.replay_buffer.sample(dlp.batch_size)
-        state_batch = torch.FloatTensor(state_batch).to(dlp.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(dlp.device)
-        action_batch = torch.FloatTensor(action_batch).to(dlp.device)
-        reward_batch = torch.FloatTensor(reward_batch).unsqueeze(1).to(dlp.device)  # (B, 1)
-        mask_batch = torch.FloatTensor(np.float32(1 - done_batch)).unsqueeze(1).to(dlp.device)
-        curr_obs = torch.FloatTensor(obs).to(dlp.device)
-        curr_par = torch.FloatTensor(curr_par).to(dlp.device)  # (B, K, dim_s)
-        mean_state = torch.FloatTensor(mean_state).to(dlp.device) # (B, dim_s)
-        curr_par_sample = torch.FloatTensor(pf_sample).to(dlp.device) # (B, M, 2)
-        hidden = torch.FloatTensor(hidden).to(dlp.device)  # [128, NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN]
-        hidden = torch.transpose(torch.squeeze(hidden), 0, 1).contiguous()
-        cell = torch.FloatTensor(cell).to(dlp.device)
-        cell = torch.transpose(torch.squeeze(cell), 0, 1).contiguous()
+        state_batch = torch.FloatTensor(state_batch).to(dlp.device)  # [batch_size, dim_state]
+        next_state_batch = torch.FloatTensor(next_state_batch).to(dlp.device)  # [batch_size, dim_state] 
+        action_batch = torch.FloatTensor(action_batch).to(dlp.device)  # [batch_size, dim_action]
+        reward_batch = torch.FloatTensor(reward_batch).unsqueeze(1).to(dlp.device)  # [batch_size, 1]
+        mask_batch = torch.FloatTensor(np.float32(1 - done_batch)).unsqueeze(1).to(dlp.device)  # [batch_size, 1]
+        curr_obs = torch.FloatTensor(obs).to(dlp.device)  # [batch_size, in_channels, img_size, img_size]
+        curr_par = torch.FloatTensor(curr_par).to(dlp.device)  # [batch_size, num_par_pf, dim_state]
+        mean_state = torch.FloatTensor(mean_state).to(dlp.device) # [batch_size, dim_state]
+        curr_par_sample = torch.FloatTensor(pf_sample).to(dlp.device) # [batch_size, num_par_smc_init, dim_state] 
+        hidden = torch.FloatTensor(hidden).to(dlp.device)  # [batch_size, num_lstm_layer, 1, dim_lstm_hidden]
+        hidden = torch.transpose(torch.squeeze(hidden), 0, 1).contiguous()  # [num_lstm_layer, batch_size, dim_lstm_hidden]
+        cell = torch.FloatTensor(cell).to(dlp.device)  # [batch_size, num_lstm_layer, 1, dim_lstm_hidden]
+        cell = torch.transpose(torch.squeeze(cell), 0, 1).contiguous()  # [num_lstm_layer, batch_size, dim_lstm_hidden]
 
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
         if dlp.pp_exist:
             self.pp_optimizer.zero_grad()
-            state_propose = self.pp_net(curr_obs, dlp.num_par_pf)
+            state_propose = self.pp_net(curr_obs, dlp.num_par_pf)  # [batch_size * num_par_pf, dim_state]
             PP_loss = 0
             if 'mse' in dlp.pp_loss_type:
                 PP_loss += self.MSE_criterion(state_batch.repeat(dlp.num_par_pf, 1), state_propose)
             if 'adv' in dlp.pp_loss_type:
-                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, dlp.num_par_pf)  # (B, K)
+                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
             if 'density' in dlp.pp_loss_type:
@@ -162,14 +162,14 @@ class DualSMC:
         # ------------------------
         self.measure_optimizer.zero_grad()
         fake_logit, next_hidden, next_cell = self.measure_net.m_model(curr_par.view(-1, sep.dim_state),
-                                                                      curr_obs, hidden, cell, dlp.num_par_pf)  # (B, K)
+                                                                      curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
         if dlp.pp_exist:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
-                                                           curr_obs, hidden, cell, dlp.num_par_pf)  # (B, K)
-            fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # (B, 2K)
+                                                           curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
+            fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # [batch_size, 2 * num_par_pf]
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # (batch, num_pars)
+        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # [batch, 1]
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
@@ -181,7 +181,7 @@ class DualSMC:
         #  Train Transition Model
         # ------------------------
         self.dynamic_optimizer.zero_grad()
-        state_predict = self.dynamic_net.t_model(state_batch, action_batch * sep.step_range)
+        state_predict = self.dynamic_net.t_model(state_batch, action_batch * sep.step_range)  # [batch_size, dim_state]
         TM_loss = self.MSE_criterion(state_predict, next_state_batch)
         T_loss = TM_loss.clone().detach()
         TM_loss.backward()
@@ -190,18 +190,18 @@ class DualSMC:
         # ------------------------
         #  Train SAC
         # ------------------------
-        next_mean_state = self.dynamic_net.t_model(mean_state, action_batch * sep.step_range)
+        next_mean_state = self.dynamic_net.t_model(mean_state, action_batch * sep.step_range)  # [batch_size, dim_state]
         next_par_sample = self.dynamic_net.t_model(
             curr_par_sample.view(-1, sep.dim_state),
-            action_batch.repeat(dlp.num_par_smc_init, 1) * sep.step_range)
+            action_batch.repeat(dlp.num_par_smc_init, 1) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(
-                next_mean_state, next_par_sample.view(dlp.batch_size, -1))
-            qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action)
-            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
-            next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
+                next_mean_state, next_par_sample.view(dlp.batch_size, -1))  # [batch_size, dim_action]  [batch_size, 1]
+            qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action)  # [batch_size, 1]
+            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi  # [batch_size, 1]
+            next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)  # [batch_size, 1]
 
-        qf1, qf2 = self.critic(state_batch, action_batch)
+        qf1, qf2 = self.critic(state_batch, action_batch)  # [batch_size, 1]
         qf1_loss = F.mse_loss(qf1, next_q_value)
         qf2_loss = F.mse_loss(qf2, next_q_value)
         q1_loss = qf1_loss.clone().detach()
@@ -215,7 +215,7 @@ class DualSMC:
         qf2_loss.backward()
         self.critic_optim.step()
 
-        pi, log_pi, _ = self.policy.sample(mean_state, curr_par_sample.view(dlp.batch_size, -1))
+        pi, log_pi, _ = self.policy.sample(mean_state, curr_par_sample.view(dlp.batch_size, -1))  # [batch_size, dim_action]  [batch_size, 1]
         qf1_pi, qf2_pi = self.critic(state_batch, pi)
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()

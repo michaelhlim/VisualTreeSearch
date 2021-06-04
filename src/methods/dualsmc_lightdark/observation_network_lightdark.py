@@ -39,7 +39,7 @@ class MeasureNetwork(GAN_Proposer_Measure):
             nn.ReLU()
         )
 
-        mlp_hunits = dualsmc_lightdark_params.mlp_hunits
+        mlp_hunits = dlp.mlp_hunits
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_m + self.dim_state, mlp_hunits),
                 nn.LeakyReLU(),
@@ -54,14 +54,14 @@ class MeasureNetwork(GAN_Proposer_Measure):
     def m_model(self, state, obs, hidden, cell, num_par=dlp.num_par_pf):
         # state [batch_size * num_par, dim_state]
         # obs [batch_size, in_channels, img_size, img_size]
-        enc_obs = self.observation_encoder(state, obs)
-        result = self.first_layer(enc_obs) # (batch, dim_hidden)
-        x = result.unsqueeze(0)
-        x, (h, c) = self.lstm(x, (hidden, cell))
-        x = self.lstm_out(x[0])
-        x = x.repeat(num_par, 1)  # (batch * num_par, dim_m)        
-        x = torch.cat((x, state), -1)  # (batch * num_par, dim_m + dim_state)
-        lik = self.mlp(x).view(-1, num_par)
+        enc_obs = self.observation_encoder(obs)  # [batch_size, latent_dim]
+        result = self.first_layer(enc_obs) # [batch_size, dim_hidden]
+        x = result.unsqueeze(0)  # [1, batch_size, dim_hidden]
+        x, (h, c) = self.lstm(x, (hidden, cell))  # x: [1, batch_size, dim_lstm_hidden]  # h and c same size as hidden, cell
+        x = self.lstm_out(x[0])  # [batch_size, dim_m]
+        x = x.repeat(num_par, 1)  # [batch_size * num_par, dim_m]        
+        x = torch.cat((x, state), -1)  # [batch_size * num_par, dim_m + dim_state]
+        lik = self.mlp(x).view(-1, num_par)  # [batch_size, num_par]
         return lik, h, c
 
 
@@ -71,9 +71,9 @@ class ProposerNetwork(GAN_Proposer_Measure):
         super(ProposerNetwork, self).__init__()
         self.dim = 64
 
-        self.latent_dim = dualsmc_lightdark_params.latent_dim
-        self.dim_hidden = dualsmc_lightdark_params.dim_hidden
-        self.dim_state = stanford_environment_params.dim_state
+        self.latent_dim = dlp.latent_dim
+        self.dim_hidden = dlp.dim_hidden
+        self.dim_state = sep.dim_state
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.latent_dim, self.dim_hidden),
@@ -84,7 +84,7 @@ class ProposerNetwork(GAN_Proposer_Measure):
             nn.ReLU()
         )
 
-        mlp_hunits = dualsmc_lightdark_params.mlp_hunits
+        mlp_hunits = dlp.mlp_hunits
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim * 2, mlp_hunits),
                 nn.LeakyReLU(),
@@ -97,10 +97,9 @@ class ProposerNetwork(GAN_Proposer_Measure):
             )
 
 
-    def forward(self, state, obs, num_par=dualsmc_lightdark_params.num_par_pf):
-        # state [batch_size, dim_state]
+    def forward(self, obs, num_par=dlp.num_par_pf):
         # obs [batch_size, in_channels, img_size, img_size]
-        _, _, enc_obs = self.observation_encoder(state, obs)  # enc_obs [batch_size, latent_dim]
+        enc_obs = self.observation_encoder(obs)  # enc_obs [batch_size, latent_dim]
         result = self.first_layer(enc_obs)  # [batch_size, self.dim]
         result = result.repeat(num_par, 1)  # [batch_size * num_par, self.dim]
         z = torch.randn_like(result)  # [batch_size * num_par, self.dim]
