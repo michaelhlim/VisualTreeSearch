@@ -57,14 +57,15 @@ def plot_par(xlim, ylim, goal, figure_name='default', true_state=None, mean_stat
 
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')
+    ax.quiver(true_state[0], true_state[1], np.cos(true_state[2]), np.sin(true_state[2]))
 
     xy = pf_state[:, :2]
     x, y = zip(*xy)
     ax.plot(x, y, 'gx')
 
-    xy = pp_state[:, :2]
-    x, y = zip(*xy)
-    ax.plot(x, y, 'bx')
+    # xy = pp_state[:, :2]
+    # x, y = zip(*xy)
+    # ax.plot(x, y, 'bx')
 
     ax.set_aspect('equal')
 

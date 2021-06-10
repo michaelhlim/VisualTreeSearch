@@ -19,13 +19,14 @@ from examples.examples import *
 class StanfordEnvironment(AbstractEnvironment):
     def __init__(self):
         self.done = False
-        self.state = [24.5, 23.0, np.pi]
-        self.target = [32.0, 23.0]
+        self.state = [24.5, 23.1, np.pi]
+        self.target = [32.0, 23.1]
         self.trap_x = [27, 29]
         self.trap_y = [23, 23.5]
         self.xrange = [24, 32.5]
         self.yrange = [23, 24.5]
-        self.thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
+        #self.thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
+        self.thetas = [-2*np.pi, 2*np.pi]
         self.dark_line = (self.yrange[0] + self.yrange[1])/2
 
         path = '/home/sampada_deglurkar/VisualTreeSearch/temp/'
@@ -123,6 +124,15 @@ class StanfordEnvironment(AbstractEnvironment):
     def detect_collision(self, state):
         # Returns true if you collided
         # Map value 0 means there's an obstacle there
+
+        # Don't hit rectangle boundaries
+        if state[0] < self.xrange[0] or state[0] > self.xrange[1]:
+            return True 
+        if state[1] < self.yrange[0] or state[1] > self.yrange[1]:
+            return True
+        # if state[2] < self.thetas[0] or state[2] > self.thetas[-1]:
+        #     return True
+
         map_state = self.point_to_map(np.array(state[:2]))
         map_value = self.traversible[map_state[1], map_state[0]]
         return map_value == 0
@@ -133,7 +143,13 @@ class StanfordEnvironment(AbstractEnvironment):
         curr_state = self.state
         theta = curr_state[2]
         next_state = np.copy(curr_state) 
-        new_theta = theta + action[0]  # Action is like a delta theta 
+        #new_theta = theta + action[0]  # Action is like a delta theta 
+        new_theta = action[0] * 2*np.pi
+        # Clamp the theta
+        if new_theta < self.thetas[0]:
+            new_theta = self.thetas[0]
+        if new_theta > self.thetas[-1]:
+            new_theta = self.thetas[-1]
         next_state[2] = new_theta
         vector = np.array([np.cos(new_theta), np.sin(new_theta)]) * sep.velocity  # Go in the direction the current theta is
         next_state[:2] = curr_state[:2] + vector

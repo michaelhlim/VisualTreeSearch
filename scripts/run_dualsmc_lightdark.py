@@ -60,7 +60,7 @@ def dualsmc(model, experiment_id, train, model_path):
     real_display_iter = dlp.display_iter
     if train:
         training_tic = time.perf_counter()
-        real_display_iter *= 10
+        #real_display_iter *= 10
 
     # Begin main dualSMC loop
     for episode in range(num_loops):
@@ -204,7 +204,8 @@ def dualsmc(model, experiment_id, train, model_path):
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
             #######################################
-            if step % dlp.pf_resample_step == 0:
+            if step != 0 and step % dlp.pf_resample_step == 0:
+            #if step % dlp.pf_resample_step == 0:
                 if dlp.pp_exist:
                     idx = torch.multinomial(normalized_weights, dlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
@@ -241,12 +242,15 @@ def dualsmc(model, experiment_id, train, model_path):
                     file_name = 'im' + str(step)
                 frm_name = traj_dir + '/' + file_name + '_par' + sep.fig_format
 
-                if dlp.pp_exist and step % dlp.pf_resample_step == 0:
+                #if dlp.pp_exist and step % dlp.pf_resample_step == 0:
+                if dlp.pp_exist and step % 3 == 0:
                     xlim = env.xrange
                     ylim = env.yrange
                     goal = env.target
+                    #plot_par(xlim, ylim, goal, frm_name, curr_state, 
+                    #        mean_state, resample_state, proposal_state, smc_xy)
                     plot_par(xlim, ylim, goal, frm_name, curr_state, 
-                            mean_state, resample_state, proposal_state, smc_xy)
+                            mean_state, par_states, None, smc_xy)
 
             #######################################
             # Update the environment
@@ -328,7 +332,7 @@ def dualsmc(model, experiment_id, train, model_path):
         if episode % real_display_iter == 0:
             episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
             st2 = img_path + "/"
-            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
+            name_list = ['P_loss', 'transition_loss', 'Z_loss', 'sac_1_loss', 'sac_2_loss']
             if train:
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
