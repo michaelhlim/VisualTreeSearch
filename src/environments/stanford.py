@@ -26,7 +26,8 @@ class StanfordEnvironment(AbstractEnvironment):
         self.xrange = [24, 32.5]
         self.yrange = [23, 24.5]
         #self.thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
-        self.thetas = [-2*np.pi, 2*np.pi]
+        #self.thetas = [-2*np.pi, 2*np.pi]
+        self.thetas = [0.0, 2*np.pi]
         self.dark_line = (self.yrange[0] + self.yrange[1])/2
 
         path = '/home/sampada_deglurkar/VisualTreeSearch/temp/'
@@ -144,7 +145,7 @@ class StanfordEnvironment(AbstractEnvironment):
         theta = curr_state[2]
         next_state = np.copy(curr_state) 
         #new_theta = theta + action[0]  # Action is like a delta theta 
-        new_theta = action[0] * 2*np.pi
+        new_theta = action[0] * np.pi + np.pi
         # Clamp the theta
         if new_theta < self.thetas[0]:
             new_theta = self.thetas[0]
@@ -164,11 +165,12 @@ class StanfordEnvironment(AbstractEnvironment):
             self.state = next_state
         reward = sep.epi_reward * self.done
 
-        curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) and \
-                    (curr_state[1] >= self.trap_y[0] and curr_state[1] < self.trap_y[1])
+        # curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) and \
+        #             (curr_state[1] >= self.trap_y[0] and curr_state[1] < self.trap_y[1])
         next_trap = (next_state[0] >= self.trap_x[0] and next_state[0] <= self.trap_x[1]) and \
-                    (next_state[1] >= self.trap_y[0] and next_state[1] < self.trap_y[1])  
-        cond_false = (not curr_trap) * (next_trap) 
+                    (next_state[1] >= self.trap_y[0] and next_state[1] <= self.trap_y[1])  
+        #cond_false = (not curr_trap) * (next_trap) 
+        cond_false = next_trap 
         reward -= sep.epi_reward * cond_false
 
         return reward
