@@ -19,18 +19,20 @@ from examples.examples import *
 class StanfordEnvironment(AbstractEnvironment):
     def __init__(self):
         self.done = False
-        self.state = [24.5, 23.1, np.pi]
-        self.target = [32.0, 23.1]
-        self.trap_x = [27, 29]
-        self.trap_y = [23, 23.5]
         self.xrange = [24, 32.5]
         self.yrange = [23, 24.5]
-        #self.thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
-        #self.thetas = [-2*np.pi, 2*np.pi]
         self.thetas = [0.0, 2*np.pi]
+        self.trap_x = self.xrange  # but excluding the target
+        self.trap_y = [23, 23.25]
+        self.target_x = [27.5, 28.5]
+        self.target_y = [23, 23.25]
+        self.state = np.random.rand(3)
+        self.state[0] = self.state[0] * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
+        self.state[1] = self.state[1] * (23.5 - 23.25) + 23.25
+        self.state[2] = self.state[2] * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
         self.dark_line = (self.yrange[0] + self.yrange[1])/2
 
-        path = '/home/sampada_deglurkar/VisualTreeSearch/temp/'
+        path = os.getcwd() + '/temp/' #'/home/sampada_deglurkar/VisualTreeSearch/temp/'
         os.mkdir(path)
         img_path, traversible, dx_m = self.get_observation(path=path)
         os.remove(img_path)
@@ -47,7 +49,7 @@ class StanfordEnvironment(AbstractEnvironment):
             state_arr = np.array([state])
 
         if path == None:
-            path = '/home/sampada_deglurkar/VisualTreeSearch/images/'
+            path = path = os.getcwd() + '/images/' #'/home/sampada_deglurkar/VisualTreeSearch/images/'
 
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -138,6 +140,20 @@ class StanfordEnvironment(AbstractEnvironment):
         map_value = self.traversible[map_state[1], map_state[0]]
         return map_value == 0
 
+    
+    def in_trap(self, state):
+        # Returns true if in trap
+        trap = (state[0] >= self.trap_x[0] and state[0] <= self.trap_x[1]) and \
+                (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) 
+        
+        return trap and not self.in_goal(state)
+    
+    def in_goal(self, state):
+        # Returns true if in goal
+        goal = (state[0] >= self.target_x[0] and state[0] <= self.target_x[1]) and \
+                (state[1] >= self.target_y[0] and state[1] <= self.target_y[1])
+        return goal
+
 
     def step(self, action):
         self.done = False
@@ -146,31 +162,35 @@ class StanfordEnvironment(AbstractEnvironment):
         next_state = np.copy(curr_state) 
         #new_theta = theta + action[0]  # Action is like a delta theta 
         new_theta = action[0] * np.pi + np.pi
-        # Clamp the theta
-        if new_theta < self.thetas[0]:
-            new_theta = self.thetas[0]
-        if new_theta > self.thetas[-1]:
-            new_theta = self.thetas[-1]
+        # # Clamp the theta
+        # if new_theta < self.thetas[0]:
+        #     new_theta = self.thetas[0]
+        # if new_theta > self.thetas[-1]:
+        #     new_theta = self.thetas[-1]
         next_state[2] = new_theta
         vector = np.array([np.cos(new_theta), np.sin(new_theta)]) * sep.velocity  # Go in the direction the current theta is
         next_state[:2] = curr_state[:2] + vector
 
-        next_dist = l2_distance(next_state[:2], self.target)
+        #next_dist = l2_distance(next_state[:2], self.target)
         cond_hit = self.detect_collision(next_state)
 
-        if next_dist <= sep.end_range:
+        # if next_dist <= sep.end_range:
+        #     self.state = next_state
+        #     self.done = True
+        if self.in_goal(next_state):
             self.state = next_state
             self.done = True
         elif cond_hit == False:
             self.state = next_state
         reward = sep.epi_reward * self.done
 
-        # curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) and \
-        #             (curr_state[1] >= self.trap_y[0] and curr_state[1] < self.trap_y[1])
-        next_trap = (next_state[0] >= self.trap_x[0] and next_state[0] <= self.trap_x[1]) and \
-                    (next_state[1] >= self.trap_y[0] and next_state[1] <= self.trap_y[1])  
-        #cond_false = (not curr_trap) * (next_trap) 
-        cond_false = next_trap 
+        # # curr_trap = (curr_state[0] >= self.trap_x[0] and curr_state[0] <= self.trap_x[1]) and \
+        # #             (curr_state[1] >= self.trap_y[0] and curr_state[1] < self.trap_y[1])
+        # next_trap = (next_state[0] >= self.trap_x[0] and next_state[0] <= self.trap_x[1]) and \
+        #             (next_state[1] >= self.trap_y[0] and next_state[1] <= self.trap_y[1])  
+        # #cond_false = (not curr_trap) * (next_trap) 
+        # cond_false = next_trap 
+        cond_false = self.in_trap(next_state)
         reward -= sep.epi_reward * cond_false
 
         return reward
@@ -187,10 +207,13 @@ class StanfordEnvironment(AbstractEnvironment):
 
     
     def make_pars(self, batch_size):
-        # thetas = self.thetas[np.random.randint(len(self.thetas), size=(batch_size, 1))]
-        thetas = np.random.rand(batch_size, 1) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
+        thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
         xs = np.random.rand(batch_size, 1) * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
-        ys = np.random.rand(batch_size, 1) * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
+        ys = np.random.rand(batch_size, 1) * (23.5 - 23.25) + 23.25
+
+        # thetas = np.random.rand(batch_size, 1) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
+        # xs = np.random.rand(batch_size, 1) * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
+        # ys = np.random.rand(batch_size, 1) * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
 
         par_batch = np.concatenate((xs, ys, thetas), 1)
         
@@ -198,7 +221,7 @@ class StanfordEnvironment(AbstractEnvironment):
     
 
     def make_batch(self, batch_size):
-        path = '/home/sampada_deglurkar/VisualTreeSearch/temp/'
+        path = path = os.getcwd() + '/temp/' #'/home/sampada_deglurkar/VisualTreeSearch/temp/'
         os.mkdir(path)
 
         states_batch = []

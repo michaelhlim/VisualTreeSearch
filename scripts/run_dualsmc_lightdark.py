@@ -204,9 +204,10 @@ def dualsmc(model, experiment_id, train, model_path):
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
             #######################################
-            if step != 0 and step % dlp.pf_resample_step == 0:
-            #if step % dlp.pf_resample_step == 0:
-                if dlp.pp_exist:
+            #if step != 0 and step % dlp.pf_resample_step == 0:
+            if step % dlp.pf_resample_step == 0:
+                #if dlp.pp_exist:
+                if False:    
                     idx = torch.multinomial(normalized_weights, dlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
                     resample_state = par_states[idx]  # [num_par_pf - num_par_propose, dim_state]
