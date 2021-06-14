@@ -75,11 +75,12 @@ def dualsmc(model, experiment_id, train, model_path):
         cell = np.zeros((dlp.num_lstm_layer, 1, dlp.dim_lstm_hidden))
 
         curr_state = env.state
+        curr_orientation = env.orientation
         p, _, _ = env.get_observation()
         curr_obs = env.read_observation(p, normalize=True) 
         trajectory.append(curr_state)
 
-        par_states = env.make_pars(dlp.num_par_pf)
+        par_states, par_orientations = env.make_pars(dlp.num_par_pf)
         #par_states = np.random.rand(dlp.num_par_pf, 2)
         #par_states[:, 0] = par_states[:, 0] * 0.4 + 0.8
         #par_states[:, 1] = par_states[:, 1] * 0.3 + 0.1 + np.random.randint(2, size=dlp.num_par_pf) * 0.5
@@ -109,6 +110,7 @@ def dualsmc(model, experiment_id, train, model_path):
             curr_obs_tensor = torch.FloatTensor(curr_obs).permute(2, 0, 1)  # [in_channels, img_size, img_size]
             lik, next_hidden, next_cell = model.measure_net.m_model(
                 torch.FloatTensor(par_states).to(dlp.device),
+                torch.FloatTensor(par_orientations).to(dlp.device),
                 curr_obs_tensor.unsqueeze(0).to(dlp.device),
                 torch.FloatTensor(hidden).to(dlp.device),
                 torch.FloatTensor(cell).to(dlp.device))
@@ -165,7 +167,7 @@ def dualsmc(model, experiment_id, train, model_path):
                 #next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], 0, 1)
                 next_smc_state[:, 0] = torch.clamp(next_smc_state[:, 0], env.xrange[0], env.xrange[1])
                 next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], env.yrange[0], env.yrange[1])
-                next_smc_state[:, 2] = torch.clamp(next_smc_state[:, 2], env.thetas[0], env.thetas[-1])
+                #next_smc_state[:, 2] = torch.clamp(next_smc_state[:, 2], env.thetas[0], env.thetas[1])
                 next_smc_state = next_smc_state.view(dlp.num_par_smc_init, dlp.num_par_smc, sep.dim_state)
 
                 mean_par = model.dynamic_net.t_model(
@@ -174,7 +176,6 @@ def dualsmc(model, experiment_id, train, model_path):
                 #mean_par[:, 1] = torch.clamp(mean_par[:, 1], 0, 1)
                 mean_par[:, 0] = torch.clamp(mean_par[:, 0], env.xrange[0], env.xrange[1])
                 mean_par[:, 1] = torch.clamp(mean_par[:, 1], env.yrange[0], env.yrange[1])
-                mean_par[:, 2] = torch.clamp(mean_par[:, 2], env.thetas[0], env.thetas[-1])
 
                 if i < dlp.horizon - 1:
                     smc_action[i] = action.detach().cpu().numpy()
@@ -204,19 +205,19 @@ def dualsmc(model, experiment_id, train, model_path):
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
             #######################################
-            #if step != 0 and step % dlp.pf_resample_step == 0:
             if step % dlp.pf_resample_step == 0:
-                #if dlp.pp_exist:
-                if False:    
+                if dlp.pp_exist:
                     idx = torch.multinomial(normalized_weights, dlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
                     resample_state = par_states[idx]  # [num_par_pf - num_par_propose, dim_state]
-                    proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(dlp.device), num_par_propose)
+                    proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(dlp.device), 
+                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(dlp.device), 
+                                                num_par_propose)
                     # proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
                     # proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
                     proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
                     proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
-                    proposal_state[:, 2] = torch.clamp(proposal_state[:, 2], env.thetas[0], env.thetas[-1])
+                    #proposal_state[:, 2] = torch.clamp(proposal_state[:, 2], env.thetas[0], env.thetas[1])
                     proposal_state = proposal_state.detach().cpu().numpy()
                     par_states = np.concatenate((resample_state, proposal_state), 0)  # [num_par_pf, dim_state]
                 else:
@@ -227,8 +228,7 @@ def dualsmc(model, experiment_id, train, model_path):
                 normalized_weights = torch.softmax(par_weight, -1)  # [num_par_pf]
 
             mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
-            filter_rmse = math.sqrt(pow(mean_state[0] - curr_state[0], 2) + pow(mean_state[1] - curr_state[1], 2) + 
-                                    pow(mean_state[2] - curr_state[2], 2))
+            filter_rmse = math.sqrt(pow(mean_state[0] - curr_state[0], 2) + pow(mean_state[1] - curr_state[1], 2))
             rmse_per_step[step] += filter_rmse
             filter_dist += filter_rmse
 
@@ -243,15 +243,19 @@ def dualsmc(model, experiment_id, train, model_path):
                     file_name = 'im' + str(step)
                 frm_name = traj_dir + '/' + file_name + '_par' + sep.fig_format
 
-                #if dlp.pp_exist and step % dlp.pf_resample_step == 0:
-                if dlp.pp_exist and step % 3 == 0:
+                if dlp.pp_exist and step % dlp.pf_resample_step == 0:
                     xlim = env.xrange
                     ylim = env.yrange
-                    goal = env.target
-                    #plot_par(xlim, ylim, goal, frm_name, curr_state, 
-                    #        mean_state, resample_state, proposal_state, smc_xy)
-                    plot_par(xlim, ylim, goal, frm_name, curr_state, 
-                            mean_state, par_states, None, smc_xy)
+                    goal = [env.target_x[0], env.target_y[0], 
+                            env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
+                    trap1 = [env.trap_x[0], env.trap_y[0], 
+                            env.target_x[0]-env.trap_x[0], env.trap_y[1]-env.trap_y[0]]
+                    trap2 = [env.target_x[1], env.trap_y[0], 
+                            env.trap_x[1]-env.target_x[1], env.trap_y[1]-env.trap_y[0]]
+                    plot_par(xlim, ylim, goal, [trap1, trap2], frm_name, curr_state, 
+                           mean_state, resample_state, proposal_state, smc_xy)
+                    # plot_par(xlim, ylim, goal, frm_name, curr_state, 
+                    #         mean_state, par_states, None, smc_xy)
 
             #######################################
             # Update the environment
@@ -262,7 +266,7 @@ def dualsmc(model, experiment_id, train, model_path):
             #######################################
             if train:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs_tensor,
-                                         curr_s, mean_state, hidden, cell, states_init)
+                                         curr_s, mean_state, hidden, cell, states_init, curr_orientation)
                 if len(model.replay_buffer) > dlp.batch_size:
                     p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update()
 
@@ -279,7 +283,7 @@ def dualsmc(model, experiment_id, train, model_path):
             # par_states[:, 1] = torch.clamp(par_states[:, 1], 0, 1)
             par_states[:, 0] = torch.clamp(par_states[:, 0], env.xrange[0], env.xrange[1])
             par_states[:, 1] = torch.clamp(par_states[:, 1], env.yrange[0], env.yrange[1])
-            par_states[:, 2] = torch.clamp(par_states[:, 2], env.thetas[0], env.thetas[-1])
+            #par_states[:, 2] = torch.clamp(par_states[:, 2], env.thetas[0], env.thetas[1])
             par_states = par_states.detach().cpu().numpy()
 
             #######################################
@@ -351,8 +355,13 @@ def dualsmc(model, experiment_id, train, model_path):
             st = img_path + "/traj/" + str(episode) + "-trj" + sep.fig_format
             xlim = env.xrange
             ylim = env.yrange
-            goal = env.target
-            plot_maze(xlim, ylim, goal, figure_name=st, states=np.array(trajectory))
+            goal = [env.target_x[0], env.target_y[0], 
+                    env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
+            trap1 = [env.trap_x[0], env.trap_y[0], 
+                    env.target_x[0]-env.trap_x[0], env.trap_y[1]-env.trap_y[0]]
+            trap2 = [env.target_x[1], env.trap_y[0], 
+                    env.trap_x[1]-env.target_x[1], env.trap_y[1]-env.trap_y[0]]
+            plot_maze(xlim, ylim, goal, [trap1, trap2], figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         

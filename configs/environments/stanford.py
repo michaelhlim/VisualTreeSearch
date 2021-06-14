@@ -4,7 +4,7 @@ class Stanford_Environment_Params():
         self.step_reward = -1
         self.dim_action = 1
         self.velocity = 0.1 #0.5 #0.1
-        self.dim_state = 3
+        self.dim_state = 2
         self.img_size = 32 
         self.dim_obs = 4
         self.obs_std = 0.01

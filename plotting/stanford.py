@@ -9,16 +9,25 @@ from configs.environments.stanford import *
 sep = Stanford_Environment_Params()
 
 
-def plot_maze(xlim, ylim, goal, figure_name='default', states=None):
+def plot_maze(xlim, ylim, goal, trap, figure_name='default', states=None):
     plt.figure(figure_name)
     ax = plt.axes()
 
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
 
+    from matplotlib.patches import Rectangle
+    # goal: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((goal[0], goal[1]), goal[2], goal[3], facecolor='green'))
+    trap1 = trap[0]
+    trap2 = trap[1]
+    # trap i: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((trap1[0], trap1[1]), trap1[2], trap1[3], facecolor='orange'))
+    ax.add_patch(Rectangle((trap2[0], trap2[1]), trap2[2], trap2[3], facecolor='orange'))
+
     # goals
-    cir = plt.Circle(goal, 0.07, color='orange')
-    ax.add_artist(cir)
+    # cir = plt.Circle(goal, 0.07, color='orange')
+    # ax.add_artist(cir)
 
     if type(states) is np.ndarray:
         xy = states[:,:2]
@@ -37,16 +46,25 @@ def plot_maze(xlim, ylim, goal, figure_name='default', states=None):
     plt.close()
 
 
-def plot_par(xlim, ylim, goal, figure_name='default', true_state=None, mean_state=None, pf_state=None,
+def plot_par(xlim, ylim, goal, trap, figure_name='default', true_state=None, mean_state=None, pf_state=None,
              pp_state=None, smc_traj=None):
     plt.figure(figure_name)
     ax = plt.axes()
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
 
+    from matplotlib.patches import Rectangle
+    # goal: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((goal[0], goal[1]), goal[2], goal[3], facecolor='green'))
+    trap1 = trap[0]
+    trap2 = trap[1]
+    # trap i: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((trap1[0], trap1[1]), trap1[2], trap1[3], facecolor='orange'))
+    ax.add_patch(Rectangle((trap2[0], trap2[1]), trap2[2], trap2[3], facecolor='orange'))
+
     # goals
-    cir = plt.Circle(goal, 0.07, color='orange')
-    ax.add_artist(cir)
+    # cir = plt.Circle(goal, 0.07, color='orange')
+    # ax.add_artist(cir)
 
     # planning trajectories
     if smc_traj.any():
@@ -57,15 +75,15 @@ def plot_par(xlim, ylim, goal, figure_name='default', true_state=None, mean_stat
 
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')
-    ax.quiver(true_state[0], true_state[1], np.cos(true_state[2]), np.sin(true_state[2]))
+    #ax.quiver(true_state[0], true_state[1], np.cos(true_state[2]), np.sin(true_state[2]))
 
     xy = pf_state[:, :2]
     x, y = zip(*xy)
     ax.plot(x, y, 'gx')
 
-    # xy = pp_state[:, :2]
-    # x, y = zip(*xy)
-    # ax.plot(x, y, 'bx')
+    xy = pp_state[:, :2]
+    x, y = zip(*xy)
+    ax.plot(x, y, 'bx')
 
     ax.set_aspect('equal')
 

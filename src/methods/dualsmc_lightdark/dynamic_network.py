@@ -15,24 +15,39 @@ sep = Stanford_Environment_Params()
 class DynamicNetwork(nn.Module):
     def __init__(self):
         super(DynamicNetwork, self).__init__()
-        self.t_enc = nn.Sequential(
-            nn.Linear(sep.dim_state + sep.dim_action, dlp.dim_hidden),
+        self.action_noise_enc = nn.Sequential(
+            nn.Linear(1, dlp.mlp_hunits),
             nn.ReLU(),
-            nn.Linear(dlp.dim_hidden, dlp.dim_hidden),
+            nn.Linear(dlp.mlp_hunits, dlp.mlp_hunits),
             nn.ReLU(),
-            nn.Linear(dlp.dim_hidden, dlp.dim_hidden),
-            nn.ReLU(),
-            nn.Linear(dlp.dim_hidden, sep.dim_state * 2)
+            nn.Linear(dlp.mlp_hunits, 1),
+            nn.ReLU()
         )
 
-    def t_model(self, state, action):
+        self.t_enc = nn.Sequential(
+            nn.Linear(sep.dim_state + sep.dim_action, dlp.mlp_hunits),
+            nn.ReLU(),
+            nn.Linear(dlp.mlp_hunits, dlp.mlp_hunits),
+            nn.ReLU(),
+            nn.Linear(dlp.mlp_hunits, dlp.mlp_hunits),
+            nn.ReLU(),
+            nn.Linear(dlp.mlp_hunits, sep.dim_state)
+        )
+
+    def t_model(self, state, action): 
         if len(action.shape) == 1:
             action = action.unsqueeze(0).repeat(state.shape[0], 1)
+        action_noise = torch.randn_like(action) 
+        e = self.action_noise_enc(action_noise)
+        action = action + e
         x = torch.cat([state, action], -1)
-        x = self.t_enc(x)
-        mean = x[:, :sep.dim_state]
-        std = x[:, sep.dim_state:].exp()
-        delta = torch.randn_like(state) * std + mean
-        #next_state = state + action + delta
-        next_state = state + delta
+        delta = self.t_enc(x)
+        next_state = state + delta 
+
+        # mean = x[:, :sep.dim_state]
+        # std = x[:, sep.dim_state:].exp()
+        # delta = torch.randn_like(state) * std + mean
+        # #next_state = state + action + delta
+        # next_state = state + delta
+        
         return next_state

@@ -38,14 +38,14 @@ class DualSMC:
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=dlp.fil_lr)
         self.pp_optimizer = Adam(self.pp_net.parameters(), lr=dlp.fil_lr)
         # Planning
-        self.critic = QNetwork(sep.dim_state, sep.dim_action, dlp.dim_hidden).to(device=dlp.device)
+        self.critic = QNetwork(sep.dim_state, sep.dim_action, dlp.mlp_hunits).to(device=dlp.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=dlp.pla_lr)
-        self.critic_target = QNetwork(sep.dim_state, sep.dim_action, dlp.dim_hidden).to(dlp.device)
+        self.critic_target = QNetwork(sep.dim_state, sep.dim_action, dlp.mlp_hunits).to(dlp.device)
         hard_update(self.critic_target, self.critic)
         self.target_entropy = -torch.prod(torch.Tensor(sep.dim_action).to(dlp.device)).item()
         self.log_alpha = torch.zeros(1, requires_grad=True, device=dlp.device)
         self.alpha_optim = Adam([self.log_alpha], lr=dlp.pla_lr)
-        self.policy = GaussianPolicy(sep.dim_state * (dlp.num_par_smc_init + 1), sep.dim_action, dlp.dim_hidden).to(dlp.device)
+        self.policy = GaussianPolicy(sep.dim_state * (dlp.num_par_smc_init + 1), sep.dim_action, dlp.mlp_hunits).to(dlp.device)
         self.policy_optim = Adam(self.policy.parameters(), lr=dlp.pla_lr)
 
     def save_model(self, path):
@@ -115,7 +115,7 @@ class DualSMC:
 
     def soft_q_update(self):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
-            obs, curr_par, mean_state, hidden, cell, pf_sample = self.replay_buffer.sample(dlp.batch_size)
+            obs, curr_par, mean_state, hidden, cell, pf_sample, curr_orientation = self.replay_buffer.sample(dlp.batch_size)
         state_batch = torch.FloatTensor(state_batch).to(dlp.device)  # [batch_size, dim_state]
         next_state_batch = torch.FloatTensor(next_state_batch).to(dlp.device)  # [batch_size, dim_state] 
         action_batch = torch.FloatTensor(action_batch).to(dlp.device)  # [batch_size, dim_action]
@@ -129,18 +129,20 @@ class DualSMC:
         hidden = torch.transpose(torch.squeeze(hidden), 0, 1).contiguous()  # [num_lstm_layer, batch_size, dim_lstm_hidden]
         cell = torch.FloatTensor(cell).to(dlp.device)  # [batch_size, num_lstm_layer, 1, dim_lstm_hidden]
         cell = torch.transpose(torch.squeeze(cell), 0, 1).contiguous()  # [num_lstm_layer, batch_size, dim_lstm_hidden]
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(dlp.device)
 
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
         if dlp.pp_exist:
             self.pp_optimizer.zero_grad()
-            state_propose = self.pp_net(curr_obs, dlp.num_par_pf)  # [batch_size * num_par_pf, dim_state]
+            state_propose = self.pp_net(curr_obs, curr_orientation, dlp.num_par_pf)  # [batch_size * num_par_pf, dim_state]
             PP_loss = 0
             if 'mse' in dlp.pp_loss_type:
                 PP_loss += self.MSE_criterion(state_batch.repeat(dlp.num_par_pf, 1), state_propose)
             if 'adv' in dlp.pp_loss_type:
-                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
+                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_orientation.repeat(dlp.num_par_pf, 1), 
+                                    curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
             if 'density' in dlp.pp_loss_type:
@@ -161,15 +163,15 @@ class DualSMC:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        fake_logit, next_hidden, next_cell = self.measure_net.m_model(curr_par.view(-1, sep.dim_state),
+        fake_logit, next_hidden, next_cell = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), curr_orientation.repeat(dlp.num_par_pf, 1),
                                                                       curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
         if dlp.pp_exist:
-            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
+            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(dlp.num_par_pf, 1),
                                                            curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
             fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # [batch_size, 2 * num_par_pf]
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # [batch, 1]
+        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_orientation, curr_obs, hidden, cell, 1)  # [batch, 1]
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss

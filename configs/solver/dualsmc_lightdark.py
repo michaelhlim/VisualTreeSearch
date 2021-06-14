@@ -6,13 +6,13 @@ class DualSMC_LightDark_Params():
         ######################
         # Network
         self.model_name = 'dualsmc'
-        self.dim_hidden = 256
-        self.dim_lstm_hidden = 128
+        self.dim_first_layer = 64 
+        self.dim_lstm_hidden = 64 
         self.num_lstm_layer = 2
         self.dim_encode = 64
 
         self.in_channels = 3
-        self.latent_dim = 256 #64
+        self.obs_encode_out = 64
         self.mlp_hunits = 128
         self.calibration = False
         self.normalization = False
@@ -28,14 +28,14 @@ class DualSMC_LightDark_Params():
         self.pla_lr = 1e-3 # planning
         self.summary_iter = 100
         self.save_iter = 100
-        self.display_iter = 10 #1 #10
+        self.display_iter = 1 #4 #1 #10
         self.pretrain = 500e3
         self.show_traj = True
         self.show_distr = False
 
         ######################
         # Filtering
-        self.pf_resample_step = 3  #500
+        self.pf_resample_step = 3 
         self.num_par_pf = 100
         self.pp_exist = True
         self.pp_ratio = 0.3
