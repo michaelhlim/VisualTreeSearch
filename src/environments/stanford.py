@@ -19,23 +19,26 @@ from examples.examples import *
 class StanfordEnvironment(AbstractEnvironment):
     def __init__(self):
         self.done = False
-        self.xrange = [24, 32.5]
-        self.yrange = [23, 24.5]
+        self.true_env_corner = [24.0, 23.0] 
+        self.xrange = [0, 8.5]
+        self.yrange = [0, 1.5]
         self.thetas = [0.0, 2*np.pi]
         self.trap_x = self.xrange  # but excluding the target
-        self.trap_y = [23, 23.25]
-        self.target_x = [27.5, 28.5]
-        self.target_y = [23, 23.25]
+        self.trap_y = [0, 0.25]
+        self.target_x = [3.5, 4.5]
+        self.target_y = [0, 0.25]
         self.init_strip_x = self.xrange 
-        self.init_strip_y = [23.25, 23.5]
+        self.init_strip_y = [0.25, 0.5]
         self.state = np.random.rand(sep.dim_state)
         self.orientation = np.random.rand()
-        self.state[0] = self.state[0] * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
-        self.state[1] = self.state[1] * (23.5 - 23.25) + 23.25
+        self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
+        self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
         #self.state[2] = self.state[2] * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
         self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
         self.dark_line = (self.yrange[0] + self.yrange[1])/2
+        self.dark_line_true = self.dark_line + self.true_env_corner[1]
 
+        # Get the traversible
         path = os.getcwd() + '/temp/'
         os.mkdir(path)
         img_path, traversible, dx_m = self.get_observation(path=path)
@@ -45,11 +48,23 @@ class StanfordEnvironment(AbstractEnvironment):
         self.dx = dx_m
         self.map_origin = [0, 0]
 
+    
+    def reset_environment(self):
+        self.done = False
+        self.state = np.random.rand(sep.dim_state)
+        self.orientation = np.random.rand()
+        self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
+        self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
+        #self.state[2] = self.state[2] * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+        self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+
 
     def get_observation(self, state=None, path=None):
         if state == None:
-            state_arr = np.array([[self.state[0], self.state[1], self.orientation]])
+            state = self.state + self.true_env_corner
+            state_arr = np.array([[state[0], state[1], self.orientation]])
         else:
+            state = state + self.true_env_corner
             state_arr = np.array([state])
 
         if path == None:
@@ -60,7 +75,7 @@ class StanfordEnvironment(AbstractEnvironment):
         out = image
         # cv2.imwrite(img_path[:-4] + "_ORIGINAL.png", out)
 
-        if state_arr[0][1] <= self.dark_line: 
+        if state_arr[0][1] <= self.dark_line_true: 
             # Dark observation - add salt & pepper noise
             
             row,col,ch = image.shape
@@ -138,7 +153,7 @@ class StanfordEnvironment(AbstractEnvironment):
         if state[1] < self.yrange[0] or state[1] > self.yrange[1]:
             return True
 
-        map_state = self.point_to_map(np.array(state[:2]))
+        map_state = self.point_to_map(np.array(state[:2] + self.true_env_corner))
         map_value = self.traversible[map_state[1], map_state[0]]
         return map_value == 0
 

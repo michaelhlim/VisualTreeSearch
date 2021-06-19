@@ -10,15 +10,8 @@ sep = Stanford_Environment_Params()
 dlp = DualSMC_LightDark_Params()
 
 
-# "Branching" behavior
-class GAN_Proposer_Measure(nn.Module):
-    def __init__(self):
-        super(GAN_Proposer_Measure, self).__init__()
-        self.observation_encoder = ObservationEncoder()
 
-
-
-class MeasureNetwork(GAN_Proposer_Measure):
+class MeasureNetwork(nn.Module):
     def __init__(self):
         super(MeasureNetwork, self).__init__()
         self.dim_m = 64 #16
@@ -27,6 +20,8 @@ class MeasureNetwork(GAN_Proposer_Measure):
         self.dim_lstm_hidden = dlp.dim_lstm_hidden
         self.num_lstm_layer = dlp.num_lstm_layer
         self.dim_state = sep.dim_state
+
+        self.observation_encoder = ObservationEncoder()
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.obs_encode_out, self.dim_first_layer),
@@ -67,14 +62,16 @@ class MeasureNetwork(GAN_Proposer_Measure):
 
 
 
-class ProposerNetwork(GAN_Proposer_Measure):
+class ProposerNetwork(nn.Module):
     def __init__(self):
         super(ProposerNetwork, self).__init__()
-        self.dim = 64
+        #self.dim = 64
 
         self.obs_encode_out = dlp.obs_encode_out
         self.dim_first_layer = dlp.dim_first_layer
         self.dim_state = sep.dim_state
+
+        self.observation_encoder = ObservationEncoder()
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.obs_encode_out, self.dim_first_layer),
@@ -83,7 +80,7 @@ class ProposerNetwork(GAN_Proposer_Measure):
 
         mlp_hunits = dlp.mlp_hunits
         self.mlp = nn.Sequential(
-                nn.Linear(self.dim * 2 + 1, mlp_hunits),
+                nn.Linear(self.dim_first_layer * 2 + 1, mlp_hunits),
                 nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
                 nn.LeakyReLU(),

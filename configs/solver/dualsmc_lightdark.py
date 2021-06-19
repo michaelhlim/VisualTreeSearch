@@ -28,7 +28,7 @@ class DualSMC_LightDark_Params():
         self.pla_lr = 1e-3 # planning
         self.summary_iter = 100
         self.save_iter = 100
-        self.display_iter = 1 #4 #1 #10
+        self.display_iter = 4 #1 #10
         self.pretrain = 500e3
         self.show_traj = True
         self.show_distr = False
