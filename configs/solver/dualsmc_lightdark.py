@@ -1,7 +1,7 @@
 class DualSMC_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:1'
+        self.device = 'cuda:2'
 
         ######################
         # Network
@@ -21,14 +21,14 @@ class DualSMC_LightDark_Params():
         # Training
         self.train = True
         self.num_pretraining_steps = 50
-        self.max_episodes_train = 5000 #10 #10000
-        self.max_episodes_test = 500 #5 #1000
-        self.batch_size = 64
-        self.fil_lr = 1e-3 # filtering
-        self.pla_lr = 1e-3 # planning
+        self.max_episodes_train = 2000 #5000
+        self.max_episodes_test = 500 #1000
+        self.batch_size = 128 #64
+        self.fil_lr = 3e-4 #1e-3 # filtering
+        self.pla_lr = 3e-4 #1e-3 # planning
         self.summary_iter = 100
-        self.save_iter = 100
-        self.display_iter = 4 #1 #10
+        self.save_iter = 40 #100
+        self.display_iter = 4 #10
         self.pretrain = 500e3
         self.show_traj = True
         self.show_distr = False
@@ -44,11 +44,11 @@ class DualSMC_LightDark_Params():
         # ######################
         # Planning
         self.num_par_smc_init = 3
-        self.num_par_smc = 30
+        self.num_par_smc = 10 #30
         self.horizon = 10
         self.smcp_mode = 'topk' # 'samp', 'topk'
         self.smcp_resample = True
-        self.smcp_resample_step = 3
+        self.smcp_resample_step = 1 #3
 
         # ######################
         # SAC

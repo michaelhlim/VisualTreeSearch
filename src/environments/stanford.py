@@ -13,7 +13,7 @@ from configs.solver.dualsmc_lightdark import *
 dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
 
-from examples.examples import *
+from examples.examples import *  # generate_observation
 
 
 class StanfordEnvironment(AbstractEnvironment):
@@ -23,27 +23,20 @@ class StanfordEnvironment(AbstractEnvironment):
         self.xrange = [0, 8.5]
         self.yrange = [0, 1.5]
         self.thetas = [0.0, 2*np.pi]
-        self.trap_x = self.xrange  # but excluding the target
+        self.trap_x = [[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] #self.xrange 
         self.trap_y = [0, 0.25]
-        self.target_x = [3.5, 4.5]
+        self.target_x = [3.5, 4.5] #[1.5, 6.5] #[3, 5] #[3.5, 4.5]
         self.target_y = [0, 0.25]
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
-        self.state = np.random.rand(sep.dim_state)
-        self.orientation = np.random.rand()
-        self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
-        self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
-        #self.state[2] = self.state[2] * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
-        self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+        self.state, self.orientation = self.initial_state()
         self.dark_line = (self.yrange[0] + self.yrange[1])/2
         self.dark_line_true = self.dark_line + self.true_env_corner[1]
 
         # Get the traversible
         path = os.getcwd() + '/temp/'
         os.mkdir(path)
-        img_path, traversible, dx_m = self.get_observation(path=path)
-        os.remove(img_path)
-        os.rmdir(path)
+        _, _, traversible, dx_m = self.get_observation(path=path)
         self.traversible = traversible
         self.dx = dx_m
         self.map_origin = [0, 0]
@@ -51,15 +44,33 @@ class StanfordEnvironment(AbstractEnvironment):
     
     def reset_environment(self):
         self.done = False
-        self.state = np.random.rand(sep.dim_state)
-        self.orientation = np.random.rand()
-        self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
-        self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
-        #self.state[2] = self.state[2] * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
-        self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+        self.state, self.orientation = self.initial_state()
+
+        # self.state = np.random.rand(sep.dim_state)
+        # self.orientation = np.random.rand()
+        # self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
+        # self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
+        # self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
 
 
-    def get_observation(self, state=None, path=None):
+    def initial_state(self):
+        orientation = np.random.rand()
+        orientation = orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+
+        valid_state = False
+        while not valid_state:
+            state = np.random.rand(sep.dim_state)
+            temp = state[1]
+            state[0] = state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
+            state[1] = temp * (self.trap_y[1] - self.trap_y[0]) + self.trap_y[0]  # Only consider x for in_trap
+            if not self.in_trap(state):
+                valid_state = True
+                state[1] = temp * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
+
+        return state, orientation
+
+
+    def get_observation(self, state=None, path=None, normalize=True):
         if state == None:
             state = self.state + self.true_env_corner
             state_arr = np.array([[state[0], state[1], self.orientation]])
@@ -68,60 +79,64 @@ class StanfordEnvironment(AbstractEnvironment):
             state_arr = np.array([state])
 
         if path == None:
-            path = path = os.getcwd() + '/images/' 
+            path = os.getcwd() + '/images/' 
+            os.mkdir(path)
 
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
+        image = np.ascontiguousarray(image)
+ 
+        # salt = np.max(image)
+        # pepper = np.min(image)
+        salt = 255
+        pepper = 0
+
         out = image
-        # cv2.imwrite(img_path[:-4] + "_ORIGINAL.png", out)
 
         if state_arr[0][1] <= self.dark_line_true: 
             # Dark observation - add salt & pepper noise
             
             row,col,ch = image.shape
             s_vs_p = 0.5
-            amount = 0.15
+            amount = 0.4 #1.0 #0.4 #0.15
             out = np.copy(image)
-            # Salt mode
             num_salt = np.ceil(amount * image.size * s_vs_p)
-            coords = [np.random.randint(0, i - 1, int(num_salt))
-                    for i in image.shape]
-            out[coords] = 255
+            num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+            noise_indices = np.random.choice(image.size, int(num_salt + num_pepper), replace=False) 
+            salt_indices = noise_indices[:int(num_salt)]
+            pepper_indices = noise_indices[int(num_salt):]
+            salt_coords = np.unravel_index(salt_indices, image.shape)
+            pepper_coords = np.unravel_index(pepper_indices, image.shape)
+            out[salt_coords] = salt
+            out[pepper_coords] = pepper
 
-            # # Salt mode
-            # num_salt = np.ceil(amount * image.size * s_vs_p)
-            # coords = [np.repeat(np.random.randint(0, i - 1, int(num_salt)), 3)
+            # coords = [np.random.randint(0, i - 1, int(num_salt))
             #         for i in image.shape]
-            # coords[2] = np.tile([0, 1, 2], int(num_salt))
-            # out[coords] = 255
+            # out[coords] = salt 
 
-            # Pepper mode
-            num_pepper = np.ceil(amount* image.size * (1. - s_vs_p))
-            coords = [np.random.randint(0, i - 1, int(num_pepper))
-                    for i in image.shape]
-            out[coords] = 0
-
-            # # Pepper mode
-            # num_pepper = np.ceil(amount* image.size * (1. - s_vs_p))
-            # coords = [np.repeat(np.random.randint(0, i - 1, int(num_pepper)), 3)
+            
+            # coords = [np.random.randint(0, i - 1, int(num_pepper))
             #         for i in image.shape]
-            # coords[2] = np.tile([0, 1, 2], int(num_salt))
-            # out[coords] = 0
+            # out[coords] = pepper 
 
-        
-        cv2.imwrite(img_path, out)
+        #cv2.imwrite(img_path, out)
 
-        # obs_orig = self.read_observation(img_path[:-4] + "_ORIGINAL.png", "_DENORMORIG.png", normalize=True)
-        # obs_noisy = self.read_observation(img_path, "_DENORMNOISE.png", normalize=True)
+        if normalize:
+            out = (out - out.mean())/out.std()  # "Normalization" -- TODO
 
-        return img_path, traversible, dx_m
+        os.remove(img_path)
+        os.rmdir(path)
+
+        return out, img_path, traversible, dx_m
     
 
     def read_observation(self, img_path, normalize):
-        obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        obs = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        #obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
         obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now obs is in RGB
-        if normalize:
-            obs = (obs - obs.mean())/obs.std()  # "Normalization" -- TODO
+        # if normalize:
+        #     obs = (obs - obs.mean())/obs.std()  # "Normalization" -- TODO
         
         # obs = obs * 100 + (255./2)
         # obs = obs[:, :, ::-1]
@@ -160,8 +175,13 @@ class StanfordEnvironment(AbstractEnvironment):
     
     def in_trap(self, state):
         # Returns true if in trap
-        trap = (state[0] >= self.trap_x[0] and state[0] <= self.trap_x[1]) and \
-                (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) 
+        first_trap = self.trap_x[0]
+        first_trap_x = (state[0] >= first_trap[0] and state[0] <= first_trap[1])
+        second_trap = self.trap_x[1]
+        second_trap_x = (state[0] >= second_trap[0] and state[0] <= second_trap[1])
+        trap_x = first_trap_x or second_trap_x
+
+        trap = trap_x and (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) 
         
         return trap and not self.in_goal(state)
     
@@ -197,6 +217,7 @@ class StanfordEnvironment(AbstractEnvironment):
 
 
     def is_terminal(self, s):
+        return
         # Check if a given state tensor is a terminal state
         s = s[:, :2]
         targets = np.tile(self.target, (s.shape[0], 1))
@@ -208,14 +229,17 @@ class StanfordEnvironment(AbstractEnvironment):
     
     def make_pars(self, batch_size):
         thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
-        xs = np.random.rand(batch_size, 1) * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
-        ys = np.random.rand(batch_size, 1) * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
+        # xs = np.random.rand(batch_size, 1) * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
+        # ys = np.random.rand(batch_size, 1) * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
 
-        # thetas = np.random.rand(batch_size, 1) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
-        # xs = np.random.rand(batch_size, 1) * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
-        # ys = np.random.rand(batch_size, 1) * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
+        xs = np.zeros((batch_size, 1))
+        ys = np.zeros((batch_size, 1))
 
-        #par_batch = np.concatenate((xs, ys, thetas), 1)
+        for i in range(batch_size):
+            [x, y], _ = self.initial_state()
+            xs[i, 0] = x
+            ys[i, 0] = y
+
         par_batch = np.concatenate((xs, ys), 1)
         
         return par_batch, thetas
@@ -358,5 +382,11 @@ class StanfordEnvironment(AbstractEnvironment):
         return reward
 
 
-# stan = StanfordEnvironment()
-# stan.make_batch(3)
+# se = StanfordEnvironment()
+# se.state = [4, 0.3]
+# r = se.step([0.5])
+# print("REWARD", r)
+# print(se.done)
+
+# trap = se.in_trap([0.5, 0.24])
+# print("TRAP", trap)
