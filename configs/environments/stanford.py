@@ -12,6 +12,7 @@ class Stanford_Environment_Params():
         self.step_range = 1 #0.05
         self.max_steps = 200
         self.discount = 0.99
+        self.noise_amount = 0.4 #1.0 #0.4 #0.15
         self.fig_format = '.png'
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'

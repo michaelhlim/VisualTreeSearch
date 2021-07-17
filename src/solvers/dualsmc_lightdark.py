@@ -113,7 +113,7 @@ class DualSMC:
         q = torch.min(qf1, qf2)
         return q
 
-    def soft_q_update(self):
+    def soft_q_update(self, critic_update):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
             obs, curr_par, mean_state, hidden, cell, pf_sample, curr_orientation = self.replay_buffer.sample(dlp.batch_size)
         state_batch = torch.FloatTensor(state_batch).to(dlp.device)  # [batch_size, dim_state]
@@ -233,7 +233,8 @@ class DualSMC:
         self.alpha_optim.step()
         self.alpha = self.log_alpha.exp()
 
-        soft_update(self.critic_target, self.critic, self.tau)
+        if critic_update:
+            soft_update(self.critic_target, self.critic, self.tau)
 
 
         return P_loss, T_loss, Z_loss, q1_loss, q2_loss

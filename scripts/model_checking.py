@@ -10,20 +10,20 @@ dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 model = DualSMC()
-load_path = "dualsmc07-01-23_17_21/dpf_online"
+load_path = "dualsmc07-14-16_52_46/dpf_online" #"dualsmc07-01-23_17_21/dpf_online"
 cwd = os.getcwd()
 model.load_model(cwd + "/nets/" + load_path)
 
-#state_arr = [3, 0.3]
+state_arr = [3, 0.3]
 #state_arr = [8, 1.4]
-state_arr = [4, 0.3]
+#state_arr = [4, 0.3]
 state = torch.FloatTensor(state_arr).unsqueeze(0).to(dlp.device)
 action_mean, action_logstd = model.policy(state.repeat(1, 4))
 qf1, qf2 = model.critic(state, action_mean)
 
-action_mean = [[(3*np.pi/2 - np.pi)/np.pi]]
-action_mean = torch.FloatTensor(action_mean).to(dlp.device)
-qf11, qf21 = model.critic(state, action_mean)
+action = [[(3*np.pi/2 - np.pi)/np.pi]]
+action = torch.FloatTensor(action).to(dlp.device)
+qf11, qf21 = model.critic(state, action)
 
 next_state = model.dynamic_net.t_model(state, action_mean) 
 

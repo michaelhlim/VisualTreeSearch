@@ -145,7 +145,7 @@ def dualsmc(model, experiment_id, train, model_path):
             par_weight += lik.squeeze()  # [num_par_pf]
             normalized_weights = torch.softmax(par_weight, -1)
 
-            if dlp.show_traj and episode % real_display_iter == 0:
+            if dlp.show_distr and episode % real_display_iter == 0:
                 check_path(img_path + "/distrs/")
                 if step < 10:
                     file_name = 'im00' + str(step)
@@ -293,15 +293,17 @@ def dualsmc(model, experiment_id, train, model_path):
                     ylim = env.yrange
                     goal = [env.target_x[0], env.target_y[0], 
                             env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
-                    trap1 = [env.trap_x[0], env.trap_y[0], 
-                            env.target_x[0]-env.trap_x[0], env.trap_y[1]-env.trap_y[0]]
-                    trap2 = [env.target_x[1], env.trap_y[0], 
-                            env.trap_x[1]-env.target_x[1], env.trap_y[1]-env.trap_y[0]]
+                    trap1_x = env.trap_x[0]
+                    trap2_x = env.trap_x[1]
+                    trap1 = [trap1_x[0], env.trap_y[0], 
+                            trap1_x[1]-trap1_x[0], env.trap_y[1]-env.trap_y[0]]
+                    trap2 = [trap2_x[0], env.trap_y[0], 
+                            trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
                     # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #        mean_state, resample_state, proposal_state, smc_xy)
                     plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                            mean_state, par_states, normalized_weights, None, smc_xy)
+                            mean_state, par_states, normalized_weights.cpu().numpy(), None, smc_xy)
             
             #######################################
             # Update the environment
@@ -318,7 +320,8 @@ def dualsmc(model, experiment_id, train, model_path):
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs_tensor,
                                          curr_s, mean_state, hidden, cell, states_init, curr_orientation)
                 if len(model.replay_buffer) > dlp.batch_size:
-                    p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update()
+                    critic_update = (step % dlp.critic_update == 0)  
+                    p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update(critic_update)
 
                     step_P_loss.append(p_loss.item())
                     step_T_loss.append(t_loss.item())
@@ -417,10 +420,12 @@ def dualsmc(model, experiment_id, train, model_path):
             ylim = env.yrange
             goal = [env.target_x[0], env.target_y[0], 
                     env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
-            trap1 = [env.trap_x[0], env.trap_y[0], 
-                    env.target_x[0]-env.trap_x[0], env.trap_y[1]-env.trap_y[0]]
-            trap2 = [env.target_x[1], env.trap_y[0], 
-                    env.trap_x[1]-env.target_x[1], env.trap_y[1]-env.trap_y[0]]
+            trap1_x = env.trap_x[0]
+            trap2_x = env.trap_x[1]
+            trap1 = [trap1_x[0], env.trap_y[0], 
+                    trap1_x[1]-trap1_x[0], env.trap_y[1]-env.trap_y[0]]
+            trap2 = [trap2_x[0], env.trap_y[0], 
+                    trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
             dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
             plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
 

@@ -23,9 +23,9 @@ class StanfordEnvironment(AbstractEnvironment):
         self.xrange = [0, 8.5]
         self.yrange = [0, 1.5]
         self.thetas = [0.0, 2*np.pi]
-        self.trap_x = [[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] #self.xrange 
+        self.trap_x = [[1.5, 2], [6.5, 7]] #[[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] 
         self.trap_y = [0, 0.25]
-        self.target_x = [3.5, 4.5] #[1.5, 6.5] #[3, 5] #[3.5, 4.5]
+        self.target_x = [4, 4.5] #[3.5, 4.5] #[1.5, 6.5] #[3, 5] #[3.5, 4.5]
         self.target_y = [0, 0.25]
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
@@ -63,11 +63,11 @@ class StanfordEnvironment(AbstractEnvironment):
             temp = state[1]
             state[0] = state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
             state[1] = temp * (self.trap_y[1] - self.trap_y[0]) + self.trap_y[0]  # Only consider x for in_trap
-            if not self.in_trap(state):
+            if not self.in_trap(state) and not self.in_goal(state):
                 valid_state = True
                 state[1] = temp * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
 
-        return state, orientation
+        return state, orientation 
 
 
     def get_observation(self, state=None, path=None, normalize=True):
@@ -99,7 +99,7 @@ class StanfordEnvironment(AbstractEnvironment):
             
             row,col,ch = image.shape
             s_vs_p = 0.5
-            amount = 0.4 #1.0 #0.4 #0.15
+            amount = sep.noise_amount  
             out = np.copy(image)
             num_salt = np.ceil(amount * image.size * s_vs_p)
             num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
@@ -168,9 +168,15 @@ class StanfordEnvironment(AbstractEnvironment):
         if state[1] < self.yrange[0] or state[1] > self.yrange[1]:
             return True
 
+        # Check if state y-value is the same as trap/goal but it's not in the trap or goal
+        if self.in_trap([self.trap_x[0][0], state[1]]) and \
+            not self.in_trap(state) and not self.in_goal(state):
+            return True
+
         map_state = self.point_to_map(np.array(state[:2] + self.true_env_corner))
         map_value = self.traversible[map_state[1], map_state[0]]
-        return map_value == 0
+        collided = (map_value == 0)
+        return collided
 
     
     def in_trap(self, state):

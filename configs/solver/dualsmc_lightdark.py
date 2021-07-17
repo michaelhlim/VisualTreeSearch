@@ -59,4 +59,5 @@ class DualSMC_LightDark_Params():
         self.gamma = 0.95
         self.tau = 0.005
         self.const = 1e-6
+        self.critic_update = 1 #50
 

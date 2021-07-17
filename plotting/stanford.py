@@ -26,6 +26,16 @@ def plot_maze(xlim, ylim, goal, trap, dark, figure_name='default', states=None):
     ax.add_patch(Rectangle((trap2[0], trap2[1]), trap2[2], trap2[3], facecolor='orange'))
     # dark region
     ax.add_patch(Rectangle((dark[0], dark[1]), dark[2], dark[3], facecolor='black', alpha=0.15))
+    # additional wall
+    ax.add_patch(Rectangle((0, trap1[1]), 
+        trap1[0], trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap1[0]+trap1[2], trap1[1]), 
+        goal[0]-(trap1[0]+trap1[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((goal[0]+goal[2], trap1[1]), 
+        trap2[0]-(goal[0]+goal[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
+        xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
+    
 
     # goals
     # cir = plt.Circle(goal, 0.07, color='orange')
@@ -65,6 +75,16 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
     ax.add_patch(Rectangle((trap2[0], trap2[1]), trap2[2], trap2[3], facecolor='orange'))
     # dark region
     ax.add_patch(Rectangle((dark[0], dark[1]), dark[2], dark[3], facecolor='black', alpha=0.15))
+    # additional wall
+    ax.add_patch(Rectangle((0, trap1[1]), 
+        trap1[0], trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap1[0]+trap1[2], trap1[1]), 
+        goal[0]-(trap1[0]+trap1[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((goal[0]+goal[2], trap1[1]), 
+        trap2[0]-(goal[0]+goal[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
+        xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
+
 
     # goals
     # cir = plt.Circle(goal, 0.07, color='orange')
@@ -83,8 +103,9 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
 
     xy = pf_state[:, :2]
     x, y = zip(*xy)
+    heuristic_alpha_mult = 10
     for j in range(len(x)):
-        ax.plot(x[j], y[j], 'gx', alpha=min(pf_weights[j]*8, 1.0))
+        ax.plot(x[j], y[j], 'gx', alpha=min(pf_weights[j]*heuristic_alpha_mult, 1.0))
     #ax.plot(x, y, 'gx')
 
     # xy = pp_state[:, :2]
