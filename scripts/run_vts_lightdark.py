@@ -1,26 +1,33 @@
 # author: @wangyunbo, @liubo
+import math
 import os.path
+import shutil
+from statistics import mean, stdev
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-import shutil
-import math
 import time
-from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
+from utils.utils import *
 
 # VTS w/ No LSTM
-from src.solvers.vts import VTS
-from src.solvers.generative_observation_prediction import *
-from src.methods.pftdpw.pftdpw import *
-from src.environments.floor import *
-from plotting.floor import *
-from configs.environments.floor import *
-from configs.solver.dualsmc import *
+from configs.environments.stanford import *
 from configs.solver.pftdpw import *
-from statistics import mean, stdev
+from configs.solver.vts_lightdark import *
 
-def vts(model, observation_generator, experiment_id, train, model_path):
+from plotting.stanford import *
+
+from src.environments.stanford import *
+from src.methods.pftdpw.pftdpw import *
+from src.solvers.vts_lightdark import VTS
+from src.solvers.generative_observation_prediction import *
+
+
+vlp = VTS_LightDark_Params()
+sep = Stanford_Environment_Params()
+
+
+def vts_lightdark(model, observation_generator, experiment_id, train, model_path):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -31,33 +38,39 @@ def vts(model, observation_generator, experiment_id, train, model_path):
     episode_Z_loss = []
     episode_P_loss = []
     episode_G_loss = []
-    rmse_per_step = np.zeros((MAX_STEPS))
+    rmse_per_step = np.zeros((sep.max_steps))
     tot_time = 0
     ################################
     # Create logs for diagnostics
     ################################
     if train:
-        print("=========================\nTraining for iterations:", MAX_EPISODES_TRAIN)
+        print("=========================\nTraining for iterations:", vlp.max_episodes_train)
         experiment_str = experiment_id + "/train"
-        num_loops = MAX_EPISODES_TRAIN
+        num_loops = vlp.max_episodes_train
     else:
-        print("=========================\nTesting for iterations:", MAX_EPISODES_TEST)
+        print("=========================\nTesting for iterations:", vlp.max_episodes_test)
         experiment_str = experiment_id + "/test"
-        num_loops = MAX_EPISODES_TEST
+        num_loops = vlp.max_episodes_test
 
-    save_path = CKPT + experiment_str
-    img_path = IMG + experiment_str
+    save_path = sep.ckpt + experiment_str
+    img_path = sep.img + experiment_str
     check_path(save_path)
     check_path(img_path)
-    str123 = experiment_id + ".txt"
-    str1234 = experiment_id + "every_10_eps" + ".txt"
-    file1 = open(save_path + "/" + str123, 'w+')
-    file2 = open(save_path + "/" + str1234, 'w+')
+    txt_path = experiment_id + ".txt"
+    txt_path_10 = experiment_id + "every_10_eps" + ".txt"
+    file1 = open(save_path + "/" + txt_path, 'w+')
+    file2 = open(save_path + "/" + txt_path_10, 'w+')
+
+
+    env = StanfordEnvironment()
 
     # Begin main dualSMC loop
     for episode in range(num_loops):
         episode += 1
-        env = Environment()
+
+        if episode != 1:
+            env.reset_environment()
+
         filter_dist = 0
         trajectory = []
         time_list_step = []
@@ -67,26 +80,28 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
 
         curr_state = env.state
-        curr_obs = env.get_observation()
+        curr_orientation = env.orientation
+        curr_obs, _, _, _ = env.get_observation() 
         trajectory.append(curr_state)
 
-        par_states = np.random.rand(NUM_PAR_PF, 2)
-        par_states[:, 0] = par_states[:, 0] * 0.4 + 0.8
-        par_states[:, 1] = par_states[:, 1] * 0.3 + 0.1 + np.random.randint(2, size=NUM_PAR_PF) * 0.5
-        par_weight = torch.log(torch.ones((NUM_PAR_PF)).to(device) * (1.0 / float(NUM_PAR_PF)))
+        par_states, par_orientations = env.make_pars(vlp.num_par_pf)
+        par_weight = torch.log(torch.ones((vlp.num_par_pf)).to(vlp.device) * (1.0 / float(vlp.num_par_pf)))
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
         pft_planner = PFTDPW(env, model.measure_net, observation_generator)
 
-        if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
-            traj_dir = img_path + "/iter-" + str(episode)
+        if vlp.show_traj and episode % vlp.display_iter == 0:
+            check_path(img_path + "/iters/")
+            traj_dir = img_path + "/iters/" + "/iter-" + str(episode)
             if os.path.exists(traj_dir):
                 shutil.rmtree(traj_dir)
             os.mkdir(traj_dir)
 
-        num_par_propose = int(NUM_PAR_PF * PP_RATIO)
-        for step in range(MAX_STEPS):
+
+        num_par_propose = int(vlp.num_par_pf * vlp.pp_ratio)
+
+        for step in range(sep.max_steps):
             # 1. observation model
             # 2. planning
             # 3. re-sample
@@ -96,22 +111,34 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             step_G_loss = []
             #######################################
             # Observation model
-            lik, _, _ = model.measure_net.m_model(
-                torch.FloatTensor(par_states).to(device),
-                torch.FloatTensor(curr_obs).to(device),
-                torch.FloatTensor(hidden).to(device),
-                torch.FloatTensor(cell).to(device))
-            par_weight += lik.squeeze()  # (NUM_PAR_PF)
+            curr_obs_tensor = torch.FloatTensor(curr_obs).permute(2, 0, 1)  # [in_channels, img_size, img_size]
+            if step == 0:
+                lik, _, _ = model.measure_net.m_model(   
+                    torch.FloatTensor(par_states).to(vlp.device),
+                    torch.FloatTensor(par_orientations).to(vlp.device),
+                    curr_obs_tensor.unsqueeze(0).to(vlp.device),
+                    torch.FloatTensor(hidden).to(vlp.device),
+                    torch.FloatTensor(cell).to(vlp.device))
+            else:
+                lik, _, _ = model.measure_net.m_model(
+                    torch.FloatTensor(par_states).to(dlp.device),
+                    torch.FloatTensor(np.tile([curr_orientation], (vlp.num_par_pf, 1))).to(vlp.device),
+                    curr_obs_tensor.unsqueeze(0).to(vlp.device),
+                    torch.FloatTensor(hidden).to(vlp.device),
+                    torch.FloatTensor(cell).to(vlp.device))
+            par_weight += lik.squeeze()  # [num_par_pf]
             normalized_weights = torch.softmax(par_weight, -1)
 
-            if SHOW_DISTR and episode % DISPLAY_ITER == 0:
+            if vlp.show_distr and episode % vlp.display_iter == 0:
+                check_path(img_path + "/distrs/")
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
                     file_name = 'im0' + str(step)
                 else:
                     file_name = 'im' + str(step)
-                frm_name = traj_dir + '/' + file_name + '_distr' + FIG_FORMAT
+                #frm_name = traj_dir + '/' + file_name + '_distr' + sep.fig_format
+                frm_name = img_path + "/distrs/" + file_name + '_distr' + sep.fig_format  
                 weights = normalized_weights.detach().cpu().numpy()
                 fig1, ax1 = plt.subplots()
                 plt.hist(weights, bins=np.logspace(-5, 0, 50))
@@ -126,30 +153,28 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             # Planning
             states_init = par_states
             action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
-
+            #######################################
+            
             # Resampling
-            if step % PF_RESAMPLE_STEP == 0:
-                if PP_EXIST:
-                    idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
+            if step % vlp.pf_resample_step == 0:
+                #if False:
+                if vlp.pp_exist:
+                    idx = torch.multinomial(normalized_weights, vlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
-                    resample_state = par_states[idx]
-                    proposal_state = model.pp_net(torch.FloatTensor(
-                        curr_obs).unsqueeze(0).to(device), num_par_propose)
-                    proposal_state[:, 0] = torch.clamp(
-                        proposal_state[:, 0], 0, 2)
-                    proposal_state[:, 1] = torch.clamp(
-                        proposal_state[:, 1], 0, 1)
+                    resample_state = par_states[idx]  # [num_par_pf - num_par_propose, dim_state]
+                    proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(dlp.device), 
+                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(dlp.device), 
+                                                num_par_propose)
+                    proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
+                    proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
                     proposal_state = proposal_state.detach().cpu().numpy()
-                    par_states = np.concatenate(
-                        (resample_state, proposal_state), 0)
+                    par_states = np.concatenate((resample_state, proposal_state), 0)  # [num_par_pf, dim_state]
                 else:
-                    idx = torch.multinomial(
-                        normalized_weights, NUM_PAR_PF, replacement=True).detach().cpu().numpy()
+                    idx = torch.multinomial(normalized_weights, vlp.num_par_pf, replacement=True).detach().cpu().numpy()
                     par_states = par_states[idx]
 
-                par_weight = torch.log(torch.ones((NUM_PAR_PF)).to(
-                    device) * (1.0 / float(NUM_PAR_PF)))
-                normalized_weights = torch.softmax(par_weight, -1)
+                par_weight = torch.log(torch.ones((vlp.num_par_pf)).to(vlp.device) * (1.0 / float(vlp.num_par_pf)))
+                normalized_weights = torch.softmax(par_weight, -1)  # [num_par_pf]
 
             mean_state = model.get_mean_state(
                 par_states, normalized_weights).detach().cpu().numpy()
@@ -159,34 +184,50 @@ def vts(model, observation_generator, experiment_id, train, model_path):
 
             toc = time.perf_counter()
             #######################################
-            if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
+            if vlp.show_traj and episode % vlp.display_iter == 0:
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
                     file_name = 'im0' + str(step)
                 else:
                     file_name = 'im' + str(step)
-                frm_name = traj_dir + '/' + file_name + '_par' + FIG_FORMAT
+                frm_name = traj_dir + '/' + file_name + '_par' + sep.fig_format
 
-                if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
-                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, None)
+                if vlp.pp_exist and step % vlp.pf_resample_step == 0:
+                    xlim = env.xrange
+                    ylim = env.yrange
+                    goal = [env.target_x[0], env.target_y[0], 
+                            env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
+                    trap1_x = env.trap_x[0]
+                    trap2_x = env.trap_x[1]
+                    trap1 = [trap1_x[0], env.trap_y[0], 
+                            trap1_x[1]-trap1_x[0], env.trap_y[1]-env.trap_y[0]]
+                    trap2 = [trap2_x[0], env.trap_y[0], 
+                            trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
+                    dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
+                    plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
+                            mean_state, resample_state, proposal_state, None)
+                    #plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
+                    #        mean_state, par_states, normalized_weights.cpu().numpy(), None, None)
 
             #######################################
             # Update the environment
-            reward = env.step(action)
+            reward = env.step(action * sep.step_range)
             next_state = env.state
-            next_obs = env.get_observation()
+            next_orientation = env.orientation
+            next_obs, _, _, _ = env.get_observation()
             #######################################
             if train:
-                model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
-                                         curr_s, mean_state, states_init)
-                if len(model.replay_buffer) > BATCH_SIZE:
+                model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs_tensor,
+                                         curr_s, mean_state, states_init, curr_orientation)
+                if len(model.replay_buffer) > vlp.batch_size:
                     p_loss, z_loss, obs_gen_loss = \
-                        model.soft_q_update(observation_generator)
+                        model.online_training(observation_generator)
 
                     step_P_loss.append(p_loss.item())
                     step_Z_loss.append(z_loss.item())
                     step_G_loss.append(obs_gen_loss.item())
+
             #######################################
             # Transition Model
             par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
@@ -202,18 +243,13 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
 
-            # # Printing states for debugging
-            # if step % 3 == 0:
-            #     cond = (curr_state[1] <= 0.5)
-            #     target = cond * env.target1 + (1 - cond) * env.target2
-            #     print(step, curr_state, mean_state, target, action)
             if env.done:
                 break
 
         # TODO TRY BOTH MEAN AND NOT FOR THE LOSS PLOTS
         # Get the average loss of each model for this episode if we are training
         if train:
-            if len(model.replay_buffer) > BATCH_SIZE:
+            if len(model.replay_buffer) > vlp.batch_size:
                 episode_P_loss.append(np.mean(step_P_loss))
                 episode_Z_loss.append(np.mean(step_Z_loss))
                 episode_G_loss.append(np.mean(step_G_loss))
@@ -232,11 +268,11 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        if episode % SAVE_ITER == 0 and train:
-            model.save_model(model_path + "/dualsmc_online")
-            print("save model to %s" % model_path)
+        if episode % vlp.save_iter == 0 and train:
+            model.save_model(model_path + "/vts_online")
+            print("Saving online trained models to %s" % model_path)
 
-        if episode % DISPLAY_ITER == 0:
+        if episode % vlp.display_iter == 0:
             st2 = img_path + "/"
             episode_list = [episode_P_loss, episode_Z_loss, episode_G_loss]
             name_list = ['particle_loss', 'observation_loss', 'generative_loss']
@@ -254,8 +290,20 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         
         # Plot every trajectory
         check_path(img_path + "/traj/")
-        st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
-        plot_maze(figure_name=st, states=np.array(trajectory))
+        st = img_path + "/traj/" + str(episode) + "-trj" + sep.fig_format
+        xlim = env.xrange
+        ylim = env.yrange
+        goal = [env.target_x[0], env.target_y[0], 
+                env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
+        trap1_x = env.trap_x[0]
+        trap2_x = env.trap_x[1]
+        trap1 = [trap1_x[0], env.trap_y[0], 
+                trap1_x[1]-trap1_x[0], env.trap_y[1]-env.trap_y[0]]
+        trap2 = [trap2_x[0], env.trap_y[0], 
+                trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
+        dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
+        plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
+
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
@@ -270,10 +318,10 @@ def vts(model, observation_generator, experiment_id, train, model_path):
     file2.close()
 
 
-def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True):
     # This block of code creates the folders for plots
-    experiment_id = "vts" + get_datetime()
+    experiment_id = "vts_lightdark" + get_datetime()
     foldername = "data/" + experiment_id
     check_path(foldername)
     model_path = "nets/" + experiment_id
@@ -284,7 +332,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
     # Create a model and environment object
     model = VTS()
-    env = Environment()
+    env = Environment() 
 
     observation_generator = ObservationGenerator()
 
@@ -313,7 +361,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
             state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
 
             # Train Z and P using the soft q update function
-            Z_loss, P_loss = model.soft_q_update_individual(
+            Z_loss, P_loss = model.pretraining(
                 state_batch, obs_batch, par_batch)
             measure_loss.append(Z_loss.item())
             proposer_loss.append(P_loss.item())
@@ -337,7 +385,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        vts(model, observation_generator, experiment_id,
+        vts_lightdark(model, observation_generator, experiment_id,
             train, model_path)
 
     if save_online_model:
@@ -347,26 +395,26 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
     if test:
         train = False
-        vts(model, observation_generator, experiment_id,
+        vts_lightdark(model, observation_generator, experiment_id,
             train, model_path)
 
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
         # Right into online learning & testing
-        # vts_driver(load_path="test500k",
+        # vts_lightdark_driver(load_path="test500k",
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        # vts_driver(end_to_end=False, save_online_model=False, test=False)
+        # vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        # vts_driver(end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_driver(load_path="test500k",
-                   gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
+        # vts_lightdark_driver(load_path="test500k",
+        #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
-        # vts_driver()
+        # vts_lightdark_driver()
 

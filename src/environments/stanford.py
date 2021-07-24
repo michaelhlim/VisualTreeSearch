@@ -8,9 +8,7 @@ from src.environments.abstract import AbstractEnvironment
 from utils.utils import *
 
 from configs.environments.stanford import *
-from configs.solver.dualsmc_lightdark import *
 
-dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 from examples.examples import *  # generate_observation
@@ -131,6 +129,7 @@ class StanfordEnvironment(AbstractEnvironment):
         return out, img_path, traversible, dx_m
     
 
+    # Currently not used
     def read_observation(self, img_path, normalize):
         obs = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         #obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -388,11 +387,3 @@ class StanfordEnvironment(AbstractEnvironment):
         return reward
 
 
-# se = StanfordEnvironment()
-# se.state = [4, 0.3]
-# r = se.step([0.5])
-# print("REWARD", r)
-# print(se.done)
-
-# trap = se.in_trap([0.5, 0.24])
-# print("TRAP", trap)
