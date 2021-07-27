@@ -4,31 +4,27 @@ class VTS_LightDark_Params():
         self.device = 'cuda:2'
 
         ######################
-        # Network
         self.model_name = 'vts_lightdark'
+        ## Z and P
         self.dim_first_layer = 64 
-        self.dim_lstm_hidden = 64 
-        self.num_lstm_layer = 2
-        self.dim_encode = 64
-
+        #self.dim_encode = 64
         self.in_channels = 3
         self.obs_encode_out = 64
-        self.mlp_hunits = 128
+        self.mlp_hunits_zp = 128
+        ## G
+        self.num_layers = 3
+        self.latent_dim = 32
+        self.mlp_hunits_g = 128
+        self.dim_conditional_var = 2
+        self.leak_rate = 0
+        #self.img_size = 32 
+        #self.normalization = False
         self.calibration = False
-        self.normalization = False
-
-        # CVAE
-        self.latent_dim = 64
-        self.mlp_hunits = 128
-        self.dim_conditional_var = 3
-        self.img_size = 32 
-        self.normalization = False
-        self.calibration = False
-        self.lr = 1e-3 
-        self.beta = 1
-        self.batch_size = 64 #32 
-        self.num_training_data = 8000 #7000 #500 
-        self.num_epochs = 2 #200 #100 #200 
+        #self.lr = 1e-3 
+        #self.beta = 1
+        #self.batch_size = 64 #32 
+        #self.num_training_data = 8000 #7000 #500 
+        #self.num_epochs = 2 #200 #100 #200 
 
         ######################
         # Training

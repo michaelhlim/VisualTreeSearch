@@ -20,14 +20,13 @@ from plotting.stanford import *
 from src.environments.stanford import *
 from src.methods.pftdpw.pftdpw import *
 from src.solvers.vts_lightdark import VTS
-from src.solvers.generative_observation_prediction import *
 
 
 vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-def vts_lightdark(model, observation_generator, experiment_id, train, model_path):
+def vts_lightdark(model, experiment_id, train, model_path):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -76,8 +75,8 @@ def vts_lightdark(model, observation_generator, experiment_id, train, model_path
         time_list_step = []
         reward_list_step = []
 
-        hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
-        cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
+        hidden = np.zeros((vlp.num_lstm_layer, 1, vlp.dim_lstm_hidden))
+        cell = np.zeros((vlp.num_lstm_layer, 1, vlp.dim_lstm_hidden))
 
         curr_state = env.state
         curr_orientation = env.orientation
@@ -89,7 +88,7 @@ def vts_lightdark(model, observation_generator, experiment_id, train, model_path
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
-        pft_planner = PFTDPW(env, model.measure_net, observation_generator)
+        pft_planner = PFTDPW(env, model.measure_net, model.generator)
 
         if vlp.show_traj and episode % vlp.display_iter == 0:
             check_path(img_path + "/iters/")
@@ -121,7 +120,7 @@ def vts_lightdark(model, observation_generator, experiment_id, train, model_path
                     torch.FloatTensor(cell).to(vlp.device))
             else:
                 lik, _, _ = model.measure_net.m_model(
-                    torch.FloatTensor(par_states).to(dlp.device),
+                    torch.FloatTensor(par_states).to(vlp.device),
                     torch.FloatTensor(np.tile([curr_orientation], (vlp.num_par_pf, 1))).to(vlp.device),
                     curr_obs_tensor.unsqueeze(0).to(vlp.device),
                     torch.FloatTensor(hidden).to(vlp.device),
@@ -162,8 +161,8 @@ def vts_lightdark(model, observation_generator, experiment_id, train, model_path
                     idx = torch.multinomial(normalized_weights, vlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
                     resample_state = par_states[idx]  # [num_par_pf - num_par_propose, dim_state]
-                    proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(dlp.device), 
-                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(dlp.device), 
+                    proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(vlp.device), 
+                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(vlp.device), 
                                                 num_par_propose)
                     proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
                     proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
@@ -222,7 +221,7 @@ def vts_lightdark(model, observation_generator, experiment_id, train, model_path
                                          curr_s, mean_state, states_init, curr_orientation)
                 if len(model.replay_buffer) > vlp.batch_size:
                     p_loss, z_loss, obs_gen_loss = \
-                        model.online_training(observation_generator)
+                        model.online_training()
 
                     step_P_loss.append(p_loss.item())
                     step_Z_loss.append(z_loss.item())
@@ -332,36 +331,32 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
 
     # Create a model and environment object
     model = VTS()
-    env = Environment() 
+    env = StanfordEnvironment() 
 
-    observation_generator = ObservationGenerator()
+    #observation_generator = ObservationGenerator()
 
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
         model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained")
-        observation_generator.load_model(
-            cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
-
-    # This is where we need to perform individual training (if the user wants).
-    # The process for this is to (1) create a observation and state batch.
-    # Then (2) only train Z and P in an adversarial manner using the custom
-    # soft_q_update function
+        # observation_generator.load_model(
+        #     cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
 
     if pre_training:
         tic = time.perf_counter()
-        print("Pretraining observation density and particle proposer")
+        print("Pretraining observation density model, particle proposer, and observation generator")
         print_freq = 100
         measure_loss = []
         proposer_loss = []
-        # First we'll do train individually for 64 batches
-        for batch in range(PRETRAIN):
+        generator_loss = []
+        
+        # Train Z and P 
+        for batch in range(vlp.pretrain):
             walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
                          0, 0, 0]  # wall 0 means no wall
             state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
 
-            # Train Z and P using the soft q update function
-            Z_loss, P_loss = model.pretraining(
+            Z_loss, P_loss = model.pretraining_zp(
                 state_batch, obs_batch, par_batch)
             measure_loss.append(Z_loss.item())
             proposer_loss.append(P_loss.item())
@@ -370,9 +365,26 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
             if batch % print_freq == 0:
                 print("Step: ", batch, ", Z loss: ", np.mean(
                     measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
+        
+        # Train G
+        for batch in range(vlp.pretrain):
+            walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
+                         0, 0, 0]  # wall 0 means no wall
+            state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
+
+            enc_obs_batch = model.measure_net.observation_encoder(obs_batch)
+
+            G_loss = model.pretraining_g(
+                state_batch, enc_obs_batch, par_batch)
+            generator_loss.append(G_loss.item())
+
+            # Print loss and stuff for the last $print_freq batches
+            if batch % print_freq == 0:
+                print("Step: ", batch, ", G loss: ", np.mean(generator_loss[-print_freq:]))
+
 
         # Observation generative model
-        training_time = observation_generator.pretrain(save_pretrained_model, model_path)
+        # training_time = observation_generator.pretrain(save_pretrained_model, model_path)
 
         if save_pretrained_model:
             model.save_model(model_path + "/dpf_pre_trained")
@@ -385,7 +397,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        vts_lightdark(model, observation_generator, experiment_id,
+        vts_lightdark(model, experiment_id,
             train, model_path)
 
     if save_online_model:
@@ -395,12 +407,12 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
 
     if test:
         train = False
-        vts_lightdark(model, observation_generator, experiment_id,
+        vts_lightdark(model, experiment_id,
             train, model_path)
 
 
 if __name__ == "__main__":
-    if MODEL_NAME == 'dualsmc':
+    if vlp.model_name == 'vts_lightdark':
         # Right into online learning & testing
         # vts_lightdark_driver(load_path="test500k",
                 #    gen_load_path="test500k", pre_training=False)

@@ -10,6 +10,8 @@ sep = Stanford_Environment_Params()
 vlp = VTS_LightDark_Params()
 
 
+observation_encoder = ObservationEncoder()
+
 
 class MeasureNetwork(nn.Module):
     def __init__(self):
@@ -21,20 +23,23 @@ class MeasureNetwork(nn.Module):
         self.num_lstm_layer = vlp.num_lstm_layer
         self.dim_state = sep.dim_state
 
-        self.observation_encoder = ObservationEncoder()
+        self.observation_encoder = observation_encoder
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.obs_encode_out, self.dim_first_layer),
             nn.ReLU()
         )
 
-        self.lstm = nn.LSTM(self.dim_first_layer, self.dim_lstm_hidden, self.num_lstm_layer)
+        self.lstm_replace = nn.Sequential(
+            nn.Linear(self.dim_first_layer, self.dim_lstm_hidden),
+            nn.ReLU()
+        )
         self.lstm_out = nn.Sequential(
             nn.Linear(self.dim_lstm_hidden, self.dim_m),
             nn.ReLU()
         )
 
-        mlp_hunits = vlp.mlp_hunits
+        mlp_hunits = vlp.mlp_hunits_zp
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_m + self.dim_state + 1, mlp_hunits),
                 nn.LeakyReLU(),
@@ -52,13 +57,12 @@ class MeasureNetwork(nn.Module):
         # orientation [batch_size * num_par, 1]
         enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
         result = self.first_layer(enc_obs) # [batch_size, dim_first_layer]
-        x = result.unsqueeze(0)  # [1, batch_size, dim_first_layer]
-        x, (h, c) = self.lstm(x, (hidden, cell))  # x: [1, batch_size, dim_lstm_hidden]  # h and c same size as hidden, cell
-        x = self.lstm_out(x[0])  # [batch_size, dim_m]
+        x = self.lstm_replace(result)
+        x = self.lstm_out(x)  # [batch_size, dim_m]
         x = x.repeat(num_par, 1)  # [batch_size * num_par, dim_m]        
         x = torch.cat((x, state, orientation), -1)  # [batch_size * num_par, dim_m + dim_state + 1]
         lik = self.mlp(x).view(-1, num_par)  # [batch_size, num_par]
-        return lik, h, c
+        return lik, 0, 0
 
 
 
@@ -71,14 +75,14 @@ class ProposerNetwork(nn.Module):
         self.dim_first_layer = vlp.dim_first_layer
         self.dim_state = sep.dim_state
 
-        self.observation_encoder = ObservationEncoder()
+        self.observation_encoder = observation_encoder
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.obs_encode_out, self.dim_first_layer),
             nn.ReLU()
         )
 
-        mlp_hunits = vlp.mlp_hunits
+        mlp_hunits = vlp.mlp_hunits_zp
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_first_layer * 2 + 1, mlp_hunits),
                 nn.LeakyReLU(),
