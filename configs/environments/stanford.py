@@ -7,7 +7,8 @@ class Stanford_Environment_Params():
         self.dim_state = 2
         self.img_size = 32 
         self.dim_obs = 4
-        self.obs_std = 0.01
+        self.obs_std_light = 0.01
+        self.obs_std_dark = 0.1
         self.end_range = 0.01
         self.step_range = 1 #0.05
         self.max_steps = 200
@@ -16,6 +17,9 @@ class Stanford_Environment_Params():
         self.fig_format = '.png'
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'
+
+        self.data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
+        self.normalization = True
         
 
 

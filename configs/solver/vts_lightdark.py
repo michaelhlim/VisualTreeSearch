@@ -39,8 +39,11 @@ class VTS_LightDark_Params():
         self.save_iter = 40 #100
         self.display_iter = 4 #10
         self.pretrain = 500e3
+        self.num_epochs = 10
         self.show_traj = True
         self.show_distr = False
+
+        self.num_training_data = 8000
 
         ######################
         # Filtering

@@ -1,5 +1,6 @@
 # author: @wangyunbo
 import cv2
+import glob
 import numpy as np
 import os
 import random
@@ -38,6 +39,11 @@ class StanfordEnvironment(AbstractEnvironment):
         self.traversible = traversible
         self.dx = dx_m
         self.map_origin = [0, 0]
+
+        # For making training batches
+        self.data_path = sep.data_path
+        self.data_files = glob.glob(self.data_path)
+        self.normalization = sep.normalization
 
     
     def reset_environment(self):
@@ -248,47 +254,9 @@ class StanfordEnvironment(AbstractEnvironment):
         par_batch = np.concatenate((xs, ys), 1)
         
         return par_batch, thetas
-    
 
-    def make_batch(self, batch_size):
-        return
-        path = path = os.getcwd() + '/temp/' 
-        os.mkdir(path)
 
-        states_batch = []
-        obs_batch = []
-        for i in range(batch_size):
-            # theta = self.thetas[np.random.randint(len(self.thetas))]
-            theta = np.random.rand() * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
-            x = np.random.rand() * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
-            y = np.random.rand() * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
-            state = [x, y, theta]
-            
-            img_path, _, _ = self.get_observation(state, path)
-            obs = self.read_observation(img_path, normalize=True) 
-
-            par_vec_x = np.random.normal(state[0], sep.obs_std, dlp.num_par_pf)
-            par_vec_y = np.random.normal(state[1], sep.obs_std, dlp.num_par_pf)
-            par_vec_theta = np.random.rand(dlp.num_par_pf) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
-            # par_vec_theta = self.thetas[np.random.randint(len(self.thetas), size=(dlp.num_par_pf))]
-            states_batch.append(state)
-            obs_batch.append(obs)
-            middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
-
-            if i == 0:
-                par_batch = middle_var
-            else:
-                par_batch = np.concatenate((par_batch, middle_var), 0)
-
-            os.remove(img_path)
-
-        os.rmdir(path)
-
-        states_batch = np.array(states_batch)
-        obs_batch = np.array(obs_batch)
-
-        return states_batch, obs_batch, par_batch
-
+    ########## Methods for tree search ###########
 
     def action_sample(self):
         return
@@ -386,4 +354,138 @@ class StanfordEnvironment(AbstractEnvironment):
 
         return reward
 
+
+    ########## For (pre)training - making batches ##########
+
+    def shuffle_dataset(self):
+        data_files_indices = list(range(len(self.data_files)))
+        np.random.shuffle(data_files_indices)
+
+        return data_files_indices
+
+
+    def preprocess_data(self):
+        # For normalizing the images - per channel mean and std
+        rmean = 0
+        gmean = 0
+        bmean = 0
+        rstd = 0
+        gstd = 0
+        bstd = 0
+        for i in range(len(self.data_files)):
+            img_path = self.data_files[i]
+            src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+            
+            rmean += src[:, :, 0].mean()/len(self.data_files)
+            gmean += src[:, :, 1].mean()/len(self.data_files)
+            bmean += src[:, :, 2].mean()/len(self.data_files)
+            
+            rstd += src[:, :, 0].std()/len(self.data_files)
+            gstd += src[:, :, 1].std()/len(self.data_files)
+            bstd += src[:, :, 2].std()/len(self.data_files)
+        
+        return rmean, gmean, bmean, rstd, gstd, bstd
+    
+
+    def get_training_batch(self, batch_size, data_files_indices, epoch_step, normalization_data):
+        rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+
+        states = []
+        images = []
+        remove = 4
+
+        if (epoch_step + 1)*batch_size > len(data_files_indices):
+            indices = data_files_indices[epoch_step*batch_size:]
+        else:
+            indices = data_files_indices[epoch_step*batch_size:(epoch_step + 1)*batch_size]
+
+        for index in indices:
+            img_path = self.data_files[index]
+            src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            
+            if self.normalization:
+                ####################### I THINK THERE IS A BUG HERE -- SHOULD BE CHANGING TO RGB ##################
+                img_rslice = (src[:, :, 0] - rmean)/rstd
+                img_gslice = (src[:, :, 1] - gmean)/gstd
+                img_bslice = (src[:, :, 2] - bmean)/bstd
+
+                img = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
+
+                images.append(img)
+            else:
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
+                src = (src - src.mean())/src.std()
+                images.append(src)
+
+            splits = img_path[:-remove].split('_')
+            state = np.array([[np.round(float(elem), 3) for elem in splits[-3:]]])
+            state[:2] = state[:2] - self.true_env_corner
+            states.append(state)
+        
+        return np.array(states), np.array(images)
+    
+
+    def get_par_batch(self, states, num_particles):
+        for i in range(len(states)):
+            state = states[i]
+
+            if state[1] < self.dark_line:
+                obs_std = sep.obs_std_dark
+            else:
+                obs_std = sep.obs_std_light
+                
+            par_vec_x = np.random.normal(state[0], obs_std, num_particles)
+            par_vec_y = np.random.normal(state[1], obs_std, num_particles)
+            par_vec_theta = np.tile([state[2]], (num_particles, 1))
+
+            middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
+
+            if i == 0:
+                par_batch = middle_var
+            else:
+                par_batch = np.concatenate((par_batch, middle_var), 0)
+
+        return par_batch
+
+
+    def make_batch(self, batch_size):
+        return
+        path = path = os.getcwd() + '/temp/' 
+        os.mkdir(path)
+
+        states_batch = []
+        obs_batch = []
+        for i in range(batch_size):
+            # theta = self.thetas[np.random.randint(len(self.thetas))]
+            theta = np.random.rand() * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
+            x = np.random.rand() * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
+            y = np.random.rand() * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
+            state = [x, y, theta]
+            
+            img_path, _, _ = self.get_observation(state, path)
+            obs = self.read_observation(img_path, normalize=True) 
+
+            par_vec_x = np.random.normal(state[0], sep.obs_std, dlp.num_par_pf)
+            par_vec_y = np.random.normal(state[1], sep.obs_std, dlp.num_par_pf)
+            par_vec_theta = np.random.rand(dlp.num_par_pf) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
+            # par_vec_theta = self.thetas[np.random.randint(len(self.thetas), size=(dlp.num_par_pf))]
+            states_batch.append(state)
+            obs_batch.append(obs)
+            middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
+
+            if i == 0:
+                par_batch = middle_var
+            else:
+                par_batch = np.concatenate((par_batch, middle_var), 0)
+
+            os.remove(img_path)
+
+        os.rmdir(path)
+
+        states_batch = np.array(states_batch)
+        obs_batch = np.array(obs_batch)
+
+        return states_batch, obs_batch, par_batch
+ 
 

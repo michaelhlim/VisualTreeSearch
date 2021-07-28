@@ -349,38 +349,57 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         measure_loss = []
         proposer_loss = []
         generator_loss = []
+
+        steps_per_epoch = int(np.ceil(vlp.num_training_data/vlp.batch_size))
+        normalization_data = env.preprocess_data()
         
         # Train Z and P 
-        for batch in range(vlp.pretrain):
-            walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
-                         0, 0, 0]  # wall 0 means no wall
-            state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
+        for epoch in range(vlp.num_epochs):
+            for step in range(steps_per_epoch):
+                data_files_indices = env.shuffle_dataset()
 
-            Z_loss, P_loss = model.pretraining_zp(
-                state_batch, obs_batch, par_batch)
-            measure_loss.append(Z_loss.item())
-            proposer_loss.append(P_loss.item())
+                states, images = env.get_training_batch(vlp.batch_size, data_files_indices, 
+                                                        step, normalization_data)
+                #states = torch.from_numpy(states).float()
+                #images = torch.from_numpy(images).float()
+                images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
+                state_batch = states
+                obs_batch = images  
+                par_batch = env.get_par_batch(states)
 
-            # Print loss and stuff for the last $print_freq batches
-            if batch % print_freq == 0:
-                print("Step: ", batch, ", Z loss: ", np.mean(
-                    measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
+                Z_loss, P_loss = model.pretraining_zp(
+                    state_batch, obs_batch, par_batch)
+                measure_loss.append(Z_loss.item())
+                proposer_loss.append(P_loss.item())
+
+                # Print loss and stuff for the last $print_freq batches
+                if step % print_freq == 0:
+                    print("Epoch: ", epoch, ", Step: ", step, ", Z loss: ", np.mean(
+                        measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
+
         
         # Train G
-        for batch in range(vlp.pretrain):
-            walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
-                         0, 0, 0]  # wall 0 means no wall
-            state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
+        for epoch in range(vlp.num_epochs):
+            for step in range(steps_per_epoch):
+                data_files_indices = env.shuffle_dataset()
 
-            enc_obs_batch = model.measure_net.observation_encoder(obs_batch)
+                states, images = env.get_training_batch(vlp.batch_size, data_files_indices, 
+                                                        step, normalization_data)
+                #states = torch.from_numpy(states).float()
+                #images = torch.from_numpy(images).float()
+                images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
+                state_batch = states
+                obs_batch = images  
 
-            G_loss = model.pretraining_g(
-                state_batch, enc_obs_batch, par_batch)
-            generator_loss.append(G_loss.item())
+                enc_obs_batch = model.measure_net.observation_encoder(obs_batch)
 
-            # Print loss and stuff for the last $print_freq batches
-            if batch % print_freq == 0:
-                print("Step: ", batch, ", G loss: ", np.mean(generator_loss[-print_freq:]))
+                G_loss = model.pretraining_g(
+                    state_batch, enc_obs_batch, par_batch)
+                generator_loss.append(G_loss.item())
+
+                # Print loss and stuff for the last $print_freq batches
+                if step % print_freq == 0:
+                    print("Epoch: ", epoch, "Step: ", step, ", G loss: ", np.mean(generator_loss[-print_freq:]))
 
 
         # Observation generative model
