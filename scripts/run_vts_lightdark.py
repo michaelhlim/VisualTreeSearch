@@ -338,14 +338,14 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained")
+        model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
         # observation_generator.load_model(
         #     cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
 
     if pre_training:
         tic = time.perf_counter()
         print("Pretraining observation density model, particle proposer, and observation generator")
-        print_freq = 100
+        print_freq = 5
         measure_loss = []
         proposer_loss = []
         generator_loss = []
@@ -354,21 +354,22 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         normalization_data = env.preprocess_data()
         
         # Train Z and P 
-        for epoch in range(vlp.num_epochs):
-            for step in range(steps_per_epoch):
-                data_files_indices = env.shuffle_dataset()
+        for epoch in range(vlp.num_epochs_zp):
+            data_files_indices = env.shuffle_dataset()
 
-                states, images = env.get_training_batch(vlp.batch_size, data_files_indices, 
-                                                        step, normalization_data)
-                #states = torch.from_numpy(states).float()
-                #images = torch.from_numpy(images).float()
+            for step in range(steps_per_epoch-100):
+
+                states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
+                                                                                step, normalization_data, vlp.num_par_pf)
+                states = torch.from_numpy(states).float()
+                images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
                 state_batch = states
                 obs_batch = images  
-                par_batch = env.get_par_batch(states)
+                #par_batch = env.get_par_batch(states)
 
                 Z_loss, P_loss = model.pretraining_zp(
-                    state_batch, obs_batch, par_batch)
+                    state_batch, orientations, obs_batch, par_batch)
                 measure_loss.append(Z_loss.item())
                 proposer_loss.append(P_loss.item())
 
@@ -379,22 +380,21 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
 
         
         # Train G
-        for epoch in range(vlp.num_epochs):
-            for step in range(steps_per_epoch):
-                data_files_indices = env.shuffle_dataset()
+        for epoch in range(vlp.num_epochs_g):
+            data_files_indices = env.shuffle_dataset()
 
-                states, images = env.get_training_batch(vlp.batch_size, data_files_indices, 
-                                                        step, normalization_data)
-                #states = torch.from_numpy(states).float()
-                #images = torch.from_numpy(images).float()
+            for step in range(steps_per_epoch-100):
+
+                states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
+                                                        step, normalization_data, vlp.num_par_pf)
+                states = torch.from_numpy(states).float()
+                images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
                 state_batch = states
                 obs_batch = images  
 
-                enc_obs_batch = model.measure_net.observation_encoder(obs_batch)
-
                 G_loss = model.pretraining_g(
-                    state_batch, enc_obs_batch, par_batch)
+                    state_batch, orientations, obs_batch, par_batch)
                 generator_loss.append(G_loss.item())
 
                 # Print loss and stuff for the last $print_freq batches
@@ -406,8 +406,8 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         # training_time = observation_generator.pretrain(save_pretrained_model, model_path)
 
         if save_pretrained_model:
-            model.save_model(model_path + "/dpf_pre_trained")
-            print("Saving pre-trained Z, P models to %s" % model_path)
+            model.save_model(model_path + "/vts_pre_trained")
+            print("Saving pre-trained Z, P, G models to %s" % model_path)
         
         toc = time.perf_counter()
         time_this_step = toc - tic
@@ -421,7 +421,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
 
     if save_online_model:
         # Save the model
-        model.save_model(model_path + "/dpf_online_trained")
+        model.save_model(model_path + "/vts_online_trained")
         print("Saving online trained Z, P models to %s" % model_path)
 
     if test:

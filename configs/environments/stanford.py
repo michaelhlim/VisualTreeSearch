@@ -9,7 +9,7 @@ class Stanford_Environment_Params():
         self.dim_obs = 4
         self.obs_std_light = 0.01
         self.obs_std_dark = 0.1
-        self.end_range = 0.01
+        #self.end_range = 0.01
         self.step_range = 1 #0.05
         self.max_steps = 200
         self.discount = 0.99

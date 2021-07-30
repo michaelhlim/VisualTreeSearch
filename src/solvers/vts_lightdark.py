@@ -5,7 +5,6 @@ from torch.distributions import Normal
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from solvers.generative_observation_prediction import ObservationGenerator
 from utils.utils import *
 
 # Configs for floor and no LSTM dual smc
@@ -34,7 +33,7 @@ class VTS:
         self.generator = ObservationGenerator().to(vlp.device)
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.fil_lr)
         self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.fil_lr)
-        self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.lr)
+        self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
 
     def save_model(self, path):
         stats = {}
@@ -92,7 +91,7 @@ class VTS:
 
     def online_training(self):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
-        obs, curr_par, mean_state, pf_sample = self.replay_buffer.sample(vlp.batch_size)
+            obs, curr_par, mean_state, pf_sample, curr_orientation = self.replay_buffer.sample(vlp.batch_size)
         state_batch = torch.FloatTensor(state_batch).to(vlp.device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(vlp.device)
         action_batch = torch.FloatTensor(action_batch).to(vlp.device)
@@ -104,6 +103,7 @@ class VTS:
         curr_par_sample = torch.FloatTensor(pf_sample).to(vlp.device) # (B, M, 2)
         hidden = curr_obs
         cell = curr_obs
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(dlp.device)
 
         # Observation generative model
         # obs_gen_loss = observation_generator.online_training(state_batch, curr_obs)
@@ -113,14 +113,15 @@ class VTS:
         # ------------------------
         if vlp.pp_exist:
             self.pp_optimizer.zero_grad()
-            state_propose = self.pp_net(curr_obs, vlp.num_par_pf)
+            state_propose = self.pp_net(curr_obs, curr_orientation, vlp.num_par_pf)
             PP_loss = 0
             P_loss = PP_loss
             if 'mse' in vlp.pp_loss_type:
                 PP_loss += self.MSE_criterion(state_batch.repeat(vlp.num_par_pf, 1), state_propose)
                 P_loss = PP_loss
             if 'adv' in vlp.pp_loss_type:
-                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1), 
+                                                            curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
                 P_loss = PP_loss
@@ -141,15 +142,16 @@ class VTS:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        temp = curr_par.view(-1, sep.dim_state)
-        fake_logit, _, _ = self.measure_net.m_model(temp, curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+                                                    curr_orientation.repeat(vlp.num_par_pf, 1), 
+                                                    curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
         if vlp.pp_exist:
-            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
+            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
                                                            curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
             fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # (B, 2K)
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # (batch, num_pars)
+        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_orientation, curr_obs, hidden, cell, 1)  # (batch, num_pars)
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
@@ -162,7 +164,8 @@ class VTS:
         # ------------------------
         self.generator_optimizer.zero_grad()
         enc_obs = self.measure_net.observation_encoder(curr_obs)
-        [recons, input, mu, log_var] = self.generator.forward(enc_obs, state_batch)
+        conditional_input = torch.cat((state_batch, curr_orientation), -1)
+        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs)
         args = [recons, input, mu, log_var]
         loss_dict = self.generator.loss_function(self.beta, *args)
         OG_loss = loss_dict['loss']
@@ -173,10 +176,11 @@ class VTS:
         return P_loss, Z_loss, G_loss
 
 
-    def pretraining_zp(self, state_batch, obs, curr_par):
-        state_batch = torch.FloatTensor(state_batch).to(vlp.device)
-        curr_par = torch.FloatTensor(curr_par).to(vlp.device)
-        curr_obs = torch.FloatTensor(obs).to(vlp.device)
+    def pretraining_zp(self, state_batch, curr_orientation, obs, curr_par):
+        state_batch = torch.FloatTensor(state_batch).to(vlp.device)  # [batch_size, dim_state]
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)  # [batch_size, 1]
+        curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # [batch_size * num_par, dim_state]
+        curr_obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
         hidden = curr_obs
         cell = curr_obs
         # ------------------------
@@ -184,14 +188,15 @@ class VTS:
         # ------------------------
         if vlp.pp_exist:
             self.pp_optimizer.zero_grad()
-            state_propose = self.pp_net(curr_obs, vlp.num_par_pf)
+            state_propose = self.pp_net(curr_obs, curr_orientation, vlp.num_par_pf)  # [batch_size * num_par, dim_state]
             PP_loss = 0
             P_loss = PP_loss
             if 'mse' in vlp.pp_loss_type:
                 PP_loss += self.MSE_criterion(state_batch.repeat(vlp.num_par_pf, 1), state_propose)
                 P_loss = PP_loss
             if 'adv' in vlp.pp_loss_type:
-                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                             curr_obs, hidden, cell, vlp.num_par_pf)  # [batch_size, num_par]
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
                 P_loss = PP_loss
@@ -213,15 +218,17 @@ class VTS:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        temp = curr_par.view(-1, sep.dim_state)
-        fake_logit, _, _ = self.measure_net.m_model(temp, curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+                                                    curr_orientation.repeat(vlp.num_par_pf, 1), 
+                                                    curr_obs, hidden, cell, vlp.num_par_pf)  # [batch_size, num_par]
         if vlp.pp_exist:
-            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
-                                                           curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
-            fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # (B, 2K)
+            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                           curr_obs, hidden, cell, vlp.num_par_pf)  # [batch_size, num_par]
+            fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # [batch_size, 2 * num_par]
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # (batch, num_pars)
+        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_orientation, 
+                                                    curr_obs, hidden, cell, 1)  # [batch_size, 1]
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
@@ -232,20 +239,22 @@ class VTS:
         return Z_loss, P_loss
     
 
-    def pretraining_g(self, state_batch, enc_obs, curr_par):
-        state_batch = torch.FloatTensor(state_batch).to(vlp.device)
-        curr_par = torch.FloatTensor(curr_par).to(vlp.device)
-        curr_obs = torch.FloatTensor(enc_obs).to(vlp.device)
-        hidden = curr_obs
-        cell = curr_obs
+    def pretraining_g(self, state_batch, curr_orientation, obs, curr_par):
+        state_batch = torch.FloatTensor(state_batch).to(vlp.device)  # [batch_size, dim_state]
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)  # [batch_size, 1]
+        curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # [batch_size * num_par, dim_state]
+        obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
+
+        enc_obs = self.measure_net.observation_encoder(obs)   # [batch_size, obs_encode_out]
 
         # ------------------------
         #  Train Observation Generator
         # ------------------------
+        conditional_input = torch.cat((state_batch, curr_orientation), -1)  # [batch_size, dim_state + 1]
         self.generator_optimizer.zero_grad()
-        [recons, input, mu, log_var] = self.generator.forward(curr_obs, state_batch)
+        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs)
         args = [recons, input, mu, log_var]
-        loss_dict = self.generator.loss_function(self.beta, *args)
+        loss_dict = self.generator.loss_function(*args)
         OG_loss = loss_dict['loss']
         G_loss = OG_loss
         OG_loss.backward()

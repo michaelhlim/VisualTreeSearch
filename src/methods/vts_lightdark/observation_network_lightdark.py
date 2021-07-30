@@ -20,7 +20,6 @@ class MeasureNetwork(nn.Module):
         self.obs_encode_out = vlp.obs_encode_out
         self.dim_first_layer = vlp.dim_first_layer
         self.dim_lstm_hidden = vlp.dim_lstm_hidden
-        self.num_lstm_layer = vlp.num_lstm_layer
         self.dim_state = sep.dim_state
 
         self.observation_encoder = observation_encoder
@@ -57,7 +56,7 @@ class MeasureNetwork(nn.Module):
         # orientation [batch_size * num_par, 1]
         enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
         result = self.first_layer(enc_obs) # [batch_size, dim_first_layer]
-        x = self.lstm_replace(result)
+        x = self.lstm_replace(result)  # [batch_size, dim_lstm_hidden]
         x = self.lstm_out(x)  # [batch_size, dim_m]
         x = x.repeat(num_par, 1)  # [batch_size * num_par, dim_m]        
         x = torch.cat((x, state, orientation), -1)  # [batch_size * num_par, dim_m + dim_state + 1]

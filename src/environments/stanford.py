@@ -1,8 +1,10 @@
 # author: @wangyunbo
+from configs.environments.floor import DISCOUNT
 import cv2
 import glob
 import numpy as np
 import os
+import pickle
 import random
 
 from src.environments.abstract import AbstractEnvironment
@@ -16,7 +18,7 @@ from examples.examples import *  # generate_observation
 
 
 class StanfordEnvironment(AbstractEnvironment):
-    def __init__(self):
+    def __init__(self, traversible_dump=False):
         self.done = False
         self.true_env_corner = [24.0, 23.0] 
         self.xrange = [0, 8.5]
@@ -33,9 +35,14 @@ class StanfordEnvironment(AbstractEnvironment):
         self.dark_line_true = self.dark_line + self.true_env_corner[1]
 
         # Get the traversible
-        path = os.getcwd() + '/temp/'
-        os.mkdir(path)
-        _, _, traversible, dx_m = self.get_observation(path=path)
+        if traversible_dump:
+            path = os.getcwd() + '/temp/'
+            os.mkdir(path)
+            _, _, traversible, dx_m = self.get_observation(path=path)
+            pickle.dump(traversible, open("traversible.p", "wb"))
+        else:
+            traversible = pickle.load(open("traversible.p", "rb"))
+            dx_m = 0.05
         self.traversible = traversible
         self.dx = dx_m
         self.map_origin = [0, 0]
@@ -226,17 +233,6 @@ class StanfordEnvironment(AbstractEnvironment):
 
         return reward
 
-
-    def is_terminal(self, s):
-        return
-        # Check if a given state tensor is a terminal state
-        s = s[:, :2]
-        targets = np.tile(self.target, (s.shape[0], 1))
-        
-        true_dist = l2_distance_np(s, targets)
-        
-        return all(true_dist <= sep.end_range)
-
     
     def make_pars(self, batch_size):
         thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
@@ -259,7 +255,6 @@ class StanfordEnvironment(AbstractEnvironment):
     ########## Methods for tree search ###########
 
     def action_sample(self):
-        return
         # Gives back a uniformly sampled random action
         rnd = int(random.random()*9)
 
@@ -267,7 +262,7 @@ class StanfordEnvironment(AbstractEnvironment):
         while rnd == 4:
             rnd = int(random.random()*9)
 
-        action = STEP_RANGE * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
+        action = sep.step_range * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
 
         # # just generate completely random
         # action_x = STEP_RANGE * (2 * random.random() - 1)
@@ -275,9 +270,22 @@ class StanfordEnvironment(AbstractEnvironment):
         # action = np.array([action_x, action_y])
 
         return action
+    
+
+    def is_terminal(self, s):
+        # Check if a given state tensor is a terminal state
+        terminal = [self.in_goal(state) for state in s]
+        return all(terminal)
+
+        # s = s[:, :2]
+        # targets = np.tile(self.target, (s.shape[0], 1))
+
+        # true_dist = l2_distance_np(s, targets)
+
+        # return all(true_dist <= sep.end_range)
+
 
     def transition(self, s, w, a):
-        return
         # transition each state in state tensor s with actions in action/action tensor a
         next_state = np.copy(s)
         if w is not None:
@@ -288,41 +296,30 @@ class StanfordEnvironment(AbstractEnvironment):
             weights = np.ones(np.shape(s)[0])
             next_weights = np.ones(np.shape(s)[0])
         sp = s + a
+        action_angles = np.arctan2(a[:, 1], a[:, 0])
+        adjust = action_angles < 0  # Arctan stuff
+        action_angles[adjust] += 2*np.pi
+        orientations_next = action_angles.reshape((len(sp), 1))  ### TODO: We don't care about orientations for planning? ###
+        #sp = np.concatenate((sp, orientations_next), 0)
         reward = 0.0
 
-        # Determine targets
-        cond = (s[:, 1] <= 0.5)
-        true_targets = np.zeros(np.shape(s))
-        true_targets[cond, :] = self.target1
-        true_targets[~cond, :] = self.target2
-        false_targets = np.zeros(np.shape(s))
-        false_targets[cond, :] = self.false_target1
-        false_targets[~cond, :] = self.false_target2
-
-        # Calculate distances
-        next_true_dist = l2_distance_np(sp, true_targets)
-        curr_false_dist = l2_distance_np(s, false_targets)
-        next_false_dist = l2_distance_np(sp, false_targets)
-
-        # Check collision & goal
-        cond_hit = detect_collision(s, sp)
-        goal_achieved = (next_true_dist <= END_RANGE)
+        cond_hit = np.array([self.detect_collision(state) for state in sp])
+        goal_achieved = np.array([self.in_goal(state) for state in sp])
         step_ok = (~cond_hit | goal_achieved)
 
-        # Check false goal
-        false_goal = (curr_false_dist > END_RANGE) * (next_false_dist <= END_RANGE)
-        normal_step = ~(goal_achieved | false_goal)
+        trap = np.array([self.in_trap(state) for state in sp])
+        normal_step = ~(goal_achieved | trap)
 
         # If goal reached
         next_state[step_ok, :] = sp[step_ok, :]
         next_weights[goal_achieved] = 0.0
-        reward += np.sum(weights[goal_achieved]) * EPI_REWARD
+        reward += np.sum(weights[goal_achieved]) * sep.epi_reward
 
-        # If false goal reached
-        reward -= np.sum(weights[false_goal]) * EPI_REWARD
+        # If trap reached
+        reward -= np.sum(weights[trap]) * sep.epi_reward
 
         # Else
-        reward += np.sum(weights[normal_step]) * STEP_REWARD
+        reward += np.sum(weights[normal_step]) * sep.step_reward
 
         # Is the transition terminal?
         is_terminal = all(goal_achieved)
@@ -336,23 +333,63 @@ class StanfordEnvironment(AbstractEnvironment):
                 
         return next_state, next_weights, reward, is_terminal
 
-    def rollout(self, s, ss, ws):
-        return
-        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
-        cond = (s[1] <= 0.5)
-        target = cond * self.target1 + (1 - cond) * self.target2
-        dist = np.sqrt(l2_distance(s, target))
-        steps = int(np.floor(dist/STEP_RANGE))
+
+    def distance_to_goal(self, state):
+        '''
+        Returns vector that gets the state x, y to the goal (rectangular) and 
+        the length of that vector
+        '''
+        x = state[0]
+        y = state[1]
+
+        if self.in_goal(state):
+            return np.array([0, 0])
+
+        if x >= self.target_x[0] and x <= self.target_x[1]:
+            y_dist_argmin = np.argmin([abs(self.target_y[1] - y), abs(self.target_y[0] - y)])
+            vec_dist = [self.target_y[1] - y, self.target_y[0] - y]
+            vec = np.array([0, vec_dist[y_dist_argmin]])
         
+        elif y >= self.target_y[0] and y <= self.target_y[1]:
+            x_dist_argmin = np.argmin([abs(self.target_x[1] - x), abs(self.target_x[0] - x)])
+            vec_dist = [self.target_x[1] - x, self.target_x[0] - x]
+            vec = np.array([vec_dist[x_dist_argmin], 0])
+        
+        else:
+            corners = np.array([[self.target_x[0], self.target_y[0]], 
+                                [self.target_x[0], self.target_y[1]],
+                                [self.target_x[1], self.target_y[0]],
+                                [self.target_x[1], self.target_y[1]]])
+            corner_argmin = np.argmin([np.norm(np.array([x, y]) - corner) for corner in corners])
+            corner_argmin = corners[corner_argmin]
+            vec = corner_argmin - np.array([x, y])
+
+        return vec, np.norm(vec)
+
+
+    def rollout(self, s, ss, ws):
+        '''
+        s - one sampled state out of all particles
+        ss - all other particles
+        ws - weights on the particles
+        '''
+
+        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        vec, dist = self.distance_to_goal(s)
+        steps = int(np.floor(dist/sep.velocity))
+        ss_copy = np.copy(ss)
+        ss_copy += vec 
+
         # Going stepping number of times will provide the following intermediate rewards (geometric series result)
-        gamma = np.power(DISCOUNT, steps)
-        reward = STEP_REWARD * (1.0 - gamma)/(1.0 - DISCOUNT)
+        gamma = np.power(sep.discount, steps)
+        reward = sep.step_reward * (1.0 - gamma)/(1.0 - sep.discount)
 
-        # Basically check if the targets are same (1) or different (-1)
-        cond_all = -2 * (cond ^ (ss[:, 1] <= 0.5)) + 1
-        reward += gamma * np.dot(cond_all, ws) * EPI_REWARD
+        goal_reached = [self.in_goal(state) for state in ss_copy]
+        trap_reached = [self.in_trap(state) for state in ss_copy]
+        r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward
+        reward += gamma * r
 
-        return reward
+        return reward 
 
 
     ########## For (pre)training - making batches ##########
@@ -364,8 +401,16 @@ class StanfordEnvironment(AbstractEnvironment):
         return data_files_indices
 
 
-    def preprocess_data(self):
+    def preprocess_data(self, dump=False):
         # For normalizing the images - per channel mean and std
+        print("Preprocessing the data")
+
+        if not dump:
+            normalization_data = pickle.load(open("data_normalization.p", "rb"))
+            rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+            print("Done preprocessing")
+            return rmean, gmean, bmean, rstd, gstd, bstd
+
         rmean = 0
         gmean = 0
         bmean = 0
@@ -381,31 +426,41 @@ class StanfordEnvironment(AbstractEnvironment):
             gmean += src[:, :, 1].mean()/len(self.data_files)
             bmean += src[:, :, 2].mean()/len(self.data_files)
             
-            rstd += src[:, :, 0].std()/len(self.data_files)
+            rstd += src[:, :, 0].std()/len(self.data_files)  ## TODO: FIX?
             gstd += src[:, :, 1].std()/len(self.data_files)
             bstd += src[:, :, 2].std()/len(self.data_files)
         
+        normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
+        if dump:
+            pickle.dump(normalization_data, open("data_normalization.p", "wb"))
+
+        print("Done preprocessing")
+
         return rmean, gmean, bmean, rstd, gstd, bstd
     
 
-    def get_training_batch(self, batch_size, data_files_indices, epoch_step, normalization_data):
+    def get_training_batch(self, batch_size, data_files_indices, epoch_step, 
+                            normalization_data, num_particles):
         rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
 
         states = []
+        orientations = []
         images = []
         remove = 4
+        rounding = 3
 
         if (epoch_step + 1)*batch_size > len(data_files_indices):
             indices = data_files_indices[epoch_step*batch_size:]
         else:
             indices = data_files_indices[epoch_step*batch_size:(epoch_step + 1)*batch_size]
 
-        for index in indices:
+        for i in range(len(indices)):
+            index = indices[i]
             img_path = self.data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
             
             if self.normalization:
-                ####################### I THINK THERE IS A BUG HERE -- SHOULD BE CHANGING TO RGB ##################
                 img_rslice = (src[:, :, 0] - rmean)/rstd
                 img_gslice = (src[:, :, 1] - gmean)/gstd
                 img_bslice = (src[:, :, 2] - bmean)/bstd
@@ -414,21 +469,14 @@ class StanfordEnvironment(AbstractEnvironment):
 
                 images.append(img)
             else:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
                 src = (src - src.mean())/src.std()
                 images.append(src)
 
             splits = img_path[:-remove].split('_')
-            state = np.array([[np.round(float(elem), 3) for elem in splits[-3:]]])
+            state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
             state[:2] = state[:2] - self.true_env_corner
-            states.append(state)
-        
-        return np.array(states), np.array(images)
-    
-
-    def get_par_batch(self, states, num_particles):
-        for i in range(len(states)):
-            state = states[i]
+            states.append(state[:2])
+            orientations.append(state[2])
 
             if state[1] < self.dark_line:
                 obs_std = sep.obs_std_dark
@@ -437,55 +485,39 @@ class StanfordEnvironment(AbstractEnvironment):
                 
             par_vec_x = np.random.normal(state[0], obs_std, num_particles)
             par_vec_y = np.random.normal(state[1], obs_std, num_particles)
-            par_vec_theta = np.tile([state[2]], (num_particles, 1))
 
-            middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
-
-            if i == 0:
-                par_batch = middle_var
-            else:
-                par_batch = np.concatenate((par_batch, middle_var), 0)
-
-        return par_batch
-
-
-    def make_batch(self, batch_size):
-        return
-        path = path = os.getcwd() + '/temp/' 
-        os.mkdir(path)
-
-        states_batch = []
-        obs_batch = []
-        for i in range(batch_size):
-            # theta = self.thetas[np.random.randint(len(self.thetas))]
-            theta = np.random.rand() * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
-            x = np.random.rand() * (self.xrange[1] - self.xrange[0]) + self.xrange[0]
-            y = np.random.rand() * (self.yrange[1] - self.yrange[0]) + self.yrange[0]
-            state = [x, y, theta]
-            
-            img_path, _, _ = self.get_observation(state, path)
-            obs = self.read_observation(img_path, normalize=True) 
-
-            par_vec_x = np.random.normal(state[0], sep.obs_std, dlp.num_par_pf)
-            par_vec_y = np.random.normal(state[1], sep.obs_std, dlp.num_par_pf)
-            par_vec_theta = np.random.rand(dlp.num_par_pf) * (self.thetas[-1] - self.thetas[0]) + self.thetas[0]
-            # par_vec_theta = self.thetas[np.random.randint(len(self.thetas), size=(dlp.num_par_pf))]
-            states_batch.append(state)
-            obs_batch.append(obs)
-            middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
+            middle_var = np.stack((par_vec_x, par_vec_y), 1)
 
             if i == 0:
                 par_batch = middle_var
             else:
                 par_batch = np.concatenate((par_batch, middle_var), 0)
+        
+        return np.array(states), np.array(orientations), np.array(images), par_batch
+    
 
-            os.remove(img_path)
+    # def get_par_batch(self, states, num_particles):
+    #     for i in range(len(states)):
+    #         state = states[i]
 
-        os.rmdir(path)
+    #         if state[1] < self.dark_line:
+    #             obs_std = sep.obs_std_dark
+    #         else:
+    #             obs_std = sep.obs_std_light
+                
+    #         par_vec_x = np.random.normal(state[0], obs_std, num_particles)
+    #         par_vec_y = np.random.normal(state[1], obs_std, num_particles)
+    #         par_vec_theta = np.tile([state[2]], (num_particles, 1))
 
-        states_batch = np.array(states_batch)
-        obs_batch = np.array(obs_batch)
+    #         middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
 
-        return states_batch, obs_batch, par_batch
+    #         if i == 0:
+    #             par_batch = middle_var
+    #         else:
+    #             par_batch = np.concatenate((par_batch, middle_var), 0)
+
+    #     return par_batch
+
+
  
 

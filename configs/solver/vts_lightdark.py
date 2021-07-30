@@ -8,6 +8,8 @@ class VTS_LightDark_Params():
         ## Z and P
         self.dim_first_layer = 64 
         #self.dim_encode = 64
+        self.dim_lstm_hidden = 64 
+        self.num_lstm_layer = 2
         self.in_channels = 3
         self.obs_encode_out = 64
         self.mlp_hunits_zp = 128
@@ -20,8 +22,8 @@ class VTS_LightDark_Params():
         #self.img_size = 32 
         #self.normalization = False
         self.calibration = False
-        #self.lr = 1e-3 
-        #self.beta = 1
+        self.g_lr = 1e-3 
+        self.beta = 1
         #self.batch_size = 64 #32 
         #self.num_training_data = 8000 #7000 #500 
         #self.num_epochs = 2 #200 #100 #200 
@@ -32,14 +34,15 @@ class VTS_LightDark_Params():
         self.num_pretraining_steps = 50
         self.max_episodes_train = 2000 #5000
         self.max_episodes_test = 500 #1000
-        self.batch_size = 128 #64
+        self.batch_size = 64 #128 #64
         self.fil_lr = 3e-4 #1e-3 # filtering
         self.pla_lr = 3e-4 #1e-3 # planning
         self.summary_iter = 100
         self.save_iter = 40 #100
         self.display_iter = 4 #10
         self.pretrain = 500e3
-        self.num_epochs = 10
+        self.num_epochs_zp = 1
+        self.num_epochs_g = 1
         self.show_traj = True
         self.show_distr = False
 

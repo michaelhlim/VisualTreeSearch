@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from configs.environments.stanford import *
-from configs.solver.dualsmc_lightdark import *
+from configs.solver.vts_lightdark import *
 
 sep = Stanford_Environment_Params()
 vlp = VTS_LightDark_Params()
@@ -22,9 +22,10 @@ class ObservationGenerator(nn.Module):
         self.mlp_hunits = vlp.mlp_hunits_g
         self.leak_rate = vlp.leak_rate
         self.calibration = vlp.calibration
+        self.beta = vlp.beta 
 
         encoder_modules = []
-        encoder_modules.append(nn.Linear(sep.dim_state + vlp.obs_encode_out, self.mlp_hunits))
+        encoder_modules.append(nn.Linear(sep.dim_state + 1 + vlp.obs_encode_out, self.mlp_hunits))
         encoder_modules.append(nn.LeakyReLU(self.leak_rate))
         for i in range(vlp.num_layers - 2):
             encoder_modules.append(nn.Linear(self.mlp_hunits, self.mlp_hunits))
@@ -42,7 +43,7 @@ class ObservationGenerator(nn.Module):
         self.log_scale = nn.Parameter(torch.Tensor([0.0]))
 
         decoder_modules = []
-        decoder_modules.append(nn.Linear(sep.dim_state + self.latent_dim, self.mlp_hunits))
+        decoder_modules.append(nn.Linear(sep.dim_state + 1 + self.latent_dim, self.mlp_hunits))
         decoder_modules.append(nn.LeakyReLU(self.leak_rate))
         for i in range(vlp.num_layers - 2):
             decoder_modules.append(nn.Linear(self.mlp_hunits, self.mlp_hunits))
@@ -53,29 +54,29 @@ class ObservationGenerator(nn.Module):
         self.decoder = nn.Sequential(*decoder_modules)
 
 
-    def encode(self, state_batch, enc_obs_batch):
+    def encode(self, conditional_input, enc_obs_batch):
         """
         Encodes the input by passing through the encoder network
         and returns the latent codes.
         :param input: (Tensor) Input tensor to encoder [N x C x H x W]
         :return: (Tensor) List of latent codes
         """
-        encoder_input = torch.cat([state_batch, enc_obs_batch], -1)  # [batch_size, dim_state + dim_obs]
-        obs_encoded = self.encoder(encoder_input)  # [batch_size, enc_out_dim]
+        encoder_input = torch.cat([conditional_input, enc_obs_batch], -1)  # [batch_size, dim_state + obs_encode_out]
+        obs_encoded = self.encoder(encoder_input)  # [batch_size, latent_dim]
         mu, log_var = self.fc_mu(obs_encoded), self.fc_var(obs_encoded)  # [batch_size, latent_dim]
 
         return [mu, log_var]
 
 
-    def decode(self, state_batch, z):
+    def decode(self, conditional_input, z):
         """
         Maps the given latent codes
         onto the image space.
         :param z: (Tensor) [B x D]
         :return: (Tensor) [B x C x H x W]
         """
-        decoder_input = torch.cat([state_batch, z], -1)  # [batch_size, latent_dim + dim_state]
-        enc_obs_hat = self.decoder(decoder_input)  # [batch_size, dim_obs]
+        decoder_input = torch.cat([conditional_input, z], -1)  # [batch_size, latent_dim + dim_state + 1]
+        enc_obs_hat = self.decoder(decoder_input)  # [batch_size, obs_encode_out]
         return enc_obs_hat
 
 
@@ -92,10 +93,10 @@ class ObservationGenerator(nn.Module):
         return eps * std + mu 
 
 
-    def forward(self, state_batch, enc_obs_batch):
-        mu, log_var = self.encode(state_batch, enc_obs_batch)  # [batch_size, latent_dim]
+    def forward(self, conditional_input, enc_obs_batch):
+        mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
         z = self.reparameterize(mu, log_var)  # [batch_size, latent_dim]
-        return [self.decode(state_batch, z), enc_obs_batch, mu, log_var]
+        return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]
     
 
     def gaussian_likelihood(self, x_hat, logscale, x):
@@ -109,7 +110,7 @@ class ObservationGenerator(nn.Module):
         return log_pxz.mean(dim=-1)
 
 
-    def loss_function(self, beta, *args):
+    def loss_function(self, *args):
         """
         Computes the VAE loss function.
         KL(N(\mu, \sigma), N(0, 1)) = \log \frac{1}{\sigma} + \frac{\sigma^2 + \mu^2}{2} - \frac{1}{2}
@@ -141,11 +142,11 @@ class ObservationGenerator(nn.Module):
 
         kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1), dim = 0)
 
-        loss = -recons_loss + beta * kld_loss
+        loss = -recons_loss + self.beta * kld_loss
         return {'loss': loss, 'Reconstruction_Loss':-recons_loss, 'KLD':kld_loss}
 
 
-    def sample(self, num_samples, state_batch):
+    def sample(self, num_samples, conditional_input):
         """
         Samples from the latent space and return the corresponding
         image space map.
@@ -156,7 +157,7 @@ class ObservationGenerator(nn.Module):
         z = torch.randn(num_samples,
                         self.latent_dim)
 
-        samples = self.decode(state_batch, z)
+        samples = self.decode(conditional_input, z)
         return samples
     
 
