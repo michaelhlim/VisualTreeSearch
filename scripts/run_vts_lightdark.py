@@ -12,13 +12,12 @@ from utils.utils import *
 
 # VTS w/ No LSTM
 from configs.environments.stanford import *
-from configs.solver.pftdpw import *
 from configs.solver.vts_lightdark import *
 
 from plotting.stanford import *
 
 from src.environments.stanford import *
-from src.methods.pftdpw.pftdpw import *
+from src.methods.vts_lightdark.pftdpw_lightdark import *
 from src.solvers.vts_lightdark import VTS
 
 
@@ -112,14 +111,14 @@ def vts_lightdark(model, experiment_id, train, model_path):
             # Observation model
             curr_obs_tensor = torch.FloatTensor(curr_obs).permute(2, 0, 1)  # [in_channels, img_size, img_size]
             if step == 0:
-                lik, _, _ = model.measure_net.m_model(   
+                lik, _, _ = model.measure_net.m_model(     # [1, num_par]
                     torch.FloatTensor(par_states).to(vlp.device),
                     torch.FloatTensor(par_orientations).to(vlp.device),
                     curr_obs_tensor.unsqueeze(0).to(vlp.device),
                     torch.FloatTensor(hidden).to(vlp.device),
                     torch.FloatTensor(cell).to(vlp.device))
             else:
-                lik, _, _ = model.measure_net.m_model(
+                lik, _, _ = model.measure_net.m_model(     # [1, num_par]
                     torch.FloatTensor(par_states).to(vlp.device),
                     torch.FloatTensor(np.tile([curr_orientation], (vlp.num_par_pf, 1))).to(vlp.device),
                     curr_obs_tensor.unsqueeze(0).to(vlp.device),
@@ -205,7 +204,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
                             trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
                     plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                            mean_state, resample_state, proposal_state, None)
+                            mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, None)
                     #plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #        mean_state, par_states, normalized_weights.cpu().numpy(), None, None)
 
@@ -229,10 +228,11 @@ def vts_lightdark(model, experiment_id, train, model_path):
 
             #######################################
             # Transition Model
-            par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
-
+            next_par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
+            par_states = next_par_states[:, :sep.dim_state]    
             #######################################            
             curr_state = next_state
+            curr_orientation = next_orientation
             curr_obs = next_obs
             hidden = 0
             cell = 0
@@ -321,8 +321,8 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
                    end_to_end=True, save_online_model=True, test=True):
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
-    foldername = "data/" + experiment_id
-    check_path(foldername)
+    # foldername = "data/" + experiment_id
+    # check_path(foldername)
     model_path = "nets/" + experiment_id
     check_path(model_path)
 
@@ -357,7 +357,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         for epoch in range(vlp.num_epochs_zp):
             data_files_indices = env.shuffle_dataset()
 
-            for step in range(steps_per_epoch-100):
+            for step in range(steps_per_epoch-110):
 
                 states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                                                 step, normalization_data, vlp.num_par_pf)
@@ -383,7 +383,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         for epoch in range(vlp.num_epochs_g):
             data_files_indices = env.shuffle_dataset()
 
-            for step in range(steps_per_epoch-100):
+            for step in range(steps_per_epoch-110):
 
                 states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                         step, normalization_data, vlp.num_par_pf)

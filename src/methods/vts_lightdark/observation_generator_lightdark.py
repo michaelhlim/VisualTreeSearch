@@ -154,8 +154,7 @@ class ObservationGenerator(nn.Module):
         :param current_device: (Int) Device to run the model
         :return: (Tensor)
         """
-        z = torch.randn(num_samples,
-                        self.latent_dim)
+        z = torch.randn(num_samples, self.latent_dim).to(vlp.device)
 
         samples = self.decode(conditional_input, z)
         return samples

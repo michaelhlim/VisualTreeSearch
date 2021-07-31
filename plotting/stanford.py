@@ -93,11 +93,12 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
     # ax.add_artist(cir)
 
     # planning trajectories
-    if smc_traj.any():
-        num_par_smc = smc_traj.shape[1]
-        for k in range(num_par_smc):
-            points = smc_traj[:, k, :]
-            ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
+    if smc_traj:
+        if smc_traj.any():
+            num_par_smc = smc_traj.shape[1]
+            for k in range(num_par_smc):
+                points = smc_traj[:, k, :]
+                ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
 
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')

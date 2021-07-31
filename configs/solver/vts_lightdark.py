@@ -33,13 +33,13 @@ class VTS_LightDark_Params():
         self.train = True
         self.num_pretraining_steps = 50
         self.max_episodes_train = 2000 #5000
-        self.max_episodes_test = 500 #1000
+        self.max_episodes_test = 1 #500 #1000
         self.batch_size = 64 #128 #64
         self.fil_lr = 3e-4 #1e-3 # filtering
         self.pla_lr = 3e-4 #1e-3 # planning
         self.summary_iter = 100
-        self.save_iter = 40 #100
-        self.display_iter = 4 #10
+        self.save_iter = 1 #40 #100
+        self.display_iter = 1 #4 #10
         self.pretrain = 500e3
         self.num_epochs_zp = 1
         self.num_epochs_g = 1
@@ -58,12 +58,12 @@ class VTS_LightDark_Params():
 
         # ######################
         # Planning
-        self.num_par_smc_init = 3
-        self.num_par_smc = 10 #30
-        self.horizon = 10
-        self.smcp_mode = 'topk' # 'samp', 'topk'
-        self.smcp_resample = True
-        self.smcp_resample_step = 1 #3
+        # self.num_par_smc_init = 3
+        # self.num_par_smc = 10 #30
+        # self.horizon = 10
+        # self.smcp_mode = 'topk' # 'samp', 'topk'
+        # self.smcp_resample = True
+        # self.smcp_resample_step = 1 #3
 
         # PFTDPW    
         self.num_query = 100
@@ -78,12 +78,12 @@ class VTS_LightDark_Params():
 
         # ######################
         # SAC
-        self.log_sig_max = 2
-        self.log_sig_min = -20
+        # self.log_sig_max = 2
+        # self.log_sig_min = -20
         self.replay_buffer_size = 100000
-        self.alpha = 1.0
-        self.gamma = 0.95
-        self.tau = 0.005
-        self.const = 1e-6
-        self.critic_update = 1 #50
+        # self.alpha = 1.0
+        # self.gamma = 0.95
+        # self.tau = 0.005
+        # self.const = 1e-6
+        # self.critic_update = 1 #50
 

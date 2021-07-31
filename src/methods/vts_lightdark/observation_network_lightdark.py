@@ -50,11 +50,14 @@ class MeasureNetwork(nn.Module):
                 nn.Sigmoid()
             )
 
-    def m_model(self, state, orientation, obs, hidden, cell, num_par=vlp.num_par_pf):
+    def m_model(self, state, orientation, obs, hidden, cell, num_par=vlp.num_par_pf, obs_is_encoded=False):
         # state [batch_size * num_par, dim_state]
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size * num_par, 1]
-        enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
+        if not obs_is_encoded:
+            enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
+        else:
+            enc_obs = obs
         result = self.first_layer(enc_obs) # [batch_size, dim_first_layer]
         x = self.lstm_replace(result)  # [batch_size, dim_lstm_hidden]
         x = self.lstm_out(x)  # [batch_size, dim_m]

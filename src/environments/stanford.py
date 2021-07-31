@@ -180,12 +180,12 @@ class StanfordEnvironment(AbstractEnvironment):
         if state[1] < self.yrange[0] or state[1] > self.yrange[1]:
             return True
 
-        # Check if state y-value is the same as trap/goal but it's not in the trap or goal
+        # Check if state y-value is the same as trap/goal but it's not in the trap or goal - that's a wall
         if self.in_trap([self.trap_x[0][0], state[1]]) and \
             not self.in_trap(state) and not self.in_goal(state):
             return True
 
-        map_state = self.point_to_map(np.array(state[:2] + self.true_env_corner))
+        map_state = self.point_to_map(np.array(state[:sep.dim_state] + self.true_env_corner))
         map_value = self.traversible[map_state[1], map_state[0]]
         collided = (map_value == 0)
         return collided
@@ -262,7 +262,7 @@ class StanfordEnvironment(AbstractEnvironment):
         while rnd == 4:
             rnd = int(random.random()*9)
 
-        action = sep.step_range * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
+        action = sep.velocity * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
 
         # # just generate completely random
         # action_x = STEP_RANGE * (2 * random.random() - 1)
@@ -287,7 +287,6 @@ class StanfordEnvironment(AbstractEnvironment):
 
     def transition(self, s, w, a):
         # transition each state in state tensor s with actions in action/action tensor a
-        next_state = np.copy(s)
         if w is not None:
             weights = np.copy(w)
             next_weights = np.copy(w)
@@ -295,12 +294,13 @@ class StanfordEnvironment(AbstractEnvironment):
             # Dummy weight
             weights = np.ones(np.shape(s)[0])
             next_weights = np.ones(np.shape(s)[0])
-        sp = s + a
-        action_angles = np.arctan2(a[:, 1], a[:, 0])
-        adjust = action_angles < 0  # Arctan stuff
-        action_angles[adjust] += 2*np.pi
-        orientations_next = action_angles.reshape((len(sp), 1))  ### TODO: We don't care about orientations for planning? ###
-        #sp = np.concatenate((sp, orientations_next), 0)
+        sp = s[:, :sep.dim_state] + a
+        action_angle = np.arctan2(a[1], a[0])
+        if action_angle < 0:  # Arctan stuff
+            action_angle += 2*np.pi
+        orientations_next = np.tile(action_angle, (len(sp), 1))  
+        sp = np.concatenate((sp, orientations_next), -1) 
+        next_state = np.copy(sp)
         reward = 0.0
 
         cond_hit = np.array([self.detect_collision(state) for state in sp])
@@ -360,11 +360,11 @@ class StanfordEnvironment(AbstractEnvironment):
                                 [self.target_x[0], self.target_y[1]],
                                 [self.target_x[1], self.target_y[0]],
                                 [self.target_x[1], self.target_y[1]]])
-            corner_argmin = np.argmin([np.norm(np.array([x, y]) - corner) for corner in corners])
+            corner_argmin = np.argmin([np.linalg.norm(np.array([x, y]) - corner) for corner in corners])
             corner_argmin = corners[corner_argmin]
             vec = corner_argmin - np.array([x, y])
 
-        return vec, np.norm(vec)
+        return vec, np.linalg.norm(vec)
 
 
     def rollout(self, s, ss, ws):
@@ -378,7 +378,7 @@ class StanfordEnvironment(AbstractEnvironment):
         vec, dist = self.distance_to_goal(s)
         steps = int(np.floor(dist/sep.velocity))
         ss_copy = np.copy(ss)
-        ss_copy += vec 
+        ss_copy[:, :sep.dim_state] += vec  # Orientations do not matter for goal/trap checking
 
         # Going stepping number of times will provide the following intermediate rewards (geometric series result)
         gamma = np.power(sep.discount, steps)
@@ -474,9 +474,9 @@ class StanfordEnvironment(AbstractEnvironment):
 
             splits = img_path[:-remove].split('_')
             state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
-            state[:2] = state[:2] - self.true_env_corner
-            states.append(state[:2])
-            orientations.append(state[2])
+            state[:sep.dim_state] = state[:sep.dim_state] - self.true_env_corner
+            states.append(state[:sep.dim_state])
+            orientations.append(state[sep.dim_state])
 
             if state[1] < self.dark_line:
                 obs_std = sep.obs_std_dark

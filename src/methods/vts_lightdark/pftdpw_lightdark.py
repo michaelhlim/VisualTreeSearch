@@ -95,6 +95,7 @@ class PFTDPW():
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
+		# NOTE this sp includes orientation!
 		sp, new_weights, reward, is_terminal = self.transition_step(b, a)
 
 		if is_terminal:
@@ -103,11 +104,12 @@ class PFTDPW():
 		else:
 			# Generate an observation from a random state
 			s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
-			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(vlp.device))
+			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(vlp.device))  # [1, obs_encode_out]
 
 			# Generate particle belief set
-			lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(vlp.device), 
-					o, 0, 0, self.n_par)
+			lik, _, _ = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
+										torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
+										o, 0, 0, self.n_par, obs_is_encoded=True)  # [1, num_par]
 			new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
 			
 			# Resample states (naive resampling)
