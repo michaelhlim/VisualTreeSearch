@@ -31,8 +31,8 @@ class VTS:
         self.measure_net = MeasureNetwork().to(vlp.device)
         self.pp_net = ProposerNetwork().to(vlp.device)
         self.generator = ObservationGenerator().to(vlp.device)
-        self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.fil_lr)
-        self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.fil_lr)
+        self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
+        self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
         self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
 
     def save_model(self, path):
@@ -245,14 +245,14 @@ class VTS:
         curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # [batch_size * num_par, dim_state]
         obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
 
-        enc_obs = self.measure_net.observation_encoder(obs)   # [batch_size, obs_encode_out]
+        enc_obs = self.measure_net.observation_encoder(obs.detach())   # [batch_size, obs_encode_out]
 
         # ------------------------
         #  Train Observation Generator
         # ------------------------
         conditional_input = torch.cat((state_batch, curr_orientation), -1)  # [batch_size, dim_state + 1]
         self.generator_optimizer.zero_grad()
-        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs)
+        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs.detach())
         args = [recons, input, mu, log_var]
         loss_dict = self.generator.loss_function(*args)
         OG_loss = loss_dict['loss']
@@ -261,6 +261,25 @@ class VTS:
         self.generator_optimizer.step()
 
         return G_loss
+    
+
+    def test_models(self, batch_size, state, orientation, obs):
+        state = torch.FloatTensor(state).to(vlp.device).detach()  # [batch_size, dim_state]
+        orientation = torch.FloatTensor(orientation).unsqueeze(1).to(vlp.device).detach()  # [batch_size, 1]
+        obs = torch.FloatTensor(obs)  # [batch_size, img_size, img_size, in_channels]
+        obs = obs.permute(0, 3, 1, 2).to(vlp.device).detach()  # [batch_size, in_channels, 32, 32]
+
+        real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
+        state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        
+        conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
+        enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
+
+        enc_obs = self.measure_net.observation_encoder(obs.detach())
 
 
-
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
+                "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, "\nEncoded Observation:", enc_obs, 
+                "\nGenerated Encoded Observation:", enc_obs_hat)

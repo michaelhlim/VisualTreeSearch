@@ -18,7 +18,8 @@ class Stanford_Environment_Params():
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'
 
-        self.data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
+        self.training_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
+        self.testing_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_hallway/rgbs/*"
         self.normalization = True
         
 

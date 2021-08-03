@@ -5,33 +5,34 @@ class VTS_LightDark_Params():
 
         ######################
         self.model_name = 'vts_lightdark'
+
+        self.in_channels = 3
+
         ## Z and P
         self.dim_first_layer = 64 
-        #self.dim_encode = 64
         self.dim_lstm_hidden = 64 
         self.num_lstm_layer = 2
-        self.in_channels = 3
         self.obs_encode_out = 64
         self.mlp_hunits_zp = 128
+        self.zp_lr = 3e-4
+        self.num_epochs_zp = 100 #4000
+
         ## G
         self.num_layers = 3
         self.latent_dim = 32
         self.mlp_hunits_g = 128
         self.dim_conditional_var = 2
         self.leak_rate = 0
-        #self.img_size = 32 
-        #self.normalization = False
         self.calibration = False
         self.g_lr = 1e-3 
         self.beta = 1
-        #self.batch_size = 64 #32 
-        #self.num_training_data = 8000 #7000 #500 
-        #self.num_epochs = 2 #200 #100 #200 
+        self.num_epochs_g = 100 #4000
 
         ######################
         # Training
-        self.train = True
-        self.num_pretraining_steps = 50
+        self.num_training_data = 8000
+        #self.train = True
+        #self.num_pretraining_steps = 50
         self.max_episodes_train = 2000 #5000
         self.max_episodes_test = 1 #500 #1000
         self.batch_size = 64 #128 #64
@@ -40,13 +41,10 @@ class VTS_LightDark_Params():
         self.summary_iter = 100
         self.save_iter = 1 #40 #100
         self.display_iter = 1 #4 #10
-        self.pretrain = 500e3
-        self.num_epochs_zp = 1
-        self.num_epochs_g = 1
+        #self.pretrain = 500e3
         self.show_traj = True
         self.show_distr = False
-
-        self.num_training_data = 8000
+        
 
         ######################
         # Filtering

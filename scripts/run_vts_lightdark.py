@@ -321,8 +321,8 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
                    end_to_end=True, save_online_model=True, test=True):
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
-    # foldername = "data/" + experiment_id
-    # check_path(foldername)
+    foldername = "data/" + experiment_id
+    check_path(foldername)
     model_path = "nets/" + experiment_id
     check_path(model_path)
 
@@ -345,7 +345,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
     if pre_training:
         tic = time.perf_counter()
         print("Pretraining observation density model, particle proposer, and observation generator")
-        print_freq = 5
+        print_freq = 50
         measure_loss = []
         proposer_loss = []
         generator_loss = []
@@ -353,11 +353,12 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         steps_per_epoch = int(np.ceil(vlp.num_training_data/vlp.batch_size))
         normalization_data = env.preprocess_data()
         
+        steps = []
         # Train Z and P 
         for epoch in range(vlp.num_epochs_zp):
             data_files_indices = env.shuffle_dataset()
 
-            for step in range(steps_per_epoch-110):
+            for step in range(steps_per_epoch):
 
                 states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                                                 step, normalization_data, vlp.num_par_pf)
@@ -377,13 +378,29 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
                 if step % print_freq == 0:
                     print("Epoch: ", epoch, ", Step: ", step, ", Z loss: ", np.mean(
                         measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
+                    steps.append(epoch * steps_per_epoch + step)
+        
+        plt.figure()
+        plt.plot(steps, np.array(measure_loss)[steps], label="Observation Model Training Loss")
+        plt.xlabel("Training Steps")
+        plt.ylabel("Total Loss")
+        plt.legend()
+        plt.savefig(foldername + "/z_loss.png")
+
+        plt.figure()
+        plt.plot(steps, np.array(proposer_loss)[steps], label="Proposer Training Loss")
+        plt.xlabel("Training Steps")
+        plt.ylabel("Total Loss")
+        plt.legend()
+        plt.savefig(foldername + "/p_loss.png")
 
         
+        steps = []
         # Train G
         for epoch in range(vlp.num_epochs_g):
             data_files_indices = env.shuffle_dataset()
 
-            for step in range(steps_per_epoch-110):
+            for step in range(steps_per_epoch):
 
                 states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                         step, normalization_data, vlp.num_par_pf)
@@ -400,7 +417,14 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
                 # Print loss and stuff for the last $print_freq batches
                 if step % print_freq == 0:
                     print("Epoch: ", epoch, "Step: ", step, ", G loss: ", np.mean(generator_loss[-print_freq:]))
+                    steps.append(epoch * steps_per_epoch + step)
 
+        plt.figure()
+        plt.plot(steps, np.array(generator_loss)[steps], label="Generator Training Loss")
+        plt.xlabel("Training Steps")
+        plt.ylabel("Total Loss")
+        plt.legend()
+        plt.savefig(foldername + "/g_loss.png")
 
         # Observation generative model
         # training_time = observation_generator.pretrain(save_pretrained_model, model_path)
@@ -437,10 +461,10 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        # vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        vts_lightdark_driver(end_to_end=False, save_online_model=False)
+        # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
         # vts_lightdark_driver(load_path="test500k",

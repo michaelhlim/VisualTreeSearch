@@ -48,8 +48,10 @@ class StanfordEnvironment(AbstractEnvironment):
         self.map_origin = [0, 0]
 
         # For making training batches
-        self.data_path = sep.data_path
-        self.data_files = glob.glob(self.data_path)
+        self.training_data_path = sep.training_data_path
+        self.training_data_files = glob.glob(self.training_data_path)
+        self.testing_data_path = sep.testing_data_path
+        self.testing_data_files = glob.glob(self.testing_data_path)
         self.normalization = sep.normalization
 
     
@@ -395,7 +397,7 @@ class StanfordEnvironment(AbstractEnvironment):
     ########## For (pre)training - making batches ##########
 
     def shuffle_dataset(self):
-        data_files_indices = list(range(len(self.data_files)))
+        data_files_indices = list(range(len(self.training_data_files)))
         np.random.shuffle(data_files_indices)
 
         return data_files_indices
@@ -456,7 +458,7 @@ class StanfordEnvironment(AbstractEnvironment):
 
         for i in range(len(indices)):
             index = indices[i]
-            img_path = self.data_files[index]
+            img_path = self.training_data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
             src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
             
@@ -494,6 +496,45 @@ class StanfordEnvironment(AbstractEnvironment):
                 par_batch = np.concatenate((par_batch, middle_var), 0)
         
         return np.array(states), np.array(orientations), np.array(images), par_batch
+    
+
+    def get_testing_batch(self, batch_size, normalization_data):
+        rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+
+        states = []
+        orientations = []
+        images = []
+        remove = 4
+        rounding = 3
+        
+        indices = np.random.choice(range(len(self.testing_data_files)), batch_size, replace=False)
+        
+        for index in indices:
+
+            img_path = self.testing_data_files[index]
+            src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+            
+            if self.normalization:
+                img_rslice = (src[:, :, 0] - rmean)/rstd
+                img_gslice = (src[:, :, 1] - gmean)/gstd
+                img_bslice = (src[:, :, 2] - bmean)/bstd
+
+                img = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
+
+                images.append(img)
+            else:
+                src = (src - src.mean())/src.std()
+                images.append(src)
+            
+            splits = img_path[:-remove].split('_')
+            state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
+            state[:sep.dim_state] = state[:sep.dim_state] - self.true_env_corner
+            states.append(state[:sep.dim_state])
+            orientations.append(state[sep.dim_state])
+
+        
+        return np.array(states), np.array(orientations), np.array(images)  
     
 
     # def get_par_batch(self, states, num_particles):
