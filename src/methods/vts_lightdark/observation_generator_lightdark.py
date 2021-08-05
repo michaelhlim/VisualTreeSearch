@@ -4,6 +4,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from src.methods.vts_lightdark.observation_encoder_lightdark import *
+from src.methods.vts_lightdark.observation_generator_conv_lightdark import *
+
 from configs.environments.stanford import *
 from configs.solver.vts_lightdark import *
 
@@ -23,6 +26,9 @@ class ObservationGenerator(nn.Module):
         self.leak_rate = vlp.leak_rate
         self.calibration = vlp.calibration
         self.beta = vlp.beta 
+
+        #self.observation_encoder = ObservationEncoder()
+        self.conv = ObservationGeneratorConv()
 
         encoder_modules = []
         encoder_modules.append(nn.Linear(sep.dim_state + 1 + vlp.obs_encode_out, self.mlp_hunits))
@@ -61,7 +67,8 @@ class ObservationGenerator(nn.Module):
         :param input: (Tensor) Input tensor to encoder [N x C x H x W]
         :return: (Tensor) List of latent codes
         """
-        encoder_input = torch.cat([conditional_input, enc_obs_batch], -1)  # [batch_size, dim_state + obs_encode_out]
+
+        encoder_input = torch.cat([conditional_input, enc_obs_batch], -1)  # [batch_size, dim_state + 1 + obs_encode_out]
         obs_encoded = self.encoder(encoder_input)  # [batch_size, latent_dim]
         mu, log_var = self.fc_mu(obs_encoded), self.fc_var(obs_encoded)  # [batch_size, latent_dim]
 
@@ -94,10 +101,19 @@ class ObservationGenerator(nn.Module):
 
 
     def forward(self, conditional_input, enc_obs_batch):
-        mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
+        #enc_obs_batch = self.observation_encoder(enc_obs_batch, normalize=True)
+        intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+
+        mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]
+        #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
         z = self.reparameterize(mu, log_var)  # [batch_size, latent_dim]
-        return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]
-    
+
+        recons = self.decode(conditional_input, z)
+        recons = self.conv.decode(recons)
+
+        #return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]
+        return [recons, enc_obs_batch, mu, log_var]
+
 
     def gaussian_likelihood(self, x_hat, logscale, x):
         scale = torch.exp(logscale)
@@ -178,14 +194,14 @@ class ObservationGenerator(nn.Module):
 
 
 
-    def generate(self, state, enc_obs):
-        """
-        Given an input image x, returns the reconstructed image
-        :param x: (Tensor) [B x C x H x W]
-        :return: (Tensor) [B x C x H x W]
-        """
+    # def generate(self, state, enc_obs):
+    #     """
+    #     Given an input image x, returns the reconstructed image
+    #     :param x: (Tensor) [B x C x H x W]
+    #     :return: (Tensor) [B x C x H x W]
+    #     """
 
-        return self.forward(state, enc_obs)[0]
+    #     return self.forward(state, enc_obs)[0]
 
 
 

@@ -12,21 +12,21 @@ class VTS_LightDark_Params():
         self.dim_first_layer = 64 
         self.dim_lstm_hidden = 64 
         self.num_lstm_layer = 2
-        self.obs_encode_out = 64
+        self.obs_encode_out = 2048 #64
         self.mlp_hunits_zp = 128
         self.zp_lr = 3e-4
-        self.num_epochs_zp = 100 #4000
+        self.num_epochs_zp = 0 #400 #2000 #4000
 
         ## G
-        self.num_layers = 3
-        self.latent_dim = 32
-        self.mlp_hunits_g = 128
+        self.num_layers = 7
+        self.latent_dim = 128 #32
+        self.mlp_hunits_g = 256 #128
         self.dim_conditional_var = 2
         self.leak_rate = 0
-        self.calibration = False
-        self.g_lr = 1e-3 
+        self.calibration = True
+        self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 100 #4000
+        self.num_epochs_g = 200 #2000 #4000
 
         ######################
         # Training

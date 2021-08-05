@@ -42,12 +42,14 @@ class VTS:
         stats['generator'] = self.generator.state_dict()
         torch.save(stats, path)
 
-    def load_model(self, path):
+    def load_model(self, path, load_zp=True, load_g=True):
         stats = torch.load(path)
         # Filtering
-        self.measure_net.load_state_dict(stats['m_net'])
-        self.pp_net.load_state_dict(stats['pp_net'])
-        self.generator.load_state_dict(stats['generator'])
+        if load_zp:
+            self.measure_net.load_state_dict(stats['m_net'])
+            self.pp_net.load_state_dict(stats['pp_net'])
+        if load_g:
+            self.generator.load_state_dict(stats['generator'])
 
     def get_mean_state(self, state, weight):
         if len(state.shape) == 2:
@@ -239,20 +241,21 @@ class VTS:
         return Z_loss, P_loss
     
 
-    def pretraining_g(self, state_batch, curr_orientation, obs, curr_par):
+    def pretraining_g(self, state_batch, curr_orientation, obs):
         state_batch = torch.FloatTensor(state_batch).to(vlp.device)  # [batch_size, dim_state]
         curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)  # [batch_size, 1]
-        curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # [batch_size * num_par, dim_state]
         obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
 
-        enc_obs = self.measure_net.observation_encoder(obs.detach())   # [batch_size, obs_encode_out]
+        #enc_obs = self.measure_net.observation_encoder(obs.detach())   # [batch_size, obs_encode_out]
+        enc_obs = obs
 
         # ------------------------
         #  Train Observation Generator
         # ------------------------
         conditional_input = torch.cat((state_batch, curr_orientation), -1)  # [batch_size, dim_state + 1]
         self.generator_optimizer.zero_grad()
-        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs.detach())
+        #[recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs.detach())
+        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs)
         args = [recons, input, mu, log_var]
         loss_dict = self.generator.loss_function(*args)
         OG_loss = loss_dict['loss']
@@ -269,17 +272,21 @@ class VTS:
         obs = torch.FloatTensor(obs)  # [batch_size, img_size, img_size, in_channels]
         obs = obs.permute(0, 3, 1, 2).to(vlp.device).detach()  # [batch_size, in_channels, 32, 32]
 
-        real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
-        state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
-        fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        # real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
+        # state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        #                                                    obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
         
         conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
         enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
 
-        enc_obs = self.measure_net.observation_encoder(obs.detach())
+        #enc_obs = self.measure_net.observation_encoder(obs.detach())
+        #enc_obs = self.generator.observation_encoder(obs.detach())
+        enc_obs = self.generator.conv.encode(obs.detach())
 
 
-        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
-                "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, "\nEncoded Observation:", enc_obs, 
-                "\nGenerated Encoded Observation:", enc_obs_hat)
+        # print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
+        #         "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, "\nEncoded Observation:", enc_obs, 
+        #         "\nGenerated Encoded Observation:", enc_obs_hat)
+        print("State:", state, "\nOrientation:", orientation, "\nEncoded Observation:", enc_obs[0, :64], 
+                "\nGenerated Encoded Observation:", enc_obs_hat[0, :64])
