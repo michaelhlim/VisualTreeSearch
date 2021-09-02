@@ -338,7 +338,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained", load_g=False)
+        model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained", load_zp=False)
         # observation_generator.load_model(
         #     cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
 
@@ -461,7 +461,7 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        #vts_lightdark_driver(load_path="vts_lightdark08-04-14_14_35", end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(load_path="vts_lightdark08-05-15_13_47", end_to_end=False, save_online_model=False, test=False)
         vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing

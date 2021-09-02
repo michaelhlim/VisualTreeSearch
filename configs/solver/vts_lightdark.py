@@ -15,7 +15,7 @@ class VTS_LightDark_Params():
         self.obs_encode_out = 2048 #64
         self.mlp_hunits_zp = 128
         self.zp_lr = 3e-4
-        self.num_epochs_zp = 0 #400 #2000 #4000
+        self.num_epochs_zp = 4000 #200 #400 #2000 #4000
 
         ## G
         self.num_layers = 7
@@ -26,7 +26,7 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 200 #2000 #4000
+        self.num_epochs_g = 4000 #200 #2000 #4000
 
         ######################
         # Training

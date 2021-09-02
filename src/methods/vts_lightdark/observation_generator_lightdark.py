@@ -102,7 +102,9 @@ class ObservationGenerator(nn.Module):
 
     def forward(self, conditional_input, enc_obs_batch):
         #enc_obs_batch = self.observation_encoder(enc_obs_batch, normalize=True)
-        intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+        #intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+        with torch.no_grad():
+            intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
 
         mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]
         #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]

@@ -4,13 +4,15 @@ import torch.nn as nn
 from configs.environments.stanford import *
 from configs.solver.dualsmc_lightdark import *
 from src.methods.vts_lightdark.observation_encoder_lightdark import *
+from src.methods.vts_lightdark.observation_generator_conv_lightdark import * 
 from utils.utils import *
 
 sep = Stanford_Environment_Params()
 vlp = VTS_LightDark_Params()
 
 
-observation_encoder = ObservationEncoder()
+#observation_encoder = ObservationEncoder()
+observation_encoder = ObservationGeneratorConv()
 
 
 class MeasureNetwork(nn.Module):
@@ -55,7 +57,12 @@ class MeasureNetwork(nn.Module):
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size * num_par, 1]
         if not obs_is_encoded:
-            enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
+            #enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
+            
+            #with torch.no_grad():
+            enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
+            enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+        
         else:
             enc_obs = obs
         result = self.first_layer(enc_obs) # [batch_size, dim_first_layer]
@@ -95,10 +102,21 @@ class ProposerNetwork(nn.Module):
             )
 
 
-    def forward(self, obs, orientation, num_par=vlp.num_par_pf):
+    def forward(self, obs, orientation, num_par=vlp.num_par_pf, obs_is_encoded=False):
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size, 1]
-        enc_obs = self.observation_encoder(obs)  # enc_obs [batch_size, obs_encode_out]
+
+        if not obs_is_encoded:
+            #enc_obs = self.observation_encoder(obs)  # enc_obs [batch_size, obs_encode_out]
+        
+            #with torch.no_grad():
+            enc_obs = self.observation_encoder.encode(obs)  # enc_obs [batch_size, obs_encode_out]
+            enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+
+        else:
+            enc_obs = obs
+        
+        
         result = self.first_layer(enc_obs)  # [batch_size, dim_first_layer]
         result = result.repeat(num_par, 1)  # [batch_size * num_par, dim_first_layer]
         orientation = orientation.repeat(num_par, 1)  # [batch_size * num_par, 1]

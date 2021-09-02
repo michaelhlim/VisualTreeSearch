@@ -272,21 +272,53 @@ class VTS:
         obs = torch.FloatTensor(obs)  # [batch_size, img_size, img_size, in_channels]
         obs = obs.permute(0, 3, 1, 2).to(vlp.device).detach()  # [batch_size, in_channels, 32, 32]
 
-        # real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
-        # state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
-        # fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
-        #                                                    obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
+        state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
         
         conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
         enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
+        
+
+        # Looking at generated images
+        image_hat = self.generator.conv.decode(enc_obs_hat)
+        output = image_hat.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
+        output = output.detach().cpu().numpy()  
+        import pickle
+        import cv2
+        normalization_data = pickle.load(open("data_normalization.p", "rb"))
+        rmean, gmean, bmean, rstd, gstd, bstd = normalization_data   
+        output[:, :, 0] = (output[:, :, 0] * rstd + rmean)
+        output[:, :, 1] = (output[:, :, 1] * gstd + gmean)
+        output[:, :, 2] = (output[:, :, 2] * bstd + bmean)
+        output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
+        cv2.imwrite("output.png", output)
+        original = obs[0]  
+        original = original.permute(1, 2, 0)  # [32, 32, in_channels]
+        original = original.detach().cpu().numpy()
+        original[:, :, 0] = (original[:, :, 0] * rstd + rmean)
+        original[:, :, 1] = (original[:, :, 1] * gstd + gmean)
+        original[:, :, 2] = (original[:, :, 2] * bstd + bmean)
+        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+        cv2.imwrite("original.png", original)
+
 
         #enc_obs = self.measure_net.observation_encoder(obs.detach())
         #enc_obs = self.generator.observation_encoder(obs.detach())
         enc_obs = self.generator.conv.encode(obs.detach())
 
 
-        # print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
-        #         "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, "\nEncoded Observation:", enc_obs, 
-        #         "\nGenerated Encoded Observation:", enc_obs_hat)
-        print("State:", state, "\nOrientation:", orientation, "\nEncoded Observation:", enc_obs[0, :64], 
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
+                "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, "\nEncoded Observation:", enc_obs[0, :64], 
                 "\nGenerated Encoded Observation:", enc_obs_hat[0, :64])
+        # print("State:", state, "\nOrientation:", orientation, "\nEncoded Observation:", enc_obs[0, :64], 
+        #         "\nGenerated Encoded Observation:", enc_obs_hat[0, :64])
+
+
+        real_logit_gen, _, _ = self.measure_net.m_model(state, orientation, enc_obs_hat, None, None, 1, obs_is_encoded=True)  # [batch_size, 1]
+        state_propose_gen = self.pp_net(enc_obs_hat, orientation, vlp.num_par_pf, obs_is_encoded=True)   # [batch_size * num_par, dim_state]
+        fake_logit_gen, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           enc_obs_hat, None, None, vlp.num_par_pf, obs_is_encoded=True)  # [batch_size, num_par]
+
+        print("\nReal Logit:", real_logit_gen, "\nProposed States:", state_propose_gen, "\nFake Logit:", fake_logit_gen)
