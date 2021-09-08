@@ -17,7 +17,7 @@ vlp = VTS_LightDark_Params()
 
 class ObservationGenerator(nn.Module):
 
-    def __init__(self):
+    def __init__(self, observation_encoder):
 
         super(ObservationGenerator, self).__init__()
 
@@ -28,7 +28,8 @@ class ObservationGenerator(nn.Module):
         self.beta = vlp.beta 
 
         #self.observation_encoder = ObservationEncoder()
-        self.conv = ObservationGeneratorConv()
+        #self.conv = ObservationGeneratorConv()
+        self.conv = observation_encoder
 
         encoder_modules = []
         encoder_modules.append(nn.Linear(sep.dim_state + 1 + vlp.obs_encode_out, self.mlp_hunits))
@@ -105,6 +106,8 @@ class ObservationGenerator(nn.Module):
         #intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
         with torch.no_grad():
             intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+            # Normalizing the output of the observation encoder
+            intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True)
 
         mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]
         #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]

@@ -12,11 +12,11 @@ vlp = VTS_LightDark_Params()
 
 
 #observation_encoder = ObservationEncoder()
-observation_encoder = ObservationGeneratorConv()
+#observation_encoder = ObservationGeneratorConv()
 
 
 class MeasureNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, observation_encoder):
         super(MeasureNetwork, self).__init__()
         self.dim_m = 64 #16
         self.obs_encode_out = vlp.obs_encode_out
@@ -61,6 +61,7 @@ class MeasureNetwork(nn.Module):
             
             #with torch.no_grad():
             enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
+            # Normalizing the output of the observation encoder
             enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
         
         else:
@@ -76,7 +77,7 @@ class MeasureNetwork(nn.Module):
 
 
 class ProposerNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, observation_encoder):
         super(ProposerNetwork, self).__init__()
         #self.dim = 64
 
@@ -97,8 +98,8 @@ class ProposerNetwork(nn.Module):
                 nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
                 nn.LeakyReLU(),
-                nn.Linear(mlp_hunits, self.dim_state),
-                nn.Sigmoid()
+                nn.Linear(mlp_hunits, self.dim_state)
+                #nn.Sigmoid()
             )
 
 
@@ -111,6 +112,7 @@ class ProposerNetwork(nn.Module):
         
             #with torch.no_grad():
             enc_obs = self.observation_encoder.encode(obs)  # enc_obs [batch_size, obs_encode_out]
+            # Normalizing the output of the observation encoder
             enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
 
         else:

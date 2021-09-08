@@ -82,7 +82,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
         curr_obs, _, _, _ = env.get_observation() 
         trajectory.append(curr_state)
 
-        par_states, par_orientations = env.make_pars(vlp.num_par_pf)
+        par_states, par_orientations = env.make_pars(vlp.num_par_pf)  ##### FIX: Orientations in make_pars not in cardinal directions 
         par_weight = torch.log(torch.ones((vlp.num_par_pf)).to(vlp.device) * (1.0 / float(vlp.num_par_pf)))
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
