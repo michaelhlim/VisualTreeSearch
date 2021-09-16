@@ -21,6 +21,14 @@ from src.methods.vts_lightdark.observation_network_lightdark import *
 vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
+
+# class SaveFeatures():
+#     features=None
+#     def __init__(self, m): self.hook = m.register_forward_hook(self.hook_fn)
+#     def hook_fn(self, module, input, output): self.features = ((output.cpu()).data).numpy()
+#     def remove(self): self.hook.remove()
+    
+
 #########################
 # Training Process
 class VTS:
@@ -29,13 +37,13 @@ class VTS:
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
         # Filtering
-        self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
-        self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
-        self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
-        self.generator = ObservationGenerator(self.observation_encoder).to(vlp.device)
-        self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
-        self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
-        self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
+        # self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
+        # self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
+        # self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
+        # self.generator = ObservationGenerator(self.observation_encoder).to(vlp.device)
+        # self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
+        # self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
+        # self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
 
     def save_model(self, path):
         stats = {}
@@ -269,22 +277,28 @@ class VTS:
         return G_loss
     
 
-    def test_models(self, batch_size, state, orientation, obs):
+    def test_models(self, batch_size, state, orientation, obs, blurred_images):
         state = torch.FloatTensor(state).to(vlp.device).detach()  # [batch_size, dim_state]
         orientation = torch.FloatTensor(orientation).unsqueeze(1).to(vlp.device).detach()  # [batch_size, 1]
         obs = torch.FloatTensor(obs)  # [batch_size, img_size, img_size, in_channels]
         obs = obs.permute(0, 3, 1, 2).to(vlp.device).detach()  # [batch_size, in_channels, 32, 32]
 
+        blurred_images = torch.FloatTensor(blurred_images)
+        blurred_images = blurred_images.permute(0, 3, 1, 2).to(vlp.device).detach()
+
+        # Performance of Z and P on true state and image
         real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
         state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # Performance of Z on proposed particles
         fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
                                                            obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
         
+        # Generated encoded observation (e_hat)
         conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
         enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
         
 
-        # Looking at generated images
+        # Looking at generated image
         image_hat = self.generator.conv.decode(enc_obs_hat)
         output = image_hat.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
         output = output.detach().cpu().numpy()  
@@ -297,6 +311,8 @@ class VTS:
         output[:, :, 2] = (output[:, :, 2] * bstd + bmean)
         output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
         cv2.imwrite("output.png", output)
+        
+        # True image
         original = obs[0]  
         original = original.permute(1, 2, 0)  # [32, 32, in_channels]
         original = original.detach().cpu().numpy()
@@ -305,13 +321,25 @@ class VTS:
         original[:, :, 2] = (original[:, :, 2] * bstd + bmean)
         original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
         cv2.imwrite("original.png", original)
+        
+        # Blurred image
+        original = blurred_images[0]  
+        original = original.permute(1, 2, 0)  # [32, 32, in_channels]
+        original = original.detach().cpu().numpy()
+        original[:, :, 0] = (original[:, :, 0] * rstd + rmean)
+        original[:, :, 1] = (original[:, :, 1] * gstd + gmean)
+        original[:, :, 2] = (original[:, :, 2] * bstd + bmean)
+        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+        cv2.imwrite("original_blurred.png", original)
 
 
+        # True encoded observation (e)
         #enc_obs = self.measure_net.observation_encoder(obs.detach())
         #enc_obs = self.generator.observation_encoder(obs.detach())
-        enc_obs = self.generator.conv.encode(obs.detach())
+        enc_obs = self.generator.conv.encode(obs.detach())  ## NOT NORMALIZED
 
 
+        # Performance of Z and P on true image
         print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
                 "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, "\nEncoded Observation:", enc_obs[0, :64], 
                 "\nGenerated Encoded Observation:", enc_obs_hat[0, :64])
@@ -319,6 +347,18 @@ class VTS:
         #         "\nGenerated Encoded Observation:", enc_obs_hat[0, :64])
 
 
+        print("\nInputting blurry image into Z/P")
+        real_logit, _, _ = self.measure_net.m_model(state, orientation, blurred_images, None, None, 1)  # [batch_size, 1]
+        state_propose = self.pp_net(blurred_images, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           blurred_images, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        enc_obs_blur = self.generator.conv.encode(blurred_images.detach())  ## NOT NORMALIZED
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
+                "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, 
+                "\nEncoded Observation:", enc_obs_blur[0, :64])
+
+
+        print("\nPlugging generated encoded observation back into Z/P")
         real_logit_gen, _, _ = self.measure_net.m_model(state, orientation, enc_obs_hat, None, None, 1, obs_is_encoded=True)  # [batch_size, 1]
         state_propose_gen = self.pp_net(enc_obs_hat, orientation, vlp.num_par_pf, obs_is_encoded=True)   # [batch_size * num_par, dim_state]
         fake_logit_gen, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
@@ -327,10 +367,104 @@ class VTS:
         print("\nReal Logit:", real_logit_gen, "\nProposed States:", state_propose_gen, "\nFake Logit:", fake_logit_gen)
 
 
+        print("\nPlugging generated image back into Z/P")
+        enc_obs_image = self.generator.conv.encode(image_hat.detach())
 
         real_logit_gen_img, _, _ = self.measure_net.m_model(state, orientation, image_hat, None, None, 1)  # [batch_size, 1]
         state_propose_gen_img = self.pp_net(image_hat, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
         fake_logit_gen_img, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
                                                            image_hat, None, None, vlp.num_par_pf)  # [batch_size, num_par]
 
-        print("\nReal Logit:", real_logit_gen_img, "\nProposed States:", state_propose_gen_img, "\nFake Logit:", fake_logit_gen_img)
+        print("\nReal Logit:", real_logit_gen_img, "\nProposed States:", state_propose_gen_img, "\nFake Logit:", fake_logit_gen_img, 
+                "\nEncoded Observation from Generated Image:", enc_obs_image[0, :64],)
+    
+
+    # def test_tsne(self, model_name, module, reshape, batch_size, state, orientation, obs, blurred_images):
+    #     import matplotlib.pyplot as plt
+    #     from sklearn.manifold import TSNE
+
+    #     if model_name == "zp":
+    #         model = self.measure_net
+    #         layer = self.measure_net._modules.get(module)   
+    #         activated_features = SaveFeatures(layer)
+    #     elif model_name == "g":
+    #         model = self.generator
+    #         layer = self.generator._modules.get(module)
+    #         activated_features = SaveFeatures(layer)
+
+    #         conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
+    #         enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
+    #     elif model_name == "enc":
+    #         model = self.observation_encoder
+    #         layer = self.generator._modules.get(module)
+    #         activated_features = SaveFeatures(layer)
+
+    #         enc_obs = self.generator.conv.encode(obs.detach())  ## NOT NORMALIZED
+    #     else:
+    #         print("Input zp, g, or enc!")
+    #         return 
+
+    #     # num_tests = 200
+
+    #     # states, images = self.get_testing_batch(num_tests)
+    #     # states = torch.from_numpy(states).float().to(self.device)
+    #     # images = torch.from_numpy(images).float().to(self.device)
+
+    #     # states = states.detach()
+    #     # images = images.detach()
+
+    #     # out = self.model(images.permute(0, 3, 1, 2), states)
+    #     # output = self.model.sample(num_tests, states.squeeze(1))  # [num_tests, in_channels, 32, 32]  
+
+    #     states = state.squeeze(1).cpu().numpy()
+
+    #     e = 0.0
+    #     ne = np.pi/4
+    #     n = np.pi/2
+    #     nw = 3*np.pi/4 
+    #     w = np.pi
+    #     sw = 5*np.pi/4 
+    #     s = 3*np.pi/2 
+    #     se = 7*np.pi/4
+    #     eps = 1e-3
+
+    #     category1_theta = np.argwhere((np.abs(states[:, 2] - e) <= eps) | 
+    #                                     (np.abs(states[:, 2] - ne) <= eps) | 
+    #                                     (np.abs(states[:, 2] - n) <= eps)).flatten()
+    #     category2_theta = np.argwhere((np.abs(states[:, 2] - nw) <= eps) | 
+    #                                     (np.abs(states[:, 2] - w) <= eps) | 
+    #                                     (np.abs(states[:, 2] - sw) <= eps)).flatten()
+    #     category3_theta = np.argwhere((np.abs(states[:, 2] - s) <= eps) | 
+    #                                     (np.abs(states[:, 2] - se) <= eps)).flatten()
+
+    #     # category1_y = np.argwhere(states[:, 1] <= 21).flatten()
+    #     # category2_y = np.argwhere((states[:, 1] > 21) & (states[:, 1] <= 23)).flatten()
+    #     # category3_y = np.argwhere((states[:, 1] > 23) & (states[:, 1] <= 25)).flatten()
+
+    #     category1_x = np.argwhere(states[:, 0] <= 26).flatten()
+    #     category2_x = np.argwhere((states[:, 0] > 26) & (states[:, 1] <= 29)).flatten()
+    #     category3_x = np.argwhere((states[:, 0] > 29) & (states[:, 1] <= 32.5)).flatten()
+
+    #     plotting_dictionary = {}
+
+    #     plotting_dictionary["north/east, 24 < x < 26"] = np.intersect1d(category1_theta, category1_x)
+    #     plotting_dictionary["north/east, 26 < x < 29"] = np.intersect1d(category1_theta, category2_x)
+    #     plotting_dictionary["north/east, 29 < x < 32.5"] = np.intersect1d(category1_theta, category3_x)
+    #     plotting_dictionary["west, 24 < x < 26"] = np.intersect1d(category2_theta, category1_x)
+    #     plotting_dictionary["west, 26 < x < 29"] = np.intersect1d(category2_theta, category2_x)
+    #     plotting_dictionary["west, 29 < x < 32.5"] = np.intersect1d(category2_theta, category3_x)
+    #     plotting_dictionary["south/east, 24 < x < 26"] = np.intersect1d(category3_theta, category1_x)
+    #     plotting_dictionary["south/east, 26 < x < 29"] = np.intersect1d(category3_theta, category2_x)
+    #     plotting_dictionary["south/east, 29 < x < 32.5"] = np.intersect1d(category3_theta, category3_x)
+
+
+    #     tsne_features = activated_features.features.reshape(-1, reshape)
+    #     feature_embeddings = TSNE(n_components=2).fit_transform(tsne_features)
+    #     activated_features.remove()
+
+    #     for (key, value) in plotting_dictionary.items():
+    #         if len(value) > 0:
+    #             plt.scatter(feature_embeddings[value, 0], feature_embeddings[value, 1], label=key)
+
+    #     plt.legend(bbox_to_anchor=(0.85, 1.05), loc='upper left', fontsize='xx-small')
+    #     plt.savefig("TSNE")

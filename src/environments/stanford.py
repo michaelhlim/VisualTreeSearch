@@ -100,7 +100,7 @@ class StanfordEnvironment(AbstractEnvironment):
         image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
         image = np.ascontiguousarray(image)
  
-        # salt = np.max(image)
+        # salt = np.max(image) 
         # pepper = np.min(image)
         salt = 255
         pepper = 0
@@ -504,6 +504,7 @@ class StanfordEnvironment(AbstractEnvironment):
         states = []
         orientations = []
         images = []
+        blurred_images = []
         remove = 4
         rounding = 3
         
@@ -513,8 +514,10 @@ class StanfordEnvironment(AbstractEnvironment):
 
             img_path = self.testing_data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            blurred = cv2.GaussianBlur(src,(5,5),cv2.BORDER_DEFAULT)
             src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
-            
+            blurred = blurred[:,:,::-1]
+
             if self.normalization:
                 img_rslice = (src[:, :, 0] - rmean)/rstd
                 img_gslice = (src[:, :, 1] - gmean)/gstd
@@ -523,9 +526,20 @@ class StanfordEnvironment(AbstractEnvironment):
                 img = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
 
                 images.append(img)
+
+                img_rslice = (blurred[:, :, 0] - rmean)/rstd
+                img_gslice = (blurred[:, :, 1] - gmean)/gstd
+                img_bslice = (blurred[:, :, 2] - bmean)/bstd
+
+                img = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
+
+                blurred_images.append(img)
             else:
                 src = (src - src.mean())/src.std()
                 images.append(src)
+
+                blurred = (blurred - blurred.mean())/blurred.std()
+                blurred_images.append(blurred)
             
             splits = img_path[:-remove].split('_')
             state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
@@ -534,7 +548,7 @@ class StanfordEnvironment(AbstractEnvironment):
             orientations.append(state[sep.dim_state])
 
         
-        return np.array(states), np.array(orientations), np.array(images)  
+        return np.array(states), np.array(orientations), np.array(images), np.array(blurred_images)  
     
 
     # def get_par_batch(self, states, num_particles):
