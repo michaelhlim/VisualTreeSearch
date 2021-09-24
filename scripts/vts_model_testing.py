@@ -20,11 +20,13 @@ model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
 
 normalization_data = env.preprocess_data()
 
-num_tests = 1
-states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
-#model.test_models(num_tests, states, orientations, images, blurred_images) 
+# num_tests = 1
+# states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
+# model.test_models(num_tests, states, orientations, images, blurred_images) 
 
 num_tests = 200
 states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
-model.test_tsne("enc", "encoder", vlp.obs_encode_out, num_tests, states, orientations, images, blurred_images)
+model.test_tsne("enc", "encoder_conv", vlp.obs_encode_out, num_tests, states, orientations, images, blurred_images)
+#model.test_tsne("g", "decoder", vlp.obs_encode_out, num_tests, states, orientations, images, blurred_images)
+#model.test_tsne("zp", "mlp", 1, num_tests, states, orientations, images, blurred_images)
 

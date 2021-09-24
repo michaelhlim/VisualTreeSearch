@@ -1,3 +1,5 @@
+# Under HumANavRelease/examples
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -303,11 +305,11 @@ def example1():
     filename_rgb = 'rgb' + camera_pos_str + '.png'
 
     # Plot the rendered images
-    plot_top_view(traversible, dx_m, camera_pos_13, '/home/sampada_deglurkar/HumANavRelease/top_downs/' + filename_topdown)
-    plot_rgb(rgb_image_1mk3, '/home/sampada_deglurkar/HumANavRelease/rgbs/' + filename_rgb)
+    #plot_top_view(traversible, dx_m, camera_pos_13, '/home/sampada_deglurkar/HumANavRelease/top_downs/' + filename_topdown)
+    #plot_rgb(rgb_image_1mk3, '/home/sampada_deglurkar/HumANavRelease/rgbs/' + filename_rgb)
 
-    #plot_images(rgb_image_1mk3, depth_image_1mk1, traversible, dx_m,
-    #            camera_pos_13, human_pos_3, 'example1_15.png')
+    plot_images(rgb_image_1mk3, depth_image_1mk1, traversible, dx_m,
+               camera_pos_13, human_pos_3, '/home/sampada/example1_15.png')
 
 
 def get_known_human_identity(r):
@@ -369,8 +371,8 @@ def example2():
                 camera_pos_13, human_pos_3, 'example2.png')
 
 
-#if __name__ == '__main__':
-    #example1() 
+if __name__ == '__main__':
+    example1() 
     #example2() 
 
     #generate_training_data_hallway(1000, 'training_hallway')

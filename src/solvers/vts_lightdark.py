@@ -22,11 +22,11 @@ vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-# class SaveFeatures():
-#     features=None
-#     def __init__(self, m): self.hook = m.register_forward_hook(self.hook_fn)
-#     def hook_fn(self, module, input, output): self.features = ((output.cpu()).data).numpy()
-#     def remove(self): self.hook.remove()
+class SaveFeatures():
+    features=None
+    def __init__(self, m): self.hook = m.register_forward_hook(self.hook_fn)
+    def hook_fn(self, module, input, output): self.features = ((output.cpu()).data).numpy()
+    def remove(self): self.hook.remove()
     
 
 #########################
@@ -37,13 +37,13 @@ class VTS:
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
         # Filtering
-        # self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
-        # self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
-        # self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
-        # self.generator = ObservationGenerator(self.observation_encoder).to(vlp.device)
-        # self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
-        # self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
-        # self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
+        self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
+        self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
+        self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
+        self.generator = ObservationGenerator(self.observation_encoder).to(vlp.device)
+        self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
+        self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
+        self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
 
     def save_model(self, path):
         stats = {}
@@ -54,7 +54,7 @@ class VTS:
         torch.save(stats, path)
 
     def load_model(self, path, load_zp=True, load_g=True):
-        stats = torch.load(path)
+        stats = torch.load(path, map_location=vlp.device)
         self.observation_encoder.load_state_dict(stats['obs_encoder'])
         if load_zp:
             self.measure_net.load_state_dict(stats['m_net'])
@@ -379,92 +379,110 @@ class VTS:
                 "\nEncoded Observation from Generated Image:", enc_obs_image[0, :64],)
     
 
-    # def test_tsne(self, model_name, module, reshape, batch_size, state, orientation, obs, blurred_images):
-    #     import matplotlib.pyplot as plt
-    #     from sklearn.manifold import TSNE
+    def test_tsne(self, model_name, module, reshape, batch_size, state, orientation, obs, blurred_images):
+        import matplotlib.pyplot as plt
+        from sklearn.manifold import TSNE
 
-    #     if model_name == "zp":
-    #         model = self.measure_net
-    #         layer = self.measure_net._modules.get(module)   
-    #         activated_features = SaveFeatures(layer)
-    #     elif model_name == "g":
-    #         model = self.generator
-    #         layer = self.generator._modules.get(module)
-    #         activated_features = SaveFeatures(layer)
+        state = torch.FloatTensor(state).to(vlp.device).detach()  # [batch_size, dim_state]
+        orientation = torch.FloatTensor(orientation).unsqueeze(1).to(vlp.device).detach()  # [batch_size, 1]
+        obs = torch.FloatTensor(obs)  # [batch_size, img_size, img_size, in_channels]
+        obs = obs.permute(0, 3, 1, 2).to(vlp.device).detach()  # [batch_size, in_channels, 32, 32]
 
-    #         conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
-    #         enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
-    #     elif model_name == "enc":
-    #         model = self.observation_encoder
-    #         layer = self.generator._modules.get(module)
-    #         activated_features = SaveFeatures(layer)
+        blurred_images = torch.FloatTensor(blurred_images)
+        blurred_images = blurred_images.permute(0, 3, 1, 2).to(vlp.device).detach()
 
-    #         enc_obs = self.generator.conv.encode(obs.detach())  ## NOT NORMALIZED
-    #     else:
-    #         print("Input zp, g, or enc!")
-    #         return 
+        if model_name == "zp":
+            model = self.measure_net
+            layer = self.measure_net._modules.get(module)   
+            activated_features = SaveFeatures(layer)
 
-    #     # num_tests = 200
+            lik, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, num_par=1)
+        elif model_name == "g":
+            model = self.generator
+            layer = self.generator._modules.get(module)
+            activated_features = SaveFeatures(layer)
 
-    #     # states, images = self.get_testing_batch(num_tests)
-    #     # states = torch.from_numpy(states).float().to(self.device)
-    #     # images = torch.from_numpy(images).float().to(self.device)
+            conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
+            enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
+            image_hat = self.generator.conv.decode(enc_obs_hat)
+        elif model_name == "enc":
+            model = self.observation_encoder
+            layer = self.observation_encoder._modules.get(module)
+            activated_features = SaveFeatures(layer)
 
-    #     # states = states.detach()
-    #     # images = images.detach()
+            #enc_obs = self.generator.conv.encode(obs.detach())  ## NOT NORMALIZED
+            enc_obs = self.generator.conv.encode(blurred_images.detach())  ## NOT NORMALIZED
 
-    #     # out = self.model(images.permute(0, 3, 1, 2), states)
-    #     # output = self.model.sample(num_tests, states.squeeze(1))  # [num_tests, in_channels, 32, 32]  
+            # conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
+            # enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
+            # image_hat = self.generator.conv.decode(enc_obs_hat)
+            # enc_obs_gen = self.generator.conv.encode(image_hat.detach())
+        else:
+            print("Input zp, g, or enc!")
+            return 
 
-    #     states = state.squeeze(1).cpu().numpy()
+        # num_tests = 200
 
-    #     e = 0.0
-    #     ne = np.pi/4
-    #     n = np.pi/2
-    #     nw = 3*np.pi/4 
-    #     w = np.pi
-    #     sw = 5*np.pi/4 
-    #     s = 3*np.pi/2 
-    #     se = 7*np.pi/4
-    #     eps = 1e-3
+        # states, images = self.get_testing_batch(num_tests)
+        # states = torch.from_numpy(states).float().to(self.device)
+        # images = torch.from_numpy(images).float().to(self.device)
 
-    #     category1_theta = np.argwhere((np.abs(states[:, 2] - e) <= eps) | 
-    #                                     (np.abs(states[:, 2] - ne) <= eps) | 
-    #                                     (np.abs(states[:, 2] - n) <= eps)).flatten()
-    #     category2_theta = np.argwhere((np.abs(states[:, 2] - nw) <= eps) | 
-    #                                     (np.abs(states[:, 2] - w) <= eps) | 
-    #                                     (np.abs(states[:, 2] - sw) <= eps)).flatten()
-    #     category3_theta = np.argwhere((np.abs(states[:, 2] - s) <= eps) | 
-    #                                     (np.abs(states[:, 2] - se) <= eps)).flatten()
+        # states = states.detach()
+        # images = images.detach()
 
-    #     # category1_y = np.argwhere(states[:, 1] <= 21).flatten()
-    #     # category2_y = np.argwhere((states[:, 1] > 21) & (states[:, 1] <= 23)).flatten()
-    #     # category3_y = np.argwhere((states[:, 1] > 23) & (states[:, 1] <= 25)).flatten()
+        # out = self.model(images.permute(0, 3, 1, 2), states)
+        # output = self.model.sample(num_tests, states.squeeze(1))  # [num_tests, in_channels, 32, 32]  
 
-    #     category1_x = np.argwhere(states[:, 0] <= 26).flatten()
-    #     category2_x = np.argwhere((states[:, 0] > 26) & (states[:, 1] <= 29)).flatten()
-    #     category3_x = np.argwhere((states[:, 0] > 29) & (states[:, 1] <= 32.5)).flatten()
+        states = state.cpu().numpy()
+        orientations = orientation.squeeze(1).cpu().numpy()
 
-    #     plotting_dictionary = {}
+        e = 0.0
+        ne = np.pi/4
+        n = np.pi/2
+        nw = 3*np.pi/4 
+        w = np.pi
+        sw = 5*np.pi/4 
+        s = 3*np.pi/2 
+        se = 7*np.pi/4
+        eps = 1e-3
 
-    #     plotting_dictionary["north/east, 24 < x < 26"] = np.intersect1d(category1_theta, category1_x)
-    #     plotting_dictionary["north/east, 26 < x < 29"] = np.intersect1d(category1_theta, category2_x)
-    #     plotting_dictionary["north/east, 29 < x < 32.5"] = np.intersect1d(category1_theta, category3_x)
-    #     plotting_dictionary["west, 24 < x < 26"] = np.intersect1d(category2_theta, category1_x)
-    #     plotting_dictionary["west, 26 < x < 29"] = np.intersect1d(category2_theta, category2_x)
-    #     plotting_dictionary["west, 29 < x < 32.5"] = np.intersect1d(category2_theta, category3_x)
-    #     plotting_dictionary["south/east, 24 < x < 26"] = np.intersect1d(category3_theta, category1_x)
-    #     plotting_dictionary["south/east, 26 < x < 29"] = np.intersect1d(category3_theta, category2_x)
-    #     plotting_dictionary["south/east, 29 < x < 32.5"] = np.intersect1d(category3_theta, category3_x)
+        category1_theta = np.argwhere((np.abs(orientations - e) <= eps) | 
+                                        (np.abs(orientations - ne) <= eps) | 
+                                        (np.abs(orientations - n) <= eps)).flatten()
+        category2_theta = np.argwhere((np.abs(orientations - nw) <= eps) | 
+                                        (np.abs(orientations - w) <= eps) | 
+                                        (np.abs(orientations - sw) <= eps)).flatten()
+        category3_theta = np.argwhere((np.abs(orientations - s) <= eps) | 
+                                        (np.abs(orientations - se) <= eps)).flatten()
+
+        # category1_y = np.argwhere(states[:, 1] <= 21).flatten()
+        # category2_y = np.argwhere((states[:, 1] > 21) & (states[:, 1] <= 23)).flatten()
+        # category3_y = np.argwhere((states[:, 1] > 23) & (states[:, 1] <= 25)).flatten()
+
+        category1_x = np.argwhere(states[:, 0] <= 2).flatten()
+        category2_x = np.argwhere((states[:, 0] > 2) & (states[:, 0] <= 5)).flatten()
+        category3_x = np.argwhere((states[:, 0] > 5) & (states[:, 0] <= 8.5)).flatten()
+
+        plotting_dictionary = {}
+
+        plotting_dictionary["north/east, 24 < x < 26"] = np.intersect1d(category1_theta, category1_x)
+        plotting_dictionary["north/east, 26 < x < 29"] = np.intersect1d(category1_theta, category2_x)
+        plotting_dictionary["north/east, 29 < x < 32.5"] = np.intersect1d(category1_theta, category3_x)
+        plotting_dictionary["west, 24 < x < 26"] = np.intersect1d(category2_theta, category1_x)
+        plotting_dictionary["west, 26 < x < 29"] = np.intersect1d(category2_theta, category2_x)
+        plotting_dictionary["west, 29 < x < 32.5"] = np.intersect1d(category2_theta, category3_x)
+        plotting_dictionary["south/east, 24 < x < 26"] = np.intersect1d(category3_theta, category1_x)
+        plotting_dictionary["south/east, 26 < x < 29"] = np.intersect1d(category3_theta, category2_x)
+        plotting_dictionary["south/east, 29 < x < 32.5"] = np.intersect1d(category3_theta, category3_x)
 
 
-    #     tsne_features = activated_features.features.reshape(-1, reshape)
-    #     feature_embeddings = TSNE(n_components=2).fit_transform(tsne_features)
-    #     activated_features.remove()
+        tsne_features = activated_features.features.reshape(-1, reshape)
+        feature_embeddings = TSNE(n_components=2).fit_transform(tsne_features)
+        activated_features.remove()
 
-    #     for (key, value) in plotting_dictionary.items():
-    #         if len(value) > 0:
-    #             plt.scatter(feature_embeddings[value, 0], feature_embeddings[value, 1], label=key)
+        for (key, value) in plotting_dictionary.items():
+            if len(value) > 0:
+                plt.scatter(feature_embeddings[value, 0], feature_embeddings[value, 1], label=key)
 
-    #     plt.legend(bbox_to_anchor=(0.85, 1.05), loc='upper left', fontsize='xx-small')
-    #     plt.savefig("TSNE")
+        plt.legend(bbox_to_anchor=(0.85, 1.05), loc='upper left', fontsize='xx-small')
+        plt.savefig("TSNE")

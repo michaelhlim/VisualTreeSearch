@@ -1,7 +1,7 @@
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:2'
+        self.device = 'cuda:1'
 
         ######################
         self.model_name = 'vts_lightdark'
