@@ -14,9 +14,12 @@ class ObservationGeneratorConv(nn.Module):
         super(ObservationGeneratorConv, self).__init__()
 
         self.in_channels = vlp.in_channels
+        self.leak_rate = vlp.leak_rate_enc
 
         #self.embed_cond_var = nn.Linear(dim_conditional_var, img_size * img_size)
         self.embed_obs = nn.Conv2d(self.in_channels, self.in_channels, kernel_size=1)
+
+        ## Encoder Convolutional Layers
 
         modules = []
         if hidden_dims is None:
@@ -33,19 +36,47 @@ class ObservationGeneratorConv(nn.Module):
                     nn.Sequential(
                         nn.Conv2d(in_channels, out_channels=h_dim,
                                 kernel_size=3, stride=1, padding=1),
-                        nn.LeakyReLU(vlp.leak_rate))
+                        nn.LeakyReLU(self.leak_rate))
                 )
             else:    
                 modules.append(
                     nn.Sequential(
                         nn.Conv2d(in_channels, out_channels=h_dim,
                                 kernel_size=3, stride=2, padding=1),
-                        nn.LeakyReLU(vlp.leak_rate))
+                        nn.LeakyReLU(self.leak_rate))
                 )
             in_channels = h_dim
 
         self.encoder_conv = nn.Sequential(*modules)
 
+
+        ## Encoder MLP Layers
+
+        mlp_modules = []
+        mlp_modules.append(nn.Linear(vlp.obs_encode_out_conv, vlp.mlp_hunits_enc1))
+        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.mlp_hunits_enc2))
+        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc3)) # mlp_hunits_enc3 = obs_encode_out
+        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+
+        self.encoder_mlp = nn.Sequential(*mlp_modules)
+
+
+        ## Decoder MLP Layers
+
+        mlp_modules = []
+        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc3, vlp.mlp_hunits_enc2))
+        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc1))
+        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.obs_encode_out_conv))
+        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+
+        self.decoder_mlp = nn.Sequential(*mlp_modules)
+
+
+        ## Decoder Convolutional Layers
         hidden_dims.reverse()
 
         modules = []
@@ -59,7 +90,7 @@ class ObservationGeneratorConv(nn.Module):
                                        padding=1,
                                        output_padding=1),
                     #nn.BatchNorm2d(hidden_dims[i + 1]),
-                    nn.LeakyReLU())
+                    nn.LeakyReLU(self.leak_rate))
             )
 
         self.decoder_conv = nn.Sequential(*modules)
@@ -72,7 +103,7 @@ class ObservationGeneratorConv(nn.Module):
                             #                   padding=1,
                             #                   output_padding=1),
                             #nn.BatchNorm2d(hidden_dims[-1]),
-                            nn.LeakyReLU(),
+                            nn.LeakyReLU(self.leak_rate),
                             nn.Conv2d(hidden_dims[-1], out_channels=self.in_channels,
                                       kernel_size=3, padding=1),
                             nn.Tanh())
@@ -83,10 +114,14 @@ class ObservationGeneratorConv(nn.Module):
         intermediate = self.encoder_conv(embedded_input)  # [batch_size, 512, 2, 2]
         intermediate = torch.flatten(intermediate, start_dim=1)  # [batch_size, 512*4]
 
+        intermediate = self.encoder_mlp(intermediate) # [batch_size, 256]
+
         return intermediate
 
 
     def decode(self, intermediate):
+        intermediate = self.decoder_mlp(intermediate) # [batch_size, 512*4]
+
         intermediate = intermediate.view(-1, self.hidden_dims[-1], 2, 2)  # [batch_size, 512, 2, 2]
         result = self.decoder_conv(intermediate)  # [batch_size, 32, 32, 32]
         result = self.final_layer(result)  # [batch_size, 3, 32, 32]

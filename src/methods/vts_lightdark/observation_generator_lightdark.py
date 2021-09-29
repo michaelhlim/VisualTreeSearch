@@ -23,7 +23,7 @@ class ObservationGenerator(nn.Module):
 
         self.latent_dim = vlp.latent_dim
         self.mlp_hunits = vlp.mlp_hunits_g
-        self.leak_rate = vlp.leak_rate
+        self.leak_rate = vlp.leak_rate_g
         self.calibration = vlp.calibration
         self.beta = vlp.beta 
 
@@ -139,10 +139,10 @@ class ObservationGenerator(nn.Module):
         :param kwargs:
         :return:
         """
-        recons = args[0]
-        enc_obs = args[1]
-        mu = args[2]
-        log_var = args[3]
+        recons = args[0]  # output generated image
+        enc_obs = args[1]  # input true image
+        mu = args[2]  # mean of latent variable Gaussian
+        log_var = args[3]  # log variance of latent variable Gaussian
 
         recons_loss = self.gaussian_likelihood(recons, self.log_scale, enc_obs).mean() 
         #recons_loss = -F.mse_loss(recons, input)

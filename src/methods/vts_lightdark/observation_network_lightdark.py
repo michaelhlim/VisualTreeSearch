@@ -18,7 +18,7 @@ vlp = VTS_LightDark_Params()
 class MeasureNetwork(nn.Module):
     def __init__(self, observation_encoder):
         super(MeasureNetwork, self).__init__()
-        self.dim_m = 64 #16
+        self.dim_m = vlp.dim_m #64 #16
         self.obs_encode_out = vlp.obs_encode_out
         self.dim_first_layer = vlp.dim_first_layer
         self.dim_lstm_hidden = vlp.dim_lstm_hidden
@@ -43,16 +43,19 @@ class MeasureNetwork(nn.Module):
         mlp_hunits = vlp.mlp_hunits_zp
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_m + self.dim_state + 1, mlp_hunits),
-                nn.LeakyReLU(),
+                #nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
-                nn.LeakyReLU(),
+                #nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
-                nn.LeakyReLU(),
+                #nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.Linear(mlp_hunits, 1),
                 nn.Sigmoid()
             )
 
-    def m_model(self, state, orientation, obs, hidden, cell, num_par=vlp.num_par_pf, obs_is_encoded=False):
+    def m_model(self, state, orientation, obs, num_par=vlp.num_par_pf, obs_is_encoded=False):
         # state [batch_size * num_par, dim_state]
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size * num_par, 1]
@@ -72,7 +75,7 @@ class MeasureNetwork(nn.Module):
         x = x.repeat(num_par, 1)  # [batch_size * num_par, dim_m]        
         x = torch.cat((x, state, orientation), -1)  # [batch_size * num_par, dim_m + dim_state + 1]
         lik = self.mlp(x).view(-1, num_par)  # [batch_size, num_par]
-        return lik, 0, 0
+        return lik
 
 
 
@@ -95,10 +98,13 @@ class ProposerNetwork(nn.Module):
         mlp_hunits = vlp.mlp_hunits_zp
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_first_layer * 2 + 1, mlp_hunits),
-                nn.LeakyReLU(),
+                #nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
-                nn.LeakyReLU(),
-                nn.Linear(mlp_hunits, self.dim_state)
+                #nn.LeakyReLU(),
+                nn.ReLU(),
+                nn.Linear(mlp_hunits, self.dim_state),
+                nn.ReLU()
                 #nn.Sigmoid()
             )
 
@@ -121,7 +127,7 @@ class ProposerNetwork(nn.Module):
         
         result = self.first_layer(enc_obs)  # [batch_size, dim_first_layer]
         result = result.repeat(num_par, 1)  # [batch_size * num_par, dim_first_layer]
-        orientation = orientation.repeat(num_par, 1)  # [batch_size * num_par, 1]
+        orientation = orientation.repeat(num_par, 1)  # [batch_size * num_par, 1]  
         z = torch.randn_like(result)  # [batch_size * num_par, dim_first_layer]
         x = torch.cat([result, z, orientation], -1)  # [batch_size * num_par, dim_first_layer * 2 + 1]
         proposal = self.mlp(x)  # [batch_size * num_par, dim_state]

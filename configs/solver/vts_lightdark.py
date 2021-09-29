@@ -9,24 +9,32 @@ class VTS_LightDark_Params():
         self.in_channels = 3
 
         ## Z and P
-        self.dim_first_layer = 64 
-        self.dim_lstm_hidden = 64 
+        self.dim_m = 256
+        self.dim_first_layer = 256 #64 
+        self.dim_lstm_hidden = 256 #64 
         self.num_lstm_layer = 2
-        self.obs_encode_out = 2048 #64
+        self.obs_encode_out = 256 #2048 #64
         self.mlp_hunits_zp = 128
         self.zp_lr = 3e-4
         self.num_epochs_zp = 400 #4000 #200 #400 #2000 #4000
 
         ## G
-        self.num_layers = 7
+        self.num_layers = 5
         self.latent_dim = 128 #32
         self.mlp_hunits_g = 256 #128
         self.dim_conditional_var = 2
-        self.leak_rate = 0
+        self.leak_rate_g = 0
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
         self.num_epochs_g = 400 #4000 #200 #2000 #4000
+
+        ## Encoder
+        self.leak_rate_enc = 0
+        self.mlp_hunits_enc1 = 1024
+        self.mlp_hunits_enc2 = 512
+        self.mlp_hunits_enc3 = 256
+        self.obs_encode_out_conv = 2048
 
         ######################
         # Training

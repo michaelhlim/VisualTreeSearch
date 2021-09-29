@@ -114,8 +114,6 @@ class VTS:
         curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # (B, K, dim_s)
         mean_state = torch.FloatTensor(mean_state).to(vlp.device) # (B, dim_s)
         curr_par_sample = torch.FloatTensor(pf_sample).to(vlp.device) # (B, M, 2)
-        hidden = curr_obs
-        cell = curr_obs
         curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(dlp.device)
 
         # Observation generative model
@@ -133,8 +131,8 @@ class VTS:
                 PP_loss += self.MSE_criterion(state_batch.repeat(vlp.num_par_pf, 1), state_propose)
                 P_loss = PP_loss
             if 'adv' in vlp.pp_loss_type:
-                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1), 
-                                                            curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+                fake_logit = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1), 
+                                                            curr_obs, vlp.num_par_pf)  # (B, K)
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
                 P_loss = PP_loss
@@ -155,16 +153,16 @@ class VTS:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+        fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
                                                     curr_orientation.repeat(vlp.num_par_pf, 1), 
-                                                    curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+                                                    curr_obs, vlp.num_par_pf)  # (B, K)
         if vlp.pp_exist:
-            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
-                                                           curr_obs, hidden, cell, vlp.num_par_pf)  # (B, K)
+            fake_logit_pp = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                           curr_obs, vlp.num_par_pf)  # (B, K)
             fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # (B, 2K)
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_orientation, curr_obs, hidden, cell, 1)  # (batch, num_pars)
+        real_logit = self.measure_net.m_model(state_batch, curr_orientation, curr_obs, 1)  # (batch, num_pars)
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
@@ -194,8 +192,7 @@ class VTS:
         curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)  # [batch_size, 1]
         curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # [batch_size * num_par, dim_state]
         curr_obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
-        hidden = curr_obs
-        cell = curr_obs
+    
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
@@ -208,8 +205,8 @@ class VTS:
                 PP_loss += self.MSE_criterion(state_batch.repeat(vlp.num_par_pf, 1), state_propose)
                 P_loss = PP_loss
             if 'adv' in vlp.pp_loss_type:
-                fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1),
-                                                             curr_obs, hidden, cell, vlp.num_par_pf)  # [batch_size, num_par]
+                fake_logit = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                             curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
                 P_loss = PP_loss
@@ -231,17 +228,17 @@ class VTS:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
-                                                    curr_orientation.repeat(vlp.num_par_pf, 1), 
-                                                    curr_obs, hidden, cell, vlp.num_par_pf)  # [batch_size, num_par]
+        fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+                                                    torch.repeat_interleave(curr_orientation, vlp.num_par_pf, dim=0),
+                                                    curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
         if vlp.pp_exist:
-            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
-                                                           curr_obs, hidden, cell, vlp.num_par_pf)  # [batch_size, num_par]
+            fake_logit_pp = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                           curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
             fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # [batch_size, 2 * num_par]
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_orientation, 
-                                                    curr_obs, hidden, cell, 1)  # [batch_size, 1]
+        real_logit = self.measure_net.m_model(state_batch, curr_orientation, 
+                                                    curr_obs, 1)  # [batch_size, 1]
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
@@ -287,11 +284,11 @@ class VTS:
         blurred_images = blurred_images.permute(0, 3, 1, 2).to(vlp.device).detach()
 
         # Performance of Z and P on true state and image
-        real_logit, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, 1)  # [batch_size, 1]
+        real_logit = self.measure_net.m_model(state, orientation, obs, 1)  # [batch_size, 1]
         state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
         # Performance of Z on proposed particles
-        fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           obs, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        fake_logit = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           obs, vlp.num_par_pf)  # [batch_size, num_par]
         
         # Generated encoded observation (e_hat)
         conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
@@ -348,10 +345,10 @@ class VTS:
 
 
         print("\nInputting blurry image into Z/P")
-        real_logit, _, _ = self.measure_net.m_model(state, orientation, blurred_images, None, None, 1)  # [batch_size, 1]
+        real_logit = self.measure_net.m_model(state, orientation, blurred_images, 1)  # [batch_size, 1]
         state_propose = self.pp_net(blurred_images, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
-        fake_logit, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           blurred_images, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        fake_logit = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           blurred_images, vlp.num_par_pf)  # [batch_size, num_par]
         enc_obs_blur = self.generator.conv.encode(blurred_images.detach())  ## NOT NORMALIZED
         print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
                 "\nProposed States:", state_propose, "\nFake Logit:", fake_logit, 
@@ -359,10 +356,10 @@ class VTS:
 
 
         print("\nPlugging generated encoded observation back into Z/P")
-        real_logit_gen, _, _ = self.measure_net.m_model(state, orientation, enc_obs_hat, None, None, 1, obs_is_encoded=True)  # [batch_size, 1]
+        real_logit_gen = self.measure_net.m_model(state, orientation, enc_obs_hat, 1, obs_is_encoded=True)  # [batch_size, 1]
         state_propose_gen = self.pp_net(enc_obs_hat, orientation, vlp.num_par_pf, obs_is_encoded=True)   # [batch_size * num_par, dim_state]
-        fake_logit_gen, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           enc_obs_hat, None, None, vlp.num_par_pf, obs_is_encoded=True)  # [batch_size, num_par]
+        fake_logit_gen = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           enc_obs_hat, vlp.num_par_pf, obs_is_encoded=True)  # [batch_size, num_par]
 
         print("\nReal Logit:", real_logit_gen, "\nProposed States:", state_propose_gen, "\nFake Logit:", fake_logit_gen)
 
@@ -370,10 +367,10 @@ class VTS:
         print("\nPlugging generated image back into Z/P")
         enc_obs_image = self.generator.conv.encode(image_hat.detach())
 
-        real_logit_gen_img, _, _ = self.measure_net.m_model(state, orientation, image_hat, None, None, 1)  # [batch_size, 1]
+        real_logit_gen_img = self.measure_net.m_model(state, orientation, image_hat, 1)  # [batch_size, 1]
         state_propose_gen_img = self.pp_net(image_hat, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
-        fake_logit_gen_img, _, _ = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           image_hat, None, None, vlp.num_par_pf)  # [batch_size, num_par]
+        fake_logit_gen_img = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           image_hat, vlp.num_par_pf)  # [batch_size, num_par]
 
         print("\nReal Logit:", real_logit_gen_img, "\nProposed States:", state_propose_gen_img, "\nFake Logit:", fake_logit_gen_img, 
                 "\nEncoded Observation from Generated Image:", enc_obs_image[0, :64],)
@@ -396,7 +393,7 @@ class VTS:
             layer = self.measure_net._modules.get(module)   
             activated_features = SaveFeatures(layer)
 
-            lik, _, _ = self.measure_net.m_model(state, orientation, obs, None, None, num_par=1)
+            lik = self.measure_net.m_model(state, orientation, obs, num_par=1)
         elif model_name == "g":
             model = self.generator
             layer = self.generator._modules.get(module)

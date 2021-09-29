@@ -18,7 +18,7 @@ from examples.examples import *  # generate_observation
 
 
 class StanfordEnvironment(AbstractEnvironment):
-    def __init__(self, traversible_dump=False):
+    def __init__(self):
         self.done = False
         self.true_env_corner = [24.0, 23.0] 
         self.xrange = [0, 8.5]
@@ -35,14 +35,24 @@ class StanfordEnvironment(AbstractEnvironment):
         self.dark_line_true = self.dark_line + self.true_env_corner[1]
 
         # Get the traversible
-        if traversible_dump:
+        try:
+            traversible = pickle.load(open("traversible.p", "rb"))
+            dx_m = 0.05
+        except Exception:
             path = os.getcwd() + '/temp/'
             os.mkdir(path)
             _, _, traversible, dx_m = self.get_observation(path=path)
             pickle.dump(traversible, open("traversible.p", "wb"))
-        else:
-            traversible = pickle.load(open("traversible.p", "rb"))
-            dx_m = 0.05
+
+        # if traversible_dump:
+        #     path = os.getcwd() + '/temp/'
+        #     os.mkdir(path)
+        #     _, _, traversible, dx_m = self.get_observation(path=path)
+        #     pickle.dump(traversible, open("traversible.p", "wb"))
+        # else:
+        #     traversible = pickle.load(open("traversible.p", "rb"))
+        #     dx_m = 0.05
+
         self.traversible = traversible
         self.dx = dx_m
         self.map_origin = [0, 0]
@@ -403,42 +413,74 @@ class StanfordEnvironment(AbstractEnvironment):
         return data_files_indices
 
 
-    def preprocess_data(self, dump=False):
+    def preprocess_data(self):
         # For normalizing the images - per channel mean and std
         print("Preprocessing the data")
 
-        if not dump:
+        try:
             normalization_data = pickle.load(open("data_normalization.p", "rb"))
             rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
             print("Done preprocessing")
             return rmean, gmean, bmean, rstd, gstd, bstd
-
-        rmean = 0
-        gmean = 0
-        bmean = 0
-        rstd = 0
-        gstd = 0
-        bstd = 0
-        for i in range(len(self.data_files)):
-            img_path = self.data_files[i]
-            src = cv2.imread(img_path, cv2.IMREAD_COLOR)
-            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+        except Exception:
+            rmean = 0
+            gmean = 0
+            bmean = 0
+            rstd = 0
+            gstd = 0
+            bstd = 0
+            for i in range(len(self.data_files)):
+                img_path = self.data_files[i]
+                src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+                
+                rmean += src[:, :, 0].mean()/len(self.data_files)
+                gmean += src[:, :, 1].mean()/len(self.data_files)
+                bmean += src[:, :, 2].mean()/len(self.data_files)
+                
+                rstd += src[:, :, 0].std()/len(self.data_files)  ## TODO: FIX?
+                gstd += src[:, :, 1].std()/len(self.data_files)
+                bstd += src[:, :, 2].std()/len(self.data_files)
             
-            rmean += src[:, :, 0].mean()/len(self.data_files)
-            gmean += src[:, :, 1].mean()/len(self.data_files)
-            bmean += src[:, :, 2].mean()/len(self.data_files)
-            
-            rstd += src[:, :, 0].std()/len(self.data_files)  ## TODO: FIX?
-            gstd += src[:, :, 1].std()/len(self.data_files)
-            bstd += src[:, :, 2].std()/len(self.data_files)
-        
-        normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
-        if dump:
+            normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
             pickle.dump(normalization_data, open("data_normalization.p", "wb"))
 
-        print("Done preprocessing")
+            print("Done preprocessing")
 
-        return rmean, gmean, bmean, rstd, gstd, bstd
+            return rmean, gmean, bmean, rstd, gstd, bstd
+
+        # if not dump:
+        #     normalization_data = pickle.load(open("data_normalization.p", "rb"))
+        #     rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+        #     print("Done preprocessing")
+        #     return rmean, gmean, bmean, rstd, gstd, bstd
+
+        # rmean = 0
+        # gmean = 0
+        # bmean = 0
+        # rstd = 0
+        # gstd = 0
+        # bstd = 0
+        # for i in range(len(self.data_files)):
+        #     img_path = self.data_files[i]
+        #     src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        #     src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+            
+        #     rmean += src[:, :, 0].mean()/len(self.data_files)
+        #     gmean += src[:, :, 1].mean()/len(self.data_files)
+        #     bmean += src[:, :, 2].mean()/len(self.data_files)
+            
+        #     rstd += src[:, :, 0].std()/len(self.data_files)  ## TODO: FIX?
+        #     gstd += src[:, :, 1].std()/len(self.data_files)
+        #     bstd += src[:, :, 2].std()/len(self.data_files)
+        
+        # normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
+        # if dump:
+        #     pickle.dump(normalization_data, open("data_normalization.p", "wb"))
+
+        # print("Done preprocessing")
+
+        # return rmean, gmean, bmean, rstd, gstd, bstd
     
 
     def get_training_batch(self, batch_size, data_files_indices, epoch_step, 
