@@ -36,18 +36,26 @@ class VTS:
         self.replay_buffer = ReplayMemory(vlp.replay_buffer_size)
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
-        # Filtering
-        self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
-        self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
-        self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
-        self.generator = ObservationGenerator(self.observation_encoder).to(vlp.device)
+        
+        self.observation_encoder_z = ObservationGeneratorConv().to(vlp.device)
+        self.observation_encoder_p = ObservationGeneratorConv().to(vlp.device)
+        self.observation_encoder_g = ObservationGeneratorConv().to(vlp.device)
+        self.measure_net = MeasureNetwork(self.observation_encoder_z).to(vlp.device)
+        self.pp_net = ProposerNetwork(self.observation_encoder_p).to(vlp.device)
+        self.generator = ObservationGenerator(self.observation_encoder_g).to(vlp.device)
+
+        # self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
+        # self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
+        # self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
+        # self.generator = ObservationGenerator(self.observation_encoder).to(vlp.device)
+
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
         self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
         self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
 
     def save_model(self, path):
         stats = {}
-        stats['obs_encoder'] = self.observation_encoder.state_dict()
+        #stats['obs_encoder'] = self.observation_encoder.state_dict()
         stats['m_net'] = self.measure_net.state_dict()
         stats['pp_net'] = self.pp_net.state_dict()
         stats['generator'] = self.generator.state_dict()
@@ -55,7 +63,7 @@ class VTS:
 
     def load_model(self, path, load_zp=True, load_g=True):
         stats = torch.load(path, map_location=vlp.device)
-        self.observation_encoder.load_state_dict(stats['obs_encoder'])
+        #self.observation_encoder.load_state_dict(stats['obs_encoder'])
         if load_zp:
             self.measure_net.load_state_dict(stats['m_net'])
             self.pp_net.load_state_dict(stats['pp_net'])
@@ -154,8 +162,11 @@ class VTS:
         # ------------------------
         self.measure_optimizer.zero_grad()
         fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
-                                                    curr_orientation.repeat(vlp.num_par_pf, 1), 
-                                                    curr_obs, vlp.num_par_pf)  # (B, K)
+                                                    torch.repeat_interleave(curr_orientation, vlp.num_par_pf, dim=0),
+                                                    curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
+        # fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+        #                                             curr_orientation.repeat(vlp.num_par_pf, 1), 
+        #                                             curr_obs, vlp.num_par_pf)  # (B, K)
         if vlp.pp_exist:
             fake_logit_pp = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
                                                            curr_obs, vlp.num_par_pf)  # (B, K)
@@ -231,6 +242,9 @@ class VTS:
         fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
                                                     torch.repeat_interleave(curr_orientation, vlp.num_par_pf, dim=0),
                                                     curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
+        # fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+        #                                             curr_orientation.repeat(vlp.num_par_pf, 1), 
+        #                                             curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
         if vlp.pp_exist:
             fake_logit_pp = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
                                                            curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
