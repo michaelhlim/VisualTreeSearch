@@ -12,9 +12,9 @@ vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-model = VTS()
+model = VTS(shared_enc=False)
 env = StanfordEnvironment() 
-load_path = "vts_lightdark10-05-19_09_05"
+load_path = "vts_lightdark10-07-22_59_20"
 cwd = os.getcwd()
 model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
 
@@ -22,7 +22,7 @@ normalization_data = env.preprocess_data()
 
 num_tests = 1
 states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
-model.test_models(num_tests, states, orientations, images, blurred_images) 
+model.test_models(num_tests, states, orientations, images, blurred_images, env) 
 
 # num_tests = 200
 # states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)

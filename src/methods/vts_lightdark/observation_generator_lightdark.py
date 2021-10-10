@@ -101,14 +101,19 @@ class ObservationGenerator(nn.Module):
         return eps * std + mu 
 
 
-    def forward(self, conditional_input, enc_obs_batch):
+    def forward(self, conditional_input, enc_obs_batch, shared_enc=True):
         #enc_obs_batch = self.observation_encoder(enc_obs_batch, normalize=True)
         #intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
 
-        # with torch.no_grad():
-        intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
-        # Normalizing the output of the observation encoder
-        intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True)
+        if shared_enc:
+            with torch.no_grad():
+                intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+                # Normalizing the output of the observation encoder
+                intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True)
+        else:
+            intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+            # Normalizing the output of the observation encoder
+            # intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True) 
 
         mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]
         #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
