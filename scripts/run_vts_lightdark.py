@@ -361,7 +361,8 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
             for step in range(steps_per_epoch):
 
                 states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
-                                                                                step, normalization_data, vlp.num_par_pf)
+                                                                                step, normalization_data, vlp.num_par_pf,
+                                                                                percent_blur=0.3)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]

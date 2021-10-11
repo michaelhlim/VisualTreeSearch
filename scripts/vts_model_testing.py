@@ -14,7 +14,7 @@ sep = Stanford_Environment_Params()
 
 model = VTS(shared_enc=False)
 env = StanfordEnvironment() 
-load_path = "vts_lightdark10-07-22_59_20"
+load_path = "vts_lightdark10-10-23_00_48"
 cwd = os.getcwd()
 model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
 

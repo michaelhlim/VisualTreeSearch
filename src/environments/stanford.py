@@ -484,7 +484,7 @@ class StanfordEnvironment(AbstractEnvironment):
     
 
     def get_training_batch(self, batch_size, data_files_indices, epoch_step, 
-                            normalization_data, num_particles):
+                            normalization_data, num_particles, percent_blur=0):
         rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
 
         states = []
@@ -498,12 +498,21 @@ class StanfordEnvironment(AbstractEnvironment):
         else:
             indices = data_files_indices[epoch_step*batch_size:(epoch_step + 1)*batch_size]
 
+        num_blurred_images = int(percent_blur * len(indices))
+        blur = np.zeros(len(indices))
+        blur_indices = np.random.choice(len(indices), num_blurred_images, replace=False)
+        blur[blur_indices] = 1.
+
         for i in range(len(indices)):
             index = indices[i]
             img_path = self.training_data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
-            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
-            
+            if blur[i] == 1:
+                blurred = cv2.GaussianBlur(src,(5,5),cv2.BORDER_DEFAULT)
+                src = blurred[:,:,::-1]
+            else:
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+
             if self.normalization:
                 img_rslice = (src[:, :, 0] - rmean)/rstd
                 img_gslice = (src[:, :, 1] - gmean)/gstd

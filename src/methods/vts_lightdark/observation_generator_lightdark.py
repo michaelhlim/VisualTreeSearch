@@ -113,7 +113,7 @@ class ObservationGenerator(nn.Module):
         else:
             intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
             # Normalizing the output of the observation encoder
-            # intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True) 
+            intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True) 
 
         mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]
         #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
