@@ -105,8 +105,8 @@ class ObservationGeneratorConv(nn.Module):
                             #nn.BatchNorm2d(hidden_dims[-1]),
                             nn.LeakyReLU(self.leak_rate),
                             nn.Conv2d(hidden_dims[-1], out_channels=self.in_channels,
-                                      kernel_size=3, padding=1),
-                            nn.Tanh())
+                                      kernel_size=3, padding=1))
+                            #nn.Tanh())
 
 
     def encode(self, obs):

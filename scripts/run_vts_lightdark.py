@@ -356,13 +356,21 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         steps = []
         # Train Z and P 
         for epoch in range(vlp.num_epochs_zp):
+            percent_blur = 0
+            if epoch >= vlp.num_epochs_zp/4:
+                percent_blur = 0.05
+            if epoch >= vlp.num_epochs_zp/2:
+                percent_blur = 0.15
+            if epoch >= 3*vlp.num_epochs_zp/4:
+                percent_blur = 0.25
+
             data_files_indices = env.shuffle_dataset()
 
             for step in range(steps_per_epoch):
 
                 states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                                                 step, normalization_data, vlp.num_par_pf,
-                                                                                percent_blur=0.3)
+                                                                                percent_blur=percent_blur)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]

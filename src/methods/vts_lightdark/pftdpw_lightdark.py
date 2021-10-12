@@ -105,11 +105,15 @@ class PFTDPW():
 			# Generate an observation from a random state
 			s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
 			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(vlp.device))  # [1, obs_encode_out]
+			o = self.G.conv.decode(o)  # [1, 3, 32, 32]
 
 			# Generate particle belief set
+			# lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
+			# 							torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
+			# 							o, self.n_par, obs_is_encoded=True)  # [1, num_par]
 			lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
 										torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
-										o, self.n_par, obs_is_encoded=True)  # [1, num_par]
+										o, self.n_par)  # [1, num_par]
 			new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
 			
 			# Resample states (naive resampling)
