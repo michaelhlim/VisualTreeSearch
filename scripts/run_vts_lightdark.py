@@ -82,12 +82,12 @@ def vts_lightdark(model, experiment_id, train, model_path):
         curr_obs, _, _, _ = env.get_observation() 
         trajectory.append(curr_state)
 
-        par_states, par_orientations = env.make_pars(vlp.num_par_pf)  ##### FIX: Orientations in make_pars not in cardinal directions 
+        par_states, par_orientations = env.make_pars(vlp.num_par_pf)   
         par_weight = torch.log(torch.ones((vlp.num_par_pf)).to(vlp.device) * (1.0 / float(vlp.num_par_pf)))
         normalized_weights = torch.softmax(par_weight, -1)
-        mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
+        mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()  # Goes into replay buffer
 
-        pft_planner = PFTDPW(env, model.measure_net, model.generator)
+        pft_planner = PFTDPW(env, model.measure_net, model.generator)  # Why is this created in each episode
 
         if vlp.show_traj and episode % vlp.display_iter == 0:
             check_path(img_path + "/iters/")
@@ -145,7 +145,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
                 plt.savefig(frm_name)
                 plt.close()
 
-            curr_s = par_states.copy()
+            curr_s = par_states.copy()  # Goes into replay buffer
             tic = time.perf_counter()
             #######################################
             # Planning
@@ -338,9 +338,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained", load_zp=False)
-        # observation_generator.load_model(
-        #     cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
+        model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
 
     if pre_training:
         tic = time.perf_counter()
@@ -357,12 +355,20 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         # Train Z and P 
         for epoch in range(vlp.num_epochs_zp):
             percent_blur = 0
+            # if epoch >= vlp.num_epochs_zp/4:
+            #     percent_blur = 0.05
+            # if epoch >= vlp.num_epochs_zp/2:
+            #     percent_blur = 0.15
+            # if epoch >= 3*vlp.num_epochs_zp/4:
+            #     percent_blur = 0.25
+
+            noise_amount = 0
             if epoch >= vlp.num_epochs_zp/4:
-                percent_blur = 0.05
+                noise_amount = 0.1
             if epoch >= vlp.num_epochs_zp/2:
-                percent_blur = 0.15
+                noise_amount = 0.25
             if epoch >= 3*vlp.num_epochs_zp/4:
-                percent_blur = 0.25
+                noise_amount = 0.4
 
             data_files_indices = env.shuffle_dataset()
 
@@ -370,6 +376,7 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
 
                 states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                                                 step, normalization_data, vlp.num_par_pf,
+                                                                                noise_amount=noise_amount,
                                                                                 percent_blur=percent_blur)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
@@ -407,12 +414,21 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         steps = []
         # Train G
         for epoch in range(vlp.num_epochs_g):
+            noise_amount = 0
+            if epoch >= vlp.num_epochs_g/4:
+                noise_amount = 0.1
+            if epoch >= vlp.num_epochs_g/2:
+                noise_amount = 0.25
+            if epoch >= 3*vlp.num_epochs_g/4:
+                noise_amount = 0.4
+
             data_files_indices = env.shuffle_dataset()
 
             for step in range(steps_per_epoch):
 
                 states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
-                                                        step, normalization_data, vlp.num_par_pf)
+                                                        step, normalization_data, vlp.num_par_pf,
+                                                        noise_amount=noise_amount)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
@@ -471,14 +487,13 @@ if __name__ == "__main__":
 
         # Just pre-training
         #vts_lightdark_driver(load_path="vts_lightdark08-05-15_13_47", end_to_end=False, save_online_model=False, test=False)
-        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        # vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        # vts_lightdark_driver(load_path="test500k",
-        #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_path="vts_lightdark10-11-23_23_23", pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_lightdark_driver()

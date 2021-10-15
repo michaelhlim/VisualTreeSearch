@@ -121,7 +121,108 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
     plt.close()
 
 
-def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_name='pretraining_analysis', 
+def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names, 
+            true_state, true_orientation, random_states, likelihoods, likelihoods_gen,
+            proposed_states, proposed_states_gen):
+    '''
+    Plot on the environment the state and proposed states for when the input is the true image
+    versus when it is a generated image.
+    '''
+
+    plt.figure(figure_names[0])
+    ax = plt.axes()
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    # Plot goal, traps, walls, and other features of the environment
+    from matplotlib.patches import Rectangle
+    # goal: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((goal[0], goal[1]), goal[2], goal[3], facecolor='green'))
+    trap1 = trap[0]
+    trap2 = trap[1]
+    # trap i: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((trap1[0], trap1[1]), trap1[2], trap1[3], facecolor='orange'))
+    ax.add_patch(Rectangle((trap2[0], trap2[1]), trap2[2], trap2[3], facecolor='orange'))
+    # dark region
+    ax.add_patch(Rectangle((dark[0], dark[1]), dark[2], dark[3], facecolor='black', alpha=0.15))
+    # additional wall
+    ax.add_patch(Rectangle((0, trap1[1]), 
+        trap1[0], trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap1[0]+trap1[2], trap1[1]), 
+        goal[0]-(trap1[0]+trap1[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((goal[0]+goal[2], trap1[1]), 
+        trap2[0]-(goal[0]+goal[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
+        xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
+
+
+    # Plot the true state and orientation
+    ax.plot(true_state[0], true_state[1], 'ro')
+    ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
+
+    # Plot the proposed states for the true image as input
+    xy = proposed_states[:, :2]
+    x, y = zip(*xy)
+    for j in range(len(x)):
+        ax.plot(x[j], y[j], 'gx')
+    #ax.plot(x, y, 'gx')
+
+    # Plot the proposed states for the generated image as input
+    xy = proposed_states_gen[:, :2]
+    x, y = zip(*xy)
+    for j in range(len(x)):
+        ax.plot(x[j], y[j], 'bx')
+    
+    ax.set_aspect('equal')
+
+    plt.savefig(figure_names[0])
+    plt.close()
+
+
+
+    plt.figure(figure_names[1])
+
+    ax = plt.axes()
+
+    # Plot the true state and orientation
+    ax.plot(true_state[0], true_state[1], 'ro')
+    ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
+
+    # Plot the random states with likelihoods for when the true image is inputted
+    xy = random_states[:, :2]
+    x, y = zip(*xy)
+    heuristic_alpha_mult = 1.5
+    for j in range(len(x)):
+        ax.plot(x[j], y[j], 'gx', alpha=min(likelihoods[j]*heuristic_alpha_mult, 1.0))
+    
+    ax.set_aspect('equal')
+
+    plt.savefig(figure_names[1])
+    plt.close()
+    
+
+    plt.figure(figure_names[2])
+
+    ax = plt.axes()
+
+    # Plot the true state and orientation
+    ax.plot(true_state[0], true_state[1], 'ro')
+    ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
+
+    # Plot the random states with likelihoods for when the generated image is inputted
+    xy = random_states[:, :2]
+    x, y = zip(*xy)
+    heuristic_alpha_mult = 1.5
+    for j in range(len(x)):
+        ax.plot(x[j], y[j], 'bx', alpha=min(likelihoods_gen[j]*heuristic_alpha_mult, 1.0))
+
+    ax.set_aspect('equal')
+
+    plt.savefig(figure_names[2])
+    plt.close()
+    
+
+def vts_pretraining_analysis_old(xlim, ylim, goal, trap, dark, figure_name='pretraining_analysis', 
             true_state=None, true_orientation=None, proposed_states=None, likelihoods=None,
             proposed_states_gen=None, likelihoods_gen = None):
     '''

@@ -24,6 +24,8 @@ class StanfordEnvironment(AbstractEnvironment):
         self.xrange = [0, 8.5]
         self.yrange = [0, 1.5]
         self.thetas = [0.0, 2*np.pi]
+        self.discrete_thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
+        self.discrete_thetas = self.discrete_thetas.reshape((len(self.discrete_thetas), 1))
         self.trap_x = [[1.5, 2], [6.5, 7]] #[[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] 
         self.trap_y = [0, 0.25]
         self.target_x = [4, 4.5] #[3.5, 4.5] #[1.5, 6.5] #[3, 5] #[3.5, 4.5]
@@ -77,7 +79,7 @@ class StanfordEnvironment(AbstractEnvironment):
 
 
     def initial_state(self):
-        orientation = np.random.rand()
+        orientation = np.random.rand()  
         orientation = orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
 
         valid_state = False
@@ -93,36 +95,15 @@ class StanfordEnvironment(AbstractEnvironment):
         return state, orientation 
 
 
-    def get_observation(self, state=None, path=None, normalize=True):
-        if state == None:
-            state = self.state + self.true_env_corner
-            state_arr = np.array([[state[0], state[1], self.orientation]])
-        else:
-            state = state + self.true_env_corner
-            state_arr = np.array([state])
-
-        if path == None:
-            path = os.getcwd() + '/images/' 
-            os.mkdir(path)
-
-        img_path, traversible, dx_m = generate_observation(state_arr, path)
-        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
-        image = np.ascontiguousarray(image)
- 
-        # salt = np.max(image) 
-        # pepper = np.min(image)
+    def noise_image(self, image, state, noise_amount=sep.noise_amount):
         salt = 255
         pepper = 0
 
         out = image
 
-        if state_arr[0][1] <= self.dark_line_true: 
-            # Dark observation - add salt & pepper noise
-            
-            row,col,ch = image.shape
+        if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
             s_vs_p = 0.5
-            amount = sep.noise_amount  
+            amount = noise_amount  
             out = np.copy(image)
             num_salt = np.ceil(amount * image.size * s_vs_p)
             num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
@@ -133,17 +114,33 @@ class StanfordEnvironment(AbstractEnvironment):
             pepper_coords = np.unravel_index(pepper_indices, image.shape)
             out[salt_coords] = salt
             out[pepper_coords] = pepper
+        
+        #cv2.imwrite("out_debug.png", out)
 
-            # coords = [np.random.randint(0, i - 1, int(num_salt))
-            #         for i in image.shape]
-            # out[coords] = salt 
+        return out
 
-            
-            # coords = [np.random.randint(0, i - 1, int(num_pepper))
-            #         for i in image.shape]
-            # out[coords] = pepper 
 
-        #cv2.imwrite(img_path, out)
+    def get_observation(self, state=None, path=None, normalize=True):
+        if state == None:
+            state_temp = self.state
+            state = self.state + self.true_env_corner
+            state_arr = np.array([[state[0], state[1], self.orientation]])
+        else:
+            state_temp = state
+            state = state + self.true_env_corner
+            state_arr = np.array([state])
+
+        if path == None:
+            path = os.getcwd() + '/images/' 
+            #os.mkdir(path)
+            check_path(path)
+
+        img_path, traversible, dx_m = generate_observation(state_arr, path)
+        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        
+        out = self.noise_image(image, state_temp)
+        out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
+        out = np.ascontiguousarray(out)
 
         if normalize:
             out = (out - out.mean())/out.std()  # "Normalization" -- TODO
@@ -247,9 +244,8 @@ class StanfordEnvironment(AbstractEnvironment):
 
     
     def make_pars(self, batch_size):
-        thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
-        # xs = np.random.rand(batch_size, 1) * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
-        # ys = np.random.rand(batch_size, 1) * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
+        thetas = self.discrete_thetas[np.random.randint(len(self.discrete_thetas), size=batch_size)]
+        # thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
 
         xs = np.zeros((batch_size, 1))
         ys = np.zeros((batch_size, 1))
@@ -449,43 +445,12 @@ class StanfordEnvironment(AbstractEnvironment):
 
             return rmean, gmean, bmean, rstd, gstd, bstd
 
-        # if not dump:
-        #     normalization_data = pickle.load(open("data_normalization.p", "rb"))
-        #     rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
-        #     print("Done preprocessing")
-        #     return rmean, gmean, bmean, rstd, gstd, bstd
-
-        # rmean = 0
-        # gmean = 0
-        # bmean = 0
-        # rstd = 0
-        # gstd = 0
-        # bstd = 0
-        # for i in range(len(self.data_files)):
-        #     img_path = self.data_files[i]
-        #     src = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        #     src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
-            
-        #     rmean += src[:, :, 0].mean()/len(self.data_files)
-        #     gmean += src[:, :, 1].mean()/len(self.data_files)
-        #     bmean += src[:, :, 2].mean()/len(self.data_files)
-            
-        #     rstd += src[:, :, 0].std()/len(self.data_files)  ## TODO: FIX?
-        #     gstd += src[:, :, 1].std()/len(self.data_files)
-        #     bstd += src[:, :, 2].std()/len(self.data_files)
-        
-        # normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
-        # if dump:
-        #     pickle.dump(normalization_data, open("data_normalization.p", "wb"))
-
-        # print("Done preprocessing")
-
-        # return rmean, gmean, bmean, rstd, gstd, bstd
-    
 
     def get_training_batch(self, batch_size, data_files_indices, epoch_step, 
                             normalization_data, num_particles, 
+                            noise_amount=sep.noise_amount,
                             percent_blur=0, blur_kernel=3):
+
         rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
 
         states = []
@@ -507,7 +472,17 @@ class StanfordEnvironment(AbstractEnvironment):
         for i in range(len(indices)):
             index = indices[i]
             img_path = self.training_data_files[index]
+
+            splits = img_path[:-remove].split('_')
+            state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
+            state[:sep.dim_state] = state[:sep.dim_state] - self.true_env_corner
+            states.append(state[:sep.dim_state])
+            orientations.append(state[sep.dim_state])
+
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+
+            src = self.noise_image(src, state, noise_amount)
+
             if blur[i] == 1:
                 blurred = cv2.GaussianBlur(src,(blur_kernel,blur_kernel),cv2.BORDER_DEFAULT)
                 src = blurred[:,:,::-1]
@@ -526,11 +501,6 @@ class StanfordEnvironment(AbstractEnvironment):
                 src = (src - src.mean())/src.std()
                 images.append(src)
 
-            splits = img_path[:-remove].split('_')
-            state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
-            state[:sep.dim_state] = state[:sep.dim_state] - self.true_env_corner
-            states.append(state[:sep.dim_state])
-            orientations.append(state[sep.dim_state])
 
             if state[1] < self.dark_line:
                 obs_std = sep.obs_std_dark
@@ -565,7 +535,16 @@ class StanfordEnvironment(AbstractEnvironment):
         for index in indices:
 
             img_path = self.testing_data_files[index]
+
+            splits = img_path[:-remove].split('_')
+            state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
+            state[:sep.dim_state] = state[:sep.dim_state] - self.true_env_corner
+            states.append(state[:sep.dim_state])
+            orientations.append(state[sep.dim_state])
+
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            src = self.noise_image(src, state)
+
             blurred = cv2.GaussianBlur(src,(5,5),cv2.BORDER_DEFAULT)
             src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
             blurred = blurred[:,:,::-1]
@@ -592,12 +571,6 @@ class StanfordEnvironment(AbstractEnvironment):
 
                 blurred = (blurred - blurred.mean())/blurred.std()
                 blurred_images.append(blurred)
-            
-            splits = img_path[:-remove].split('_')
-            state = np.array([np.round(float(elem), rounding) for elem in splits[-(sep.dim_state + 1):]])
-            state[:sep.dim_state] = state[:sep.dim_state] - self.true_env_corner
-            states.append(state[:sep.dim_state])
-            orientations.append(state[sep.dim_state])
 
         
         return np.array(states), np.array(orientations), np.array(images), np.array(blurred_images)  
