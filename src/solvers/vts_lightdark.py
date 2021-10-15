@@ -306,6 +306,7 @@ class VTS:
         blurred_images = blurred_images.permute(0, 3, 1, 2).to(vlp.device).detach()
 
         num_random_states = 50
+        # Generate a normal distribution with covariance matrix 0.01 * I around the true state
         random_states = state + (torch.randn(num_random_states, sep.dim_state)*0.1).to(vlp.device)
 
 
@@ -354,39 +355,48 @@ class VTS:
         fake_logit = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
                                                            obs, vlp.num_par_pf)  # [batch_size, num_par]
         logits = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
-                                                           obs, num_random_states)  # [batch_size, num_par]
+                                                           obs, num_random_states)  # [batch_size, num_random_states]
         # For plotting
         proposed_states = state_propose.detach().cpu().numpy()
         likelihoods = logits.detach().cpu().numpy().reshape([num_random_states])
 
         print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
-                "\nProposed States:", state_propose, "\nFake Logit:", fake_logit)
+                "\nProposed States:", state_propose[:15, :], "\nFake Logit:", fake_logit,
+                "\nDummy Logits:", logits)
 
 
         ## Performance of Z and P on blurred image
         print("\nInputting blurry image into Z/P")
         real_logit_blur = self.measure_net.m_model(state, orientation, blurred_images, 1)  # [batch_size, 1]
-        state_propose_blur = self.pp_net(blurred_images, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
-        fake_logit_blur = self.measure_net.m_model(state_propose_blur.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           blurred_images, vlp.num_par_pf)  # [batch_size, num_par]
+        # state_propose_blur = self.pp_net(blurred_images, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # fake_logit_blur = self.measure_net.m_model(state_propose_blur.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        #                                                    blurred_images, vlp.num_par_pf)  # [batch_size, num_par]
+        logits_blur = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
+                                                           blurred_images, num_random_states)  # [batch_size, num_random_states]
+        # For plotting
+        # proposed_states_blur = state_propose_blur.detach().cpu().numpy()
+        likelihoods_blur = logits_blur.detach().cpu().numpy().reshape([num_random_states])
+        
         print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_blur,
-                "\nProposed States:", state_propose_blur, "\nFake Logit:", fake_logit_blur)
+             #"\nProposed States:", state_propose_blur[:15, :], "\nFake Logit:", fake_logit_blur,
+                "\nDummy Logits:", logits_blur)
 
 
         ## Performance of Z and P on generated image
         print("\nPlugging generated image back into Z/P")
         real_logit_gen_img = self.measure_net.m_model(state, orientation, image_hat.detach(), 1)  # [batch_size, 1]
-        state_propose_gen_img = self.pp_net(image_hat.detach(), orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
-        fake_logit_gen_img = self.measure_net.m_model(state_propose_gen_img.detach(), orientation.repeat(vlp.num_par_pf, 1),
-                                                           image_hat.detach(), vlp.num_par_pf)  # [batch_size, num_par]
+        # state_propose_gen_img = self.pp_net(image_hat.detach(), orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # fake_logit_gen_img = self.measure_net.m_model(state_propose_gen_img.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        #                                                    image_hat.detach(), vlp.num_par_pf)  # [batch_size, num_par]
         logits_gen_img = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
-                                                           image_hat.detach(), num_random_states)  # [batch_size, num_par]
+                                                           image_hat.detach(), num_random_states)  # [batch_size, num_random_states]
         # For plotting
-        proposed_states_gen = state_propose_gen_img.detach().cpu().numpy()  
+        # proposed_states_gen = state_propose_gen_img.detach().cpu().numpy()  
         likelihoods_gen = logits_gen_img.detach().cpu().numpy().reshape([num_random_states])
 
         print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_gen_img, 
-                "\nProposed States:", state_propose_gen_img, "\nFake Logit:", fake_logit_gen_img)
+                #"\nProposed States:", state_propose_gen_img[:15, :], "\nFake Logit:", fake_logit_gen_img,
+                "\nDummy Logits:", logits_gen_img)
 
 
 
@@ -406,9 +416,10 @@ class VTS:
         true_orientation = orientation.cpu().numpy()[0][0] 
         random_states = random_states.cpu().numpy()
         vts_pretraining_analysis(xlim, ylim, goal, [trap1, trap2], dark, 
-            ['proposed_particles', 'dummy_particles', 'dummy_particles_gen'], 
-            true_state, true_orientation, random_states, likelihoods, likelihoods_gen,
-            proposed_states, proposed_states_gen)
+            ['proposed_particles', 'dummy_particles', 'dummy_particles_blur', 'dummy_particles_gen'], 
+            true_state, true_orientation, random_states, 
+            likelihoods, likelihoods_blur, likelihoods_gen,
+            proposed_states)
 
 
     def test_models_old(self, batch_size, state, orientation, obs, blurred_images, env):

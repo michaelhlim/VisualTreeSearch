@@ -121,14 +121,31 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
     plt.close()
 
 
+def plot_crosses(data, color, ax):
+    xy = data
+    x, y = zip(*xy)
+    for j in range(len(x)):
+        ax.plot(x[j], y[j], color)
+def plot_crosses_with_alphas(data, color, alphas, ax):
+    xy = data
+    x, y = zip(*xy)
+    if max(alphas) < 0.5:
+        heuristic_alpha = 0.5
+    else:
+        heuristic_alpha = 0
+    for j in range(len(x)):
+        ax.plot(x[j], y[j], color, alpha=min(alphas[j] + heuristic_alpha, 1.0))
+
 def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names, 
-            true_state, true_orientation, random_states, likelihoods, likelihoods_gen,
-            proposed_states, proposed_states_gen):
+            true_state, true_orientation, random_states, 
+            likelihoods, likelihoods_blur, likelihoods_gen,
+            proposed_states):
     '''
     Plot on the environment the state and proposed states for when the input is the true image
     versus when it is a generated image.
     '''
 
+    ## Plot all the proposed particles
     plt.figure(figure_names[0])
     ax = plt.axes()
     ax.set_xlim(xlim)
@@ -155,23 +172,18 @@ def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names,
     ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
         xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
 
-
     # Plot the true state and orientation
     ax.plot(true_state[0], true_state[1], 'ro')
     ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
 
     # Plot the proposed states for the true image as input
-    xy = proposed_states[:, :2]
-    x, y = zip(*xy)
-    for j in range(len(x)):
-        ax.plot(x[j], y[j], 'gx')
-    #ax.plot(x, y, 'gx')
+    plot_crosses(proposed_states[:, :2], 'gx', ax)
+    
+    # Plot the proposed states for the blurred image as input
+    # plot_crosses(proposed_states_blur[:, :2], 'yx', ax)
 
     # Plot the proposed states for the generated image as input
-    xy = proposed_states_gen[:, :2]
-    x, y = zip(*xy)
-    for j in range(len(x)):
-        ax.plot(x[j], y[j], 'bx')
+    # plot_crosses(proposed_states_gen[:, :2], 'bx', ax) 
     
     ax.set_aspect('equal')
 
@@ -179,47 +191,35 @@ def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names,
     plt.close()
 
 
+    def plot_dummys(likelihoods, fig_name):
+        plt.figure(fig_name)
+        ax = plt.axes()
+        # Plot the true state and orientation
+        ax.plot(true_state[0], true_state[1], 'ro')
+        ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
+        plot_crosses_with_alphas(random_states[:, :2], 'bx', likelihoods, ax)
+        ax.set_aspect('equal')
+        plt.savefig(fig_name)
+        plt.close()
 
-    plt.figure(figure_names[1])
+    ## Plot the dummy particles for the true image as input
+    plot_dummys(likelihoods, figure_names[1])
 
-    ax = plt.axes()
+    ## Plot the dummy particles for the blurred image as input
+    plot_dummys(likelihoods_blur, figure_names[2])
 
-    # Plot the true state and orientation
-    ax.plot(true_state[0], true_state[1], 'ro')
-    ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
+    ## Plot the dummy particles for the generated image as input
+    plot_dummys(likelihoods_gen, figure_names[3])
 
-    # Plot the random states with likelihoods for when the true image is inputted
-    xy = random_states[:, :2]
-    x, y = zip(*xy)
-    heuristic_alpha_mult = 1.5
-    for j in range(len(x)):
-        ax.plot(x[j], y[j], 'gx', alpha=min(likelihoods[j]*heuristic_alpha_mult, 1.0))
-    
-    ax.set_aspect('equal')
 
-    plt.savefig(figure_names[1])
+    fig1, ax1 = plt.subplots()
+    plt.hist(likelihoods, bins=np.linspace(min(likelihoods), max(likelihoods), 25), label='dummy_logits')
+    plt.hist(likelihoods_gen, bins=np.linspace(min(likelihoods_gen), max(likelihoods_gen), 25), label='dummy_logits_gen')
+    ax1.set_xlim(min(min(likelihoods), min(likelihoods_gen)), max(max(likelihoods), max(likelihoods_gen)))
+    plt.legend()
+    plt.savefig("likelihoods")
     plt.close()
-    
 
-    plt.figure(figure_names[2])
-
-    ax = plt.axes()
-
-    # Plot the true state and orientation
-    ax.plot(true_state[0], true_state[1], 'ro')
-    ax.quiver(true_state[0], true_state[1], np.cos(true_orientation), np.sin(true_orientation))
-
-    # Plot the random states with likelihoods for when the generated image is inputted
-    xy = random_states[:, :2]
-    x, y = zip(*xy)
-    heuristic_alpha_mult = 1.5
-    for j in range(len(x)):
-        ax.plot(x[j], y[j], 'bx', alpha=min(likelihoods_gen[j]*heuristic_alpha_mult, 1.0))
-
-    ax.set_aspect('equal')
-
-    plt.savefig(figure_names[2])
-    plt.close()
     
 
 def vts_pretraining_analysis_old(xlim, ylim, goal, trap, dark, figure_name='pretraining_analysis', 

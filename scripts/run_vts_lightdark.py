@@ -317,7 +317,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
     file2.close()
 
 
-def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_lightdark_driver(load_paths=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True):
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
@@ -336,9 +336,13 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
     #observation_generator = ObservationGenerator()
 
     # Let the user load in a previous model
-    if load_path is not None:
+    if load_paths is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
+        if len(load_paths) > 1:
+            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False) # Load Z/P
+            model.load_model(cwd + "/nets/" + load_paths[1] + "/vts_pre_trained", load_zp=False) # Load G
+        else:
+            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False)
 
     if pre_training:
         tic = time.perf_counter()
@@ -414,13 +418,15 @@ def vts_lightdark_driver(load_path=None, gen_load_path=None, pre_training=True, 
         steps = []
         # Train G
         for epoch in range(vlp.num_epochs_g):
-            noise_amount = 0
-            if epoch >= vlp.num_epochs_g/4:
-                noise_amount = 0.1
-            if epoch >= vlp.num_epochs_g/2:
-                noise_amount = 0.25
-            if epoch >= 3*vlp.num_epochs_g/4:
-                noise_amount = 0.4
+            # noise_amount = 0
+            # if epoch >= vlp.num_epochs_g/4:
+            #     noise_amount = 0.1
+            # if epoch >= vlp.num_epochs_g/2:
+            #     noise_amount = 0.25
+            # if epoch >= 3*vlp.num_epochs_g/4:
+            #     noise_amount = 0.4
+
+            noise_amount = 0.4
 
             data_files_indices = env.shuffle_dataset()
 
@@ -486,14 +492,15 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        #vts_lightdark_driver(load_path="vts_lightdark08-05-15_13_47", end_to_end=False, save_online_model=False, test=False)
-        # vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
+        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_lightdark_driver(load_path="vts_lightdark10-11-23_23_23", pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark10-11-23_23_23"], 
+        #            pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_lightdark_driver()
