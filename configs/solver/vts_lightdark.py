@@ -1,7 +1,7 @@
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:1'
+        self.device = 'cuda:0'
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -27,7 +27,7 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 1000 #400 
+        self.num_epochs_g = 500 #400 
 
         ## Encoder
         self.leak_rate_enc = 0

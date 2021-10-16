@@ -60,7 +60,8 @@ def vts_lightdark(model, experiment_id, train, model_path):
     file2 = open(save_path + "/" + txt_path_10, 'w+')
 
 
-    env = StanfordEnvironment()
+    env = StanfordEnvironment(disc_thetas=True)
+    normalization_data = env.preprocess_data()
 
     # Begin main dualSMC loop
     for episode in range(num_loops):
@@ -74,12 +75,9 @@ def vts_lightdark(model, experiment_id, train, model_path):
         time_list_step = []
         reward_list_step = []
 
-        hidden = np.zeros((vlp.num_lstm_layer, 1, vlp.dim_lstm_hidden))
-        cell = np.zeros((vlp.num_lstm_layer, 1, vlp.dim_lstm_hidden))
-
         curr_state = env.state
         curr_orientation = env.orientation
-        curr_obs, _, _, _ = env.get_observation() 
+        curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
         trajectory.append(curr_state)
 
         par_states, par_orientations = env.make_pars(vlp.num_par_pf)   
@@ -111,19 +109,16 @@ def vts_lightdark(model, experiment_id, train, model_path):
             # Observation model
             curr_obs_tensor = torch.FloatTensor(curr_obs).permute(2, 0, 1)  # [in_channels, img_size, img_size]
             if step == 0:
-                lik, _, _ = model.measure_net.m_model(     # [1, num_par]
+                lik = model.measure_net.m_model(     # [1, num_par]
                     torch.FloatTensor(par_states).to(vlp.device),
                     torch.FloatTensor(par_orientations).to(vlp.device),
-                    curr_obs_tensor.unsqueeze(0).to(vlp.device),
-                    torch.FloatTensor(hidden).to(vlp.device),
-                    torch.FloatTensor(cell).to(vlp.device))
+                    curr_obs_tensor.unsqueeze(0).to(vlp.device))
             else:
-                lik, _, _ = model.measure_net.m_model(     # [1, num_par]
+                lik = model.measure_net.m_model(     # [1, num_par]
                     torch.FloatTensor(par_states).to(vlp.device),
                     torch.FloatTensor(np.tile([curr_orientation], (vlp.num_par_pf, 1))).to(vlp.device),
-                    curr_obs_tensor.unsqueeze(0).to(vlp.device),
-                    torch.FloatTensor(hidden).to(vlp.device),
-                    torch.FloatTensor(cell).to(vlp.device))
+                    curr_obs_tensor.unsqueeze(0).to(vlp.device))
+
             par_weight += lik.squeeze()  # [num_par_pf]
             normalized_weights = torch.softmax(par_weight, -1)
 
@@ -149,8 +144,8 @@ def vts_lightdark(model, experiment_id, train, model_path):
             tic = time.perf_counter()
             #######################################
             # Planning
-            states_init = par_states
-            action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
+            states_init = par_states   # Goes into replay buffer
+            action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Already includes velocity
             #######################################
             
             # Resampling
@@ -210,10 +205,10 @@ def vts_lightdark(model, experiment_id, train, model_path):
 
             #######################################
             # Update the environment
-            reward = env.step(action * sep.step_range)
+            reward = env.step(action * sep.step_range, action_is_vector=True)
             next_state = env.state
             next_orientation = env.orientation
-            next_obs, _, _, _ = env.get_observation()
+            next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
             #######################################
             if train:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs_tensor,
@@ -228,14 +223,13 @@ def vts_lightdark(model, experiment_id, train, model_path):
 
             #######################################
             # Transition Model
+            ## MAYBE THIS SHOULD NOT TRANSITION A STATE IF IT'S IN COLLISION? ##
             next_par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
             par_states = next_par_states[:, :sep.dim_state]    
             #######################################            
             curr_state = next_state
             curr_orientation = next_orientation
             curr_obs = next_obs
-            hidden = 0
-            cell = 0
             trajectory.append(next_state)
             # Recording data
             time_this_step = toc - tic
@@ -331,7 +325,7 @@ def vts_lightdark_driver(load_paths=None, gen_load_path=None, pre_training=True,
 
     # Create a model and environment object
     model = VTS()
-    env = StanfordEnvironment() 
+    env = StanfordEnvironment(disc_thetas=True) 
 
     #observation_generator = ObservationGenerator()
 
@@ -342,7 +336,7 @@ def vts_lightdark_driver(load_paths=None, gen_load_path=None, pre_training=True,
             model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False) # Load Z/P
             model.load_model(cwd + "/nets/" + load_paths[1] + "/vts_pre_trained", load_zp=False) # Load G
         else:
-            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False)
+            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained") # Load all models
 
     if pre_training:
         tic = time.perf_counter()
@@ -426,7 +420,7 @@ def vts_lightdark_driver(load_paths=None, gen_load_path=None, pre_training=True,
             # if epoch >= 3*vlp.num_epochs_g/4:
             #     noise_amount = 0.4
 
-            noise_amount = 0.4
+            noise_amount = 0.25 #0.4
 
             data_files_indices = env.shuffle_dataset()
 
@@ -493,14 +487,14 @@ if __name__ == "__main__":
 
         # Just pre-training
         #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
-        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        #vts_lightdark_driver(load_paths=["vts_lightdark10-11-23_23_23"], 
-        #            pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], 
+                    pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_lightdark_driver()

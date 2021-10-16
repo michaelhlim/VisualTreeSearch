@@ -18,12 +18,13 @@ from examples.examples import *  # generate_observation
 
 
 class StanfordEnvironment(AbstractEnvironment):
-    def __init__(self):
+    def __init__(self, disc_thetas=False):
         self.done = False
         self.true_env_corner = [24.0, 23.0] 
         self.xrange = [0, 8.5]
         self.yrange = [0, 1.5]
         self.thetas = [0.0, 2*np.pi]
+        self.disc_thetas = disc_thetas
         self.discrete_thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
         self.discrete_thetas = self.discrete_thetas.reshape((len(self.discrete_thetas), 1))
         self.trap_x = [[1.5, 2], [6.5, 7]] #[[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] 
@@ -79,8 +80,11 @@ class StanfordEnvironment(AbstractEnvironment):
 
 
     def initial_state(self):
-        orientation = np.random.rand()  
-        orientation = orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+        if self.disc_thetas:
+            orientation = self.discrete_thetas[np.random.randint(len(self.discrete_thetas))][0]
+        else:
+            orientation = np.random.rand()  
+            orientation = orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
 
         valid_state = False
         while not valid_state:
@@ -102,6 +106,7 @@ class StanfordEnvironment(AbstractEnvironment):
         out = image
 
         if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
+        #if True:
             s_vs_p = 0.5
             amount = noise_amount  
             out = np.copy(image)
@@ -120,7 +125,7 @@ class StanfordEnvironment(AbstractEnvironment):
         return out
 
 
-    def get_observation(self, state=None, path=None, normalize=True):
+    def get_observation(self, state=None, normalize=True, normalization_data=None):
         if state == None:
             state_temp = self.state
             state = self.state + self.true_env_corner
@@ -130,10 +135,9 @@ class StanfordEnvironment(AbstractEnvironment):
             state = state + self.true_env_corner
             state_arr = np.array([state])
 
-        if path == None:
-            path = os.getcwd() + '/images/' 
-            #os.mkdir(path)
-            check_path(path)
+        path = os.getcwd() + '/images/' 
+        #os.mkdir(path)
+        check_path(path)
 
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -143,7 +147,14 @@ class StanfordEnvironment(AbstractEnvironment):
         out = np.ascontiguousarray(out)
 
         if normalize:
-            out = (out - out.mean())/out.std()  # "Normalization" -- TODO
+            rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+            img_rslice = (out[:, :, 0] - rmean)/rstd
+            img_gslice = (out[:, :, 1] - gmean)/gstd
+            img_bslice = (out[:, :, 2] - bmean)/bstd
+
+            out = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
+
+            #out = (out - out.mean())/out.std()  # "Normalization" -- TODO
 
         os.remove(img_path)
         os.rmdir(path)
@@ -219,12 +230,18 @@ class StanfordEnvironment(AbstractEnvironment):
         return goal
 
 
-    def step(self, action):
+    def step(self, action, action_is_vector=False):
         self.done = False
         curr_state = self.state
-        new_theta = action[0] * np.pi + np.pi
-        vector = np.array([np.cos(new_theta), np.sin(new_theta)]) * sep.velocity  # Go in the direction the new theta is
-        next_state = curr_state + vector
+        if action_is_vector:
+            new_theta = np.arctan2(action[1], action[0])
+            if new_theta < 0:  # Arctan stuff
+                new_theta += 2*np.pi
+            next_state = curr_state + action
+        else:
+            new_theta = action[0] * np.pi + np.pi
+            vector = np.array([np.cos(new_theta), np.sin(new_theta)]) * sep.velocity  # Go in the direction the new theta is
+            next_state = curr_state + vector
     
         cond_hit = self.detect_collision(next_state)
 
@@ -244,8 +261,10 @@ class StanfordEnvironment(AbstractEnvironment):
 
     
     def make_pars(self, batch_size):
-        thetas = self.discrete_thetas[np.random.randint(len(self.discrete_thetas), size=batch_size)]
-        # thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
+        if self.disc_thetas:
+            thetas = self.discrete_thetas[np.random.randint(len(self.discrete_thetas), size=batch_size)]
+        else:
+            thetas = np.random.rand(batch_size, 1) * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
 
         xs = np.zeros((batch_size, 1))
         ys = np.zeros((batch_size, 1))
@@ -295,6 +314,11 @@ class StanfordEnvironment(AbstractEnvironment):
 
     def transition(self, s, w, a):
         # transition each state in state tensor s with actions in action/action tensor a
+
+        # s: [num_par, dim_state]
+        # a: [dim_state]  (It's a vector)
+        # w: [num_par]
+
         if w is not None:
             weights = np.copy(w)
             next_weights = np.copy(w)
@@ -306,16 +330,16 @@ class StanfordEnvironment(AbstractEnvironment):
         action_angle = np.arctan2(a[1], a[0])
         if action_angle < 0:  # Arctan stuff
             action_angle += 2*np.pi
-        orientations_next = np.tile(action_angle, (len(sp), 1))  
-        sp = np.concatenate((sp, orientations_next), -1) 
+        orientations_next = np.tile(action_angle, (len(sp), 1))  # [num_par, 1]
+        sp = np.concatenate((sp, orientations_next), -1)  # [num_par, dim_state + 1]
         next_state = np.copy(sp)
         reward = 0.0
 
-        cond_hit = np.array([self.detect_collision(state) for state in sp])
-        goal_achieved = np.array([self.in_goal(state) for state in sp])
-        step_ok = (~cond_hit | goal_achieved)
+        cond_hit = np.array([self.detect_collision(state) for state in sp])  # [num_par]
+        goal_achieved = np.array([self.in_goal(state) for state in sp])  # [num_par]
+        step_ok = (~cond_hit | goal_achieved)  
 
-        trap = np.array([self.in_trap(state) for state in sp])
+        trap = np.array([self.in_trap(state) for state in sp])  # [num_par]
         normal_step = ~(goal_achieved | trap)
 
         # If goal reached
@@ -353,16 +377,19 @@ class StanfordEnvironment(AbstractEnvironment):
         if self.in_goal(state):
             return np.array([0, 0])
 
+        # Shortest distance to goal is to horizontal edges of rectangle
         if x >= self.target_x[0] and x <= self.target_x[1]:
             y_dist_argmin = np.argmin([abs(self.target_y[1] - y), abs(self.target_y[0] - y)])
             vec_dist = [self.target_y[1] - y, self.target_y[0] - y]
             vec = np.array([0, vec_dist[y_dist_argmin]])
         
+        # Shortest distance to goal is to vertical edges of rectangle
         elif y >= self.target_y[0] and y <= self.target_y[1]:
             x_dist_argmin = np.argmin([abs(self.target_x[1] - x), abs(self.target_x[0] - x)])
             vec_dist = [self.target_x[1] - x, self.target_x[0] - x]
             vec = np.array([vec_dist[x_dist_argmin], 0])
         
+        # Shortest distance to goal is to one of the goal corners
         else:
             corners = np.array([[self.target_x[0], self.target_y[0]], 
                                 [self.target_x[0], self.target_y[1]],
@@ -377,9 +404,9 @@ class StanfordEnvironment(AbstractEnvironment):
 
     def rollout(self, s, ss, ws):
         '''
-        s - one sampled state out of all particles
-        ss - all other particles
-        ws - weights on the particles
+        s - one sampled state out of all particles  [dim_state + 1]
+        ss - all other particles  [num_par, dim_state + 1]
+        ws - weights on the particles  [num_par]
         '''
 
         # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
@@ -425,18 +452,18 @@ class StanfordEnvironment(AbstractEnvironment):
             rstd = 0
             gstd = 0
             bstd = 0
-            for i in range(len(self.data_files)):
-                img_path = self.data_files[i]
+            for i in range(len(self.training_data_files)):
+                img_path = self.training_data_files[i]
                 src = cv2.imread(img_path, cv2.IMREAD_COLOR)
                 src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
                 
-                rmean += src[:, :, 0].mean()/len(self.data_files)
-                gmean += src[:, :, 1].mean()/len(self.data_files)
-                bmean += src[:, :, 2].mean()/len(self.data_files)
+                rmean += src[:, :, 0].mean()/len(self.training_data_files)
+                gmean += src[:, :, 1].mean()/len(self.training_data_files)
+                bmean += src[:, :, 2].mean()/len(self.training_data_files)
                 
-                rstd += src[:, :, 0].std()/len(self.data_files)  ## TODO: FIX?
-                gstd += src[:, :, 1].std()/len(self.data_files)
-                bstd += src[:, :, 2].std()/len(self.data_files)
+                rstd += src[:, :, 0].std()/len(self.training_data_files)  ## TODO: FIX?
+                gstd += src[:, :, 1].std()/len(self.training_data_files)
+                bstd += src[:, :, 2].std()/len(self.training_data_files)
             
             normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
             pickle.dump(normalization_data, open("data_normalization.p", "wb"))
