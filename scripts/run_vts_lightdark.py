@@ -93,6 +93,14 @@ def vts_lightdark(model, experiment_id, train, model_path):
             if os.path.exists(traj_dir):
                 shutil.rmtree(traj_dir)
             os.mkdir(traj_dir)
+        
+        if vlp.show_distr and episode % vlp.display_iter == 0:
+            check_path(img_path + "/distrs/")
+            distr_dir = img_path + "/distrs/" + "/distr-" + str(episode)
+            if os.path.exists(distr_dir):
+                shutil.rmtree(distr_dir)
+            os.mkdir(distr_dir)
+                
 
 
         num_par_propose = int(vlp.num_par_pf * vlp.pp_ratio)
@@ -123,15 +131,13 @@ def vts_lightdark(model, experiment_id, train, model_path):
             normalized_weights = torch.softmax(par_weight, -1)
 
             if vlp.show_distr and episode % vlp.display_iter == 0:
-                check_path(img_path + "/distrs/")
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
                     file_name = 'im0' + str(step)
                 else:
                     file_name = 'im' + str(step)
-                #frm_name = traj_dir + '/' + file_name + '_distr' + sep.fig_format
-                frm_name = img_path + "/distrs/" + file_name + '_distr' + sep.fig_format  
+                frm_name = distr_dir + '/' + file_name + '_par' + sep.fig_format
                 weights = normalized_weights.detach().cpu().numpy()
                 fig1, ax1 = plt.subplots()
                 plt.hist(weights, bins=np.logspace(-5, 0, 50))
@@ -145,7 +151,13 @@ def vts_lightdark(model, experiment_id, train, model_path):
             #######################################
             # Planning
             states_init = par_states   # Goes into replay buffer
-            action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Already includes velocity
+            action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Already includes velocity
+            # For visualizing the planned trajectory
+            mean_s = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
+            state_traj = [mean_s]
+            for action in traj:
+                state_traj.append(mean_s + action)
+            state_traj = np.array(state_traj)
             #######################################
             
             # Resampling
@@ -199,7 +211,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
                             trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
                     plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                            mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, None)
+                            mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, state_traj)
                     #plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #        mean_state, par_states, normalized_weights.cpu().numpy(), None, None)
 
@@ -223,7 +235,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
 
             #######################################
             # Transition Model
-            ## MAYBE THIS SHOULD NOT TRANSITION A STATE IF IT'S IN COLLISION? ##
+            ## MAYBE THIS SHOULD NOT TRANSITION A STATE IF IT'S IN COLLISION? ## ---- DONE
             next_par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
             par_states = next_par_states[:, :sep.dim_state]    
             #######################################            
@@ -311,11 +323,11 @@ def vts_lightdark(model, experiment_id, train, model_path):
     file2.close()
 
 
-def vts_lightdark_driver(load_paths=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True):
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
-    foldername = "data/" + experiment_id
+    foldername = "data/pretraining/" + experiment_id
     check_path(foldername)
     model_path = "nets/" + experiment_id
     check_path(model_path)
@@ -420,7 +432,7 @@ def vts_lightdark_driver(load_paths=None, gen_load_path=None, pre_training=True,
             # if epoch >= 3*vlp.num_epochs_g/4:
             #     noise_amount = 0.4
 
-            noise_amount = 0.25 #0.4
+            noise_amount = 0.25 #1.0 #0.25 #0.4
 
             data_files_indices = env.shuffle_dataset()
 
@@ -493,8 +505,7 @@ if __name__ == "__main__":
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], 
-                    pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_lightdark_driver()

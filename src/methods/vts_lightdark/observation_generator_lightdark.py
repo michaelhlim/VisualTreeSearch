@@ -119,7 +119,7 @@ class ObservationGenerator(nn.Module):
         #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
         z = self.reparameterize(mu, log_var)  # [batch_size, latent_dim]
 
-        recons = self.decode(conditional_input, z)
+        recons = self.decode(conditional_input, z)  # [batch_size, obs_encode_out]
         recons = self.conv.decode(recons)
 
         #return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]

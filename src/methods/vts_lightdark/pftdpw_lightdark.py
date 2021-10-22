@@ -110,7 +110,7 @@ class PFTDPW():
 			# Generate particle belief set
 			# lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
 			# 							torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
-			# 							o, self.n_par, obs_is_encoded=True)  # [1, num_par]
+			# 							o.detach(), self.n_par, obs_is_encoded=True)  # [1, num_par]
 			lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
 										torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
 										o.detach(), self.n_par)  # [1, num_par]
@@ -137,11 +137,47 @@ class PFTDPW():
 		# call plan when given states and weights
 		b = BeliefNode(states=s, weights=w)
 		a_id = self.plan(b)
+
+		traj = self.trajectory(a_id)
 		
 		if a_id == None:
-			return self.env.action_sample()
+			return self.env.action_sample(), traj
 		else:
-			return self.tree.action_ids[a_id]
+			return self.tree.action_ids[a_id], traj
+
+
+	def trajectory(self, a_id):
+		# For visualization purposes: give the whole trajectory outputted by the planner
+		# of length (self.depth)
+
+		best_a = a_id
+		if best_a == None:
+			action_list = [self.env.action_sample()]
+		else:
+			action_list = [self.tree.action_ids[best_a]]
+
+		i = 0
+		while best_a is not None and i < self.depth:
+			# Pick a belief node at random
+			bp_id, r = self.tree.transitions[best_a][int(np.random.choice(range(len(self.tree.transitions[best_a])), 1))]
+			# Find the best action from the new belief node
+			best_q = -np.inf
+			best_a = None
+			for child in self.tree.child_actions[bp_id]:
+				if self.tree.q[child] > best_q:
+					best_q = self.tree.q[child]
+					best_a = child
+			
+			# Add the best action to the trajectory
+			if best_a == None:
+				action_list.append(self.env.action_sample()) 
+			else:
+				action_list.append(self.tree.action_ids[best_a])
+			
+			i += 1
+		
+		return action_list
+
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action

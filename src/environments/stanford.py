@@ -27,9 +27,9 @@ class StanfordEnvironment(AbstractEnvironment):
         self.disc_thetas = disc_thetas
         self.discrete_thetas = np.array([0.0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi, 5*np.pi/4, 3*np.pi/2, 7*np.pi/4])
         self.discrete_thetas = self.discrete_thetas.reshape((len(self.discrete_thetas), 1))
-        self.trap_x = [[1.5, 2], [6.5, 7]] #[[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] 
+        self.trap_x = [[1.5, 2], [6.5, 7]] 
         self.trap_y = [0, 0.25]
-        self.target_x = [4, 4.5] #[3.5, 4.5] #[1.5, 6.5] #[3, 5] #[3.5, 4.5]
+        self.target_x = [4, 4.5] 
         self.target_y = [0, 0.25]
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
@@ -67,6 +67,16 @@ class StanfordEnvironment(AbstractEnvironment):
         self.testing_data_files = glob.glob(self.testing_data_path)
         self.normalization = sep.normalization
 
+
+        s_vs_p = 0.5
+        amount = 0.25 
+        size = 32*32*3
+        num_salt = np.ceil(amount * size * s_vs_p)
+        num_pepper = np.ceil(amount * size * (1. - s_vs_p))
+        noise_indices = np.random.choice(size, int(num_salt + num_pepper), replace=False) 
+        self.salt_indices = noise_indices[:int(num_salt)]
+        self.pepper_indices = noise_indices[int(num_salt):]
+
     
     def reset_environment(self):
         self.done = False
@@ -99,6 +109,36 @@ class StanfordEnvironment(AbstractEnvironment):
         return state, orientation 
 
 
+    # def noise_image(self, image, state, noise_amount=sep.noise_amount):
+    #     salt = 255
+    #     pepper = 0
+
+    #     out = image
+
+    #     #if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
+    #     if True:
+    #         #s_vs_p = 0.5
+    #         #amount = noise_amount  
+    #         out = np.copy(image)
+    #         #num_salt = np.ceil(amount * image.size * s_vs_p)
+    #         #num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+    #         #noise_indices = np.random.choice(image.size, int(num_salt + num_pepper), replace=False) 
+    #         #salt_indices = noise_indices[:int(num_salt)]
+    #         #pepper_indices = noise_indices[int(num_salt):]
+    #         #salt_coords = np.unravel_index(salt_indices, image.shape)
+    #         #pepper_coords = np.unravel_index(pepper_indices, image.shape)
+    #         #out[salt_coords] = salt
+    #         #out[pepper_coords] = pepper
+
+    #         salt_coords = np.unravel_index(self.salt_indices, image.shape)
+    #         pepper_coords = np.unravel_index(self.pepper_indices, image.shape)
+    #         out[salt_coords] = salt
+    #         out[pepper_coords] = pepper
+        
+    #     #cv2.imwrite("out_debug.png", out)
+
+    #     return out
+
     def noise_image(self, image, state, noise_amount=sep.noise_amount):
         salt = 255
         pepper = 0
@@ -123,7 +163,6 @@ class StanfordEnvironment(AbstractEnvironment):
         #cv2.imwrite("out_debug.png", out)
 
         return out
-
 
     def get_observation(self, state=None, normalize=True, normalization_data=None):
         if state == None:
@@ -332,12 +371,17 @@ class StanfordEnvironment(AbstractEnvironment):
             action_angle += 2*np.pi
         orientations_next = np.tile(action_angle, (len(sp), 1))  # [num_par, 1]
         sp = np.concatenate((sp, orientations_next), -1)  # [num_par, dim_state + 1]
-        next_state = np.copy(sp)
+        #next_state = np.copy(sp)
         reward = 0.0
 
         cond_hit = np.array([self.detect_collision(state) for state in sp])  # [num_par]
         goal_achieved = np.array([self.in_goal(state) for state in sp])  # [num_par]
         step_ok = (~cond_hit | goal_achieved)  
+
+        # Don't transition the states that are going to collide (but change their orientations)
+        if any(cond_hit):
+            sp[cond_hit, :2] = s[cond_hit, :2]
+        next_state = np.copy(sp)
 
         trap = np.array([self.in_trap(state) for state in sp])  # [num_par]
         normal_step = ~(goal_achieved | trap)
@@ -486,7 +530,7 @@ class StanfordEnvironment(AbstractEnvironment):
         remove = 4
         rounding = 3
 
-        if (epoch_step + 1)*batch_size > len(data_files_indices):
+        if (epoch_step + 1)*batch_size > len(data_files_indices):  # If amount of training data not divisible by batch size
             indices = data_files_indices[epoch_step*batch_size:]
         else:
             indices = data_files_indices[epoch_step*batch_size:(epoch_step + 1)*batch_size]
@@ -506,7 +550,7 @@ class StanfordEnvironment(AbstractEnvironment):
             states.append(state[:sep.dim_state])
             orientations.append(state[sep.dim_state])
 
-            src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+            src = cv2.imread(img_path, cv2.IMREAD_COLOR)  # src is now in BGR
 
             src = self.noise_image(src, state, noise_amount)
 

@@ -1,7 +1,7 @@
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:0'
+        self.device = 'cuda:1'
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -27,7 +27,7 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 500 #400 
+        self.num_epochs_g = 400 
 
         ## Encoder
         self.leak_rate_enc = 0
@@ -42,7 +42,7 @@ class VTS_LightDark_Params():
         #self.train = True
         #self.num_pretraining_steps = 50
         self.max_episodes_train = 2000 #5000
-        self.max_episodes_test = 1 #500 #1000
+        self.max_episodes_test = 20 #10 #1 #500 #1000
         self.batch_size = 64 #128 #64
         self.fil_lr = 3e-4 #1e-3 # filtering
         self.pla_lr = 3e-4 #1e-3 # planning
@@ -51,7 +51,7 @@ class VTS_LightDark_Params():
         self.display_iter = 1 #4 #10
         #self.pretrain = 500e3
         self.show_traj = True
-        self.show_distr = False
+        self.show_distr = True
         
 
         ######################
