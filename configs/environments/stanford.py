@@ -12,7 +12,7 @@ class Stanford_Environment_Params():
         #self.end_range = 0.01
         self.step_range = 1 #0.05
         self.max_steps = 200
-        self.discount = 0.99
+        self.discount = 0.99    # Change ---   0.9 or 0.95   ---- move to vlp params
         self.noise_amount = 0.4 #1.0 #0.4 #0.15
         self.fig_format = '.png'
         self.img = 'data/img/'

@@ -1,7 +1,7 @@
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:1'
+        self.device = 'cuda:0'
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -39,8 +39,6 @@ class VTS_LightDark_Params():
         ######################
         # Training
         self.num_training_data = 16000 #8000
-        #self.train = True
-        #self.num_pretraining_steps = 50
         self.max_episodes_train = 2000 #5000
         self.max_episodes_test = 20 #10 #1 #500 #1000
         self.batch_size = 64 #128 #64
@@ -49,10 +47,8 @@ class VTS_LightDark_Params():
         self.summary_iter = 100
         self.save_iter = 1 #40 #100
         self.display_iter = 1 #4 #10
-        #self.pretrain = 500e3
         self.show_traj = True
         self.show_distr = True
-        
 
         ######################
         # Filtering
@@ -63,33 +59,18 @@ class VTS_LightDark_Params():
         self.pp_loss_type = 'adv'  # 'mse', 'adv', 'density'
 
         # ######################
-        # Planning
-        # self.num_par_smc_init = 3
-        # self.num_par_smc = 10 #30
-        # self.horizon = 10
-        # self.smcp_mode = 'topk' # 'samp', 'topk'
-        # self.smcp_resample = True
-        # self.smcp_resample_step = 1 #3
-
         # PFTDPW    
-        self.num_query = 100
+        self.num_query = 100  # Change  1000
         self.ucb_exploration = 10.0
-        self.k_observation = 4.0
+        self.k_observation = 4.0  # Change  3
         self.alpha_observation = 0.25
-        self.k_action = 3.0
+        self.k_action = 3.0   # Change  5
         self.alpha_action = 0.25
         self.num_par_pftdpw = 100
         self.horizon = 10
-        self.discount = 0.99
+        self.discount = 0.99    # Same as sep discount --- fix
 
         # ######################
         # SAC
-        # self.log_sig_max = 2
-        # self.log_sig_min = -20
         self.replay_buffer_size = 100000
-        # self.alpha = 1.0
-        # self.gamma = 0.95
-        # self.tau = 0.005
-        # self.const = 1e-6
-        # self.critic_update = 1 #50
 

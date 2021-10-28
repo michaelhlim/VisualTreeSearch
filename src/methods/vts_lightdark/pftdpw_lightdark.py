@@ -138,7 +138,8 @@ class PFTDPW():
 		b = BeliefNode(states=s, weights=w)
 		a_id = self.plan(b)
 
-		traj = self.trajectory(a_id)
+		#traj = self.trajectory(a_id)
+		traj = None
 		
 		if a_id == None:
 			return self.env.action_sample(), traj
@@ -161,12 +162,18 @@ class PFTDPW():
 			# Pick a belief node at random
 			bp_id, r = self.tree.transitions[best_a][int(np.random.choice(range(len(self.tree.transitions[best_a])), 1))]
 			# Find the best action from the new belief node
-			best_q = -np.inf
-			best_a = None
-			for child in self.tree.child_actions[bp_id]:
-				if self.tree.q[child] > best_q:
-					best_q = self.tree.q[child]
-					best_a = child
+			if len(self.tree.child_actions[bp_id]) > 0:
+				index = np.argmax(np.array([self.tree.q[child] for child in self.tree.child_actions[bp_id]])) 
+				best_a = self.tree.child_actions[bp_id][index]
+			else:
+				best_a = None
+
+			# best_q = -np.inf
+			# best_a = None
+			# for child in self.tree.child_actions[bp_id]:
+			# 	if self.tree.q[child] > best_q:
+			# 		best_q = self.tree.q[child]
+			# 		best_a = child
 			
 			# Add the best action to the trajectory
 			if best_a == None:
@@ -193,7 +200,7 @@ class PFTDPW():
 
 		# Find the best action from the root node
 		best_q = -np.inf
-		best_a = None
+		best_a = None 
 		for child in self.tree.child_actions[b_init]:
 			if self.tree.q[child] > best_q:
 				best_q = self.tree.q[child]

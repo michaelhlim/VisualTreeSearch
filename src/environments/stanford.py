@@ -68,14 +68,14 @@ class StanfordEnvironment(AbstractEnvironment):
         self.normalization = sep.normalization
 
 
-        s_vs_p = 0.5
-        amount = 0.25 
-        size = 32*32*3
-        num_salt = np.ceil(amount * size * s_vs_p)
-        num_pepper = np.ceil(amount * size * (1. - s_vs_p))
-        noise_indices = np.random.choice(size, int(num_salt + num_pepper), replace=False) 
-        self.salt_indices = noise_indices[:int(num_salt)]
-        self.pepper_indices = noise_indices[int(num_salt):]
+        # s_vs_p = 0.5
+        # amount = 0.4 
+        # size = 32*32*3
+        # num_salt = np.ceil(amount * size * s_vs_p)
+        # num_pepper = np.ceil(amount * size * (1. - s_vs_p))
+        # noise_indices = np.random.choice(size, int(num_salt + num_pepper), replace=False) 
+        # self.salt_indices = noise_indices[:int(num_salt)]
+        # self.pepper_indices = noise_indices[int(num_salt):]
 
     
     def reset_environment(self):
@@ -115,20 +115,9 @@ class StanfordEnvironment(AbstractEnvironment):
 
     #     out = image
 
-    #     #if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
-    #     if True:
-    #         #s_vs_p = 0.5
-    #         #amount = noise_amount  
+    #     if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
+    #     #if True:
     #         out = np.copy(image)
-    #         #num_salt = np.ceil(amount * image.size * s_vs_p)
-    #         #num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
-    #         #noise_indices = np.random.choice(image.size, int(num_salt + num_pepper), replace=False) 
-    #         #salt_indices = noise_indices[:int(num_salt)]
-    #         #pepper_indices = noise_indices[int(num_salt):]
-    #         #salt_coords = np.unravel_index(salt_indices, image.shape)
-    #         #pepper_coords = np.unravel_index(pepper_indices, image.shape)
-    #         #out[salt_coords] = salt
-    #         #out[pepper_coords] = pepper
 
     #         salt_coords = np.unravel_index(self.salt_indices, image.shape)
     #         pepper_coords = np.unravel_index(self.pepper_indices, image.shape)
@@ -174,7 +163,7 @@ class StanfordEnvironment(AbstractEnvironment):
             state = state + self.true_env_corner
             state_arr = np.array([state])
 
-        path = os.getcwd() + '/images/' 
+        path = os.getcwd() + '/images1/' 
         #os.mkdir(path)
         check_path(path)
 
@@ -381,7 +370,6 @@ class StanfordEnvironment(AbstractEnvironment):
         # Don't transition the states that are going to collide (but change their orientations)
         if any(cond_hit):
             sp[cond_hit, :2] = s[cond_hit, :2]
-        next_state = np.copy(sp)
 
         trap = np.array([self.in_trap(state) for state in sp])  # [num_par]
         normal_step = ~(goal_achieved | trap)
@@ -419,7 +407,7 @@ class StanfordEnvironment(AbstractEnvironment):
         y = state[1]
 
         if self.in_goal(state):
-            return np.array([0, 0])
+            return np.array([0, 0]), 0
 
         # Shortest distance to goal is to horizontal edges of rectangle
         if x >= self.target_x[0] and x <= self.target_x[1]:
@@ -465,7 +453,19 @@ class StanfordEnvironment(AbstractEnvironment):
 
         goal_reached = [self.in_goal(state) for state in ss_copy]
         trap_reached = [self.in_trap(state) for state in ss_copy]
-        r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward
+        
+        # For more optimistic rollouts
+        #Find all particles that didn't make it either to the goal or the traps
+        not_goal_reached = np.array([not goal_reached[i] and not trap_reached[i] for i in range(len(goal_reached))])
+        sorted_weight_indices = np.argsort(ws)[::-1]
+        sorted_weights = ws[sorted_weight_indices]
+        #Select the particles out of those that have the highest weights
+        not_goal_reached_sorted = not_goal_reached[sorted_weight_indices]
+        top_k = 15
+        #optimism = np.dot(not_goal_reached, ws) * sep.epi_reward
+        optimism = np.dot(not_goal_reached_sorted[:top_k], sorted_weights[:top_k]) * sep.epi_reward
+
+        r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward + optimism
         reward += gamma * r
 
         return reward 
@@ -647,28 +647,4 @@ class StanfordEnvironment(AbstractEnvironment):
         return np.array(states), np.array(orientations), np.array(images), np.array(blurred_images)  
     
 
-    # def get_par_batch(self, states, num_particles):
-    #     for i in range(len(states)):
-    #         state = states[i]
-
-    #         if state[1] < self.dark_line:
-    #             obs_std = sep.obs_std_dark
-    #         else:
-    #             obs_std = sep.obs_std_light
-                
-    #         par_vec_x = np.random.normal(state[0], obs_std, num_particles)
-    #         par_vec_y = np.random.normal(state[1], obs_std, num_particles)
-    #         par_vec_theta = np.tile([state[2]], (num_particles, 1))
-
-    #         middle_var = np.stack((par_vec_x, par_vec_y, par_vec_theta), 1)
-
-    #         if i == 0:
-    #             par_batch = middle_var
-    #         else:
-    #             par_batch = np.concatenate((par_batch, middle_var), 0)
-
-    #     return par_batch
-
-
- 
-
+   

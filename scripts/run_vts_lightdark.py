@@ -151,12 +151,13 @@ def vts_lightdark(model, experiment_id, train, model_path):
             #######################################
             # Planning
             states_init = par_states   # Goes into replay buffer
-            action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Already includes velocity
+            action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Action already includes velocity
             # For visualizing the planned trajectory
             mean_s = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
-            state_traj = [mean_s]
-            for action in traj:
-                state_traj.append(mean_s + action)
+            state_traj = [mean_s] 
+            if traj is not None:
+                for action in traj:
+                    state_traj.append(mean_s + action)
             state_traj = np.array(state_traj)
             #######################################
             
@@ -432,15 +433,14 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
             # if epoch >= 3*vlp.num_epochs_g/4:
             #     noise_amount = 0.4
 
-            noise_amount = 0.25 #1.0 #0.25 #0.4
+            #noise_amount = 0.25 
 
             data_files_indices = env.shuffle_dataset()
 
             for step in range(steps_per_epoch):
 
                 states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
-                                                        step, normalization_data, vlp.num_par_pf,
-                                                        noise_amount=noise_amount)
+                                                        step, normalization_data, vlp.num_par_pf)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
@@ -505,8 +505,8 @@ if __name__ == "__main__":
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
-
+        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
         # Everything
         # vts_lightdark_driver()
 

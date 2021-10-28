@@ -14,9 +14,13 @@ sep = Stanford_Environment_Params()
 
 model = VTS(shared_enc=False)
 env = StanfordEnvironment() 
-load_path = "vts_lightdark10-21-19_16_05"
+load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"]
 cwd = os.getcwd()
-model.load_model(cwd + "/nets/" + load_path + "/vts_pre_trained")
+if len(load_paths) > 1:
+    model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False) # Load Z/P
+    model.load_model(cwd + "/nets/" + load_paths[1] + "/vts_pre_trained", load_zp=False) # Load G
+else:
+    model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained") # Load all models
 
 normalization_data = env.preprocess_data()
 
