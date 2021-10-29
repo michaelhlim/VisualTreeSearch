@@ -499,14 +499,15 @@ if __name__ == "__main__":
 
         # Just pre-training
         #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
-        #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
         #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
-        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        
         # Everything
         # vts_lightdark_driver()
 

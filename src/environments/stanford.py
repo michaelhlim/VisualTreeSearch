@@ -163,7 +163,7 @@ class StanfordEnvironment(AbstractEnvironment):
             state = state + self.true_env_corner
             state_arr = np.array([state])
 
-        path = os.getcwd() + '/images1/' 
+        path = os.getcwd() + '/images/' 
         #os.mkdir(path)
         check_path(path)
 
@@ -360,7 +360,7 @@ class StanfordEnvironment(AbstractEnvironment):
             action_angle += 2*np.pi
         orientations_next = np.tile(action_angle, (len(sp), 1))  # [num_par, 1]
         sp = np.concatenate((sp, orientations_next), -1)  # [num_par, dim_state + 1]
-        #next_state = np.copy(sp)
+        next_state = np.copy(sp)
         reward = 0.0
 
         cond_hit = np.array([self.detect_collision(state) for state in sp])  # [num_par]
