@@ -1,5 +1,4 @@
 # author: @wangyunbo
-from configs.environments.floor import DISCOUNT
 import cv2
 import glob
 import numpy as np
@@ -7,14 +6,14 @@ import os
 import pickle
 import random
 
+from configs.environments.stanford import *
 from src.environments.abstract import AbstractEnvironment
 from utils.utils import *
 
-from configs.environments.stanford import *
 
 sep = Stanford_Environment_Params()
 
-from examples.examples import *  # generate_observation
+from examples.examples import *  # HumANav codebase - for generate_observation
 
 
 class StanfordEnvironment(AbstractEnvironment):
@@ -341,11 +340,16 @@ class StanfordEnvironment(AbstractEnvironment):
 
 
     def transition(self, s, w, a):
-        # transition each state in state tensor s with actions in action/action tensor a
+        '''
+        transition each state in state tensor s with actions in action/action tensor a
 
-        # s: [num_par, dim_state]
-        # a: [dim_state]  (It's a vector)
-        # w: [num_par]
+        s: [num_par, dim_state]
+        a: [dim_state]  (It's a vector)
+        w: [num_par]
+        Needs to return a next_state that includes orientation, even though the 
+        current orientation is not given
+        TODO: Should probably fix that
+        '''
 
         if w is not None:
             weights = np.copy(w)
@@ -359,30 +363,25 @@ class StanfordEnvironment(AbstractEnvironment):
         if action_angle < 0:  # Arctan stuff
             action_angle += 2*np.pi
         orientations_next = np.tile(action_angle, (len(sp), 1))  # [num_par, 1]
-        sp = np.concatenate((sp, orientations_next), -1)  # [num_par, dim_state + 1]
-        next_state = np.copy(sp)
         reward = 0.0
 
         cond_hit = np.array([self.detect_collision(state) for state in sp])  # [num_par]
-        goal_achieved = np.array([self.in_goal(state) for state in sp])  # [num_par]
-        step_ok = (~cond_hit | goal_achieved)  
-
         # Don't transition the states that are going to collide (but change their orientations)
-        if any(cond_hit):
-            sp[cond_hit, :2] = s[cond_hit, :2]
-
-        trap = np.array([self.in_trap(state) for state in sp])  # [num_par]
-        normal_step = ~(goal_achieved | trap)
-
+        next_state = np.copy(sp)
+        next_state[cond_hit, :2] = s[cond_hit, :2]
+        next_state = np.concatenate((next_state, orientations_next), -1)  # [num_par, dim_state + 1]
+        
+        goal_achieved = np.array([self.in_goal(state) for state in sp])  # [num_par]
         # If goal reached
-        next_state[step_ok, :] = sp[step_ok, :]
         next_weights[goal_achieved] = 0.0
         reward += np.sum(weights[goal_achieved]) * sep.epi_reward
-
+        
+        trap = np.array([self.in_trap(state) for state in sp])  # [num_par]
         # If trap reached
         reward -= np.sum(weights[trap]) * sep.epi_reward
 
-        # Else
+        # Penalize taking a step (collision or not doesn't matter)
+        normal_step = ~(goal_achieved | trap)
         reward += np.sum(weights[normal_step]) * sep.step_reward
 
         # Is the transition terminal?
@@ -434,13 +433,22 @@ class StanfordEnvironment(AbstractEnvironment):
         return vec, np.linalg.norm(vec)
 
 
-    def rollout(self, s, ss, ws):
+    def rollout(self, s, ss, ws, discount, type=None):
         '''
         s - one sampled state out of all particles  [dim_state + 1]
         ss - all other particles  [num_par, dim_state + 1]
         ws - weights on the particles  [num_par]
         '''
 
+        if type == None:
+            return self.rollout_default(s, ss, ws, discount)
+        elif type == "optimism":
+            return self.rollout_optimistic(s, ss, ws, discount)
+        else:
+            print("ERROR: Need to specify a proper rollout type!")
+            
+    
+    def rollout_default(self, s, ss, ws, discount):
         # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
         vec, dist = self.distance_to_goal(s)
         steps = int(np.floor(dist/sep.velocity))
@@ -448,12 +456,32 @@ class StanfordEnvironment(AbstractEnvironment):
         ss_copy[:, :sep.dim_state] += vec  # Orientations do not matter for goal/trap checking
 
         # Going stepping number of times will provide the following intermediate rewards (geometric series result)
-        gamma = np.power(sep.discount, steps)
-        reward = sep.step_reward * (1.0 - gamma)/(1.0 - sep.discount)
+        gamma = np.power(discount, steps)
+        reward = sep.step_reward * (1.0 - gamma)/(1.0 - discount)
 
         goal_reached = [self.in_goal(state) for state in ss_copy]
         trap_reached = [self.in_trap(state) for state in ss_copy]
-        
+
+        r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward 
+        reward += gamma * r
+
+        return reward 
+    
+
+    def rollout_optimistic(self, s, ss, ws, discount):
+        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        vec, dist = self.distance_to_goal(s)
+        steps = int(np.floor(dist/sep.velocity))
+        ss_copy = np.copy(ss)
+        ss_copy[:, :sep.dim_state] += vec  # Orientations do not matter for goal/trap checking
+
+        # Going stepping number of times will provide the following intermediate rewards (geometric series result)
+        gamma = np.power(discount, steps)
+        reward = sep.step_reward * (1.0 - gamma)/(1.0 - discount)
+
+        goal_reached = [self.in_goal(state) for state in ss_copy]
+        trap_reached = [self.in_trap(state) for state in ss_copy]
+
         # For more optimistic rollouts
         #Find all particles that didn't make it either to the goal or the traps
         not_goal_reached = np.array([not goal_reached[i] and not trap_reached[i] for i in range(len(goal_reached))])
@@ -469,6 +497,7 @@ class StanfordEnvironment(AbstractEnvironment):
         reward += gamma * r
 
         return reward 
+
 
 
     ########## For (pre)training - making batches ##########

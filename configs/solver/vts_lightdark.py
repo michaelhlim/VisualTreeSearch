@@ -1,7 +1,7 @@
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:0'
+        self.device = 'cuda:1'
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -60,15 +60,15 @@ class VTS_LightDark_Params():
 
         # ######################
         # PFTDPW    
-        self.num_query = 100  # Change  1000
-        self.ucb_exploration = 10.0
-        self.k_observation = 4.0  # Change  3
-        self.alpha_observation = 0.25
-        self.k_action = 3.0   # Change  5
-        self.alpha_action = 0.25
+        self.num_query = 100  # Change 1000
+        self.ucb_exploration = 10.0  # Needs to be changed by order of 10's    2*max reward
+        self.k_observation = 4.0  # Change 3
+        self.alpha_observation = 0.25   # Check POMCPOW papaer
+        self.k_action = 3.0   # Change 5    # Don't do any widening? 
+        self.alpha_action = 0.25     # Check POMCPOW paper
         self.num_par_pftdpw = 100
         self.horizon = 10
-        self.discount = 0.99    # Same as sep discount --- fix
+        self.discount = 0.99    # Change ---   0.9 or 0.95  
 
         # ######################
         # SAC

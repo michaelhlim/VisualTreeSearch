@@ -463,8 +463,6 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         plt.legend()
         plt.savefig(foldername + "/g_loss.png")
 
-        # Observation generative model
-        # training_time = observation_generator.pretrain(save_pretrained_model, model_path)
 
         if save_pretrained_model:
             model.save_model(model_path + "/vts_pre_trained")
@@ -499,14 +497,14 @@ if __name__ == "__main__":
 
         # Just pre-training
         #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
-        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
         #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
-        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
         
         # Everything
         # vts_lightdark_driver()

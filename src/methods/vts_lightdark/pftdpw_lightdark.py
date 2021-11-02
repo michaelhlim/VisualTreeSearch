@@ -95,7 +95,7 @@ class PFTDPW():
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
-		# NOTE this sp includes orientation!
+		# NOTE this sp includes orientation! This is because the NN modules need that info
 		sp, new_weights, reward, is_terminal = self.transition_step(b, a)
 
 		if is_terminal:
@@ -131,7 +131,7 @@ class PFTDPW():
 		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
 		ss = b.states
 		ws = b.weights
-		return self.env.rollout(s, ss, ws)
+		return self.env.rollout(s, ss, ws, self.discount)
 
 	def solve(self, s, w):
 		# call plan when given states and weights
