@@ -297,6 +297,43 @@ def vts_pretraining_analysis_old(xlim, ylim, goal, trap, dark, figure_name='pret
     plt.close()
     
 
+def vts_rollout_analysis(xlim, ylim, goal, trap, dark, figure_name, s, ss, ws, vec):
+    
+    plt.figure(figure_name)
+    ax = plt.axes()
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+    # Plot goal, traps, walls, and other features of the environment
+    from matplotlib.patches import Rectangle
+    # goal: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((goal[0], goal[1]), goal[2], goal[3], facecolor='green'))
+    trap1 = trap[0]
+    trap2 = trap[1]
+    # trap i: [start_x, start_y, width, height]
+    ax.add_patch(Rectangle((trap1[0], trap1[1]), trap1[2], trap1[3], facecolor='orange'))
+    ax.add_patch(Rectangle((trap2[0], trap2[1]), trap2[2], trap2[3], facecolor='orange'))
+    # dark region
+    ax.add_patch(Rectangle((dark[0], dark[1]), dark[2], dark[3], facecolor='black', alpha=0.15))
+    # additional wall
+    ax.add_patch(Rectangle((0, trap1[1]), 
+        trap1[0], trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap1[0]+trap1[2], trap1[1]), 
+        goal[0]-(trap1[0]+trap1[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((goal[0]+goal[2], trap1[1]), 
+        trap2[0]-(goal[0]+goal[2]), trap1[3], facecolor='black', alpha=0.2))
+    ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
+        xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
+    
+    ax.plot(s[0], s[1], 'ro')
+    ax.arrow(s[0], s[1], vec[0], vec[1], head_width=0.1, head_length=0.2)
+    plot_crosses_with_alphas(ss, 'bx', ws, ax)
+
+    ax.set_aspect('equal')
+
+    plt.savefig(figure_name)
+    plt.close()
+
 
 def visualize_learning(figure_name, episode_loss_list, time_list, step_list, reward_list, num_episodes, name_list):
     '''

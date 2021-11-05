@@ -128,7 +128,7 @@ class VTS:
         curr_par = torch.FloatTensor(curr_par).to(vlp.device)  # (B, K, dim_s)
         mean_state = torch.FloatTensor(mean_state).to(vlp.device) # (B, dim_s)
         curr_par_sample = torch.FloatTensor(pf_sample).to(vlp.device) # (B, M, 2)
-        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(dlp.device)
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)
 
         # Observation generative model
         # obs_gen_loss = observation_generator.online_training(state_batch, curr_obs)

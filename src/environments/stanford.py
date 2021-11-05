@@ -441,11 +441,16 @@ class StanfordEnvironment(AbstractEnvironment):
         '''
 
         if type == None:
-            return self.rollout_default(s, ss, ws, discount)
+            reward, vec = self.rollout_default(s, ss, ws, discount)
+            return reward, vec
         elif type == "optimism":
-            return self.rollout_optimistic(s, ss, ws, discount)
+            reward, vec = self.rollout_optimistic(s, ss, ws, discount)
+            return reward, vec
+        elif type == "pessimism":
+            reward, vec = self.rollout_pessimistic(s, ss, ws, discount)
+            return reward, vec
         else:
-            print("ERROR: Need to specify a proper rollout type!")
+            raise Exception("ERROR: Need to specify a proper rollout type!")
             
     
     def rollout_default(self, s, ss, ws, discount):
@@ -465,7 +470,7 @@ class StanfordEnvironment(AbstractEnvironment):
         r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward 
         reward += gamma * r
 
-        return reward 
+        return reward, vec 
     
 
     def rollout_optimistic(self, s, ss, ws, discount):
@@ -496,7 +501,31 @@ class StanfordEnvironment(AbstractEnvironment):
         r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward + optimism
         reward += gamma * r
 
-        return reward 
+        return reward, vec 
+
+    def rollout_pessimistic(self, s, ss, ws, discount):
+        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        vec, dist = self.distance_to_goal(s)
+        steps = int(np.floor(dist/sep.velocity))
+        ss_copy = np.copy(ss)
+        ss_copy[:, :sep.dim_state] += vec  # Orientations do not matter for goal/trap checking
+
+        # Going stepping number of times will provide the following intermediate rewards (geometric series result)
+        gamma = np.power(discount, steps)
+        reward = sep.step_reward * (1.0 - gamma)/(1.0 - discount)
+
+        goal_reached = [self.in_goal(state) for state in ss_copy]
+        trap_reached = [self.in_trap(state) for state in ss_copy]
+
+        # For more pessimistic rollouts
+        #Find all particles that didn't make it either to the goal or the traps
+        not_goal_reached = np.array([not goal_reached[i] and not trap_reached[i] for i in range(len(goal_reached))])
+        pessimism = np.dot(not_goal_reached, ws) * -sep.epi_reward
+
+        r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward + pessimism
+        reward += gamma * r
+
+        return reward, vec
 
 
 
