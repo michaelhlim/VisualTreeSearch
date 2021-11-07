@@ -128,10 +128,13 @@ class PFTDPW():
 
 	def rollout(self, b):
 		# Rollout simulation starting from belief b
-		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
+		#s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
+		index = np.argmax(b.weights)
+		s = b.states[index]
 		ss = b.states
 		ws = b.weights
 		return self.env.rollout(s, ss, ws, self.discount)
+	
 
 	def solve(self, s, w):
 		# call plan when given states and weights

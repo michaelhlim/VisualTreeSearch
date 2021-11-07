@@ -442,12 +442,15 @@ class StanfordEnvironment(AbstractEnvironment):
 
         if type == None:
             reward, vec = self.rollout_default(s, ss, ws, discount)
-            return reward, vec
+            return reward#, vec
         elif type == "optimism":
             reward, vec = self.rollout_optimistic(s, ss, ws, discount)
             return reward, vec
         elif type == "pessimism":
             reward, vec = self.rollout_pessimistic(s, ss, ws, discount)
+            return reward, vec
+        elif type == "deterministic":
+            reward, vec = self.rollout_deterministic(s, ss, ws, discount)
             return reward, vec
         else:
             raise Exception("ERROR: Need to specify a proper rollout type!")
@@ -469,6 +472,37 @@ class StanfordEnvironment(AbstractEnvironment):
 
         r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward 
         reward += gamma * r
+
+        return reward, vec 
+    
+
+    def rollout_deterministic(self, s, ss, ws, discount):
+        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        vec, dist = self.distance_to_goal(s)
+        steps = int(np.floor(dist/sep.velocity))
+        ss_copy = np.copy(ss)
+        ss_copy[:, :sep.dim_state] += vec  # Orientations do not matter for goal/trap checking
+
+        # Going stepping number of times will provide the following intermediate rewards (geometric series result)
+        gamma = np.power(discount, steps)
+        reward = sep.step_reward * (1.0 - gamma)/(1.0 - discount)
+
+        goal_reached = [self.in_goal(state) for state in ss_copy]
+        trap_reached = [self.in_trap(state) for state in ss_copy]
+
+        # import matplotlib.pyplot as plt
+        # for i in range(len(ss_copy)):
+        #     if self.in_goal(ss_copy[i]):
+        #         plt.plot(ss[i][0], ss[i][1], 'bx')
+        #     else:
+        #         plt.plot(ss[i][0], ss[i][1], 'rx')
+        # plt.savefig('made_it')
+        # plt.close()
+
+        alpha = 5.
+        # Only return reward coming from the state with highest weight, ignore all other states
+        # Optionally - penalize the standard deviation of the particle distribution
+        reward += gamma * np.max(ws) * sep.epi_reward - alpha*np.sum(np.std(ss, axis=0)[:2])
 
         return reward, vec 
     

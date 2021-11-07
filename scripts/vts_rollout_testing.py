@@ -1,5 +1,5 @@
 import numpy as np
-from torch import std
+from scipy.stats import multivariate_normal
 
 from src.environments.stanford import *
 
@@ -16,11 +16,28 @@ env = StanfordEnvironment()
 
 discount = vlp.discount
 
-def generate_particles_normal(num_rand_states, mean, std):
-    ss = mean + np.random.normal(0, std, size=(num_rand_states, sep.dim_state))
-    ws = np.random.rand(num_rand_states)
+def generate_weights(num_rand_states, std, type=None):
+        if type == None:  # Default is normal distribution
+                ws = np.random.randn(num_rand_states) * std
+                ws -= min(ws)
+                ws = ws/sum(ws)
+        elif type == 'uniform':
+                ws = np.random.rand(num_rand_states)
+                ws = ws/sum(ws)
+        else:
+                raise Exception("ERROR: Need to specify a proper weight distribution type!")
+        
+        return ws
+
+def generate_particles_normal(num_rand_states, mean, state_std, weight_std):
+    ss = mean + np.random.normal(0, state_std, size=(num_rand_states, sep.dim_state))
+    # Weights generated from the normal pdf corresponding to the states
+    ws = multivariate_normal.pdf(ss, mean, cov=state_std**2)
     ws = ws/sum(ws)
+    # Or alternately the weights can be generated independently of the states
+    #ws = generate_weights(num_rand_states, weight_std)
     return ss, ws
+ 
 
 def generate_particles_custom():
     ss = np.array([[1., 1.3],
@@ -36,28 +53,33 @@ def generate_particles_custom():
 
 
 num_rand_states = vlp.num_par_pftdpw
-stdev = 0.1
-#mean_states = [[1.5, 0.25], [2., 0.5], [2.5, 1.], [3., 1.25], [3.5, 0.75], [4., 0.5]]
+state_std = 0.1
+weight_std = 0.01
+mean_states = [[1.5, 0.25], [2., 0.5], [2.5, 1.], [3., 1.25], [3.5, 0.75], [4., 0.5]]
 #mean_states = [[2., 0.25], [2., 0.4], [2., 0.5], [2., 0.6], [2., 0.75], [2., 0.85], [2., 1.], [2., 1.25], [2., 1.35]]
-mean_states = [[2., 0.45], [2., 0.47], [2., 0.5], [2., 0.53], [2., 0.55]]
+#mean_states = [[2., 0.45], [2., 0.47], [2., 0.5], [2., 0.53], [2., 0.55]]
+#mean_states = [[4.25, 0.95], [4.25, 0.97], [4.25, 1.0], [4.25, 1.03], [4.25, 1.05]]
 
 #ss, ws = generate_particles_normal(num_rand_states=50, mean=np.array([3., 1.2]), std=0.1)
-ss, ws = generate_particles_normal(num_rand_states, mean=np.array([0., 0.]), std=stdev)  
+ss, ws = generate_particles_normal(num_rand_states, np.array([0., 0.]), state_std, weight_std)  
 
 for i in range(len(mean_states)):
         mean_state = mean_states[i]
         ss_copy = ss + mean_state
 
-        num_tests = 200
+        num_tests = 1 #200
         rewards = []
         for _ in range(num_tests):
-                index = np.random.choice(len(ws), 1, p = ws)
-                s = ss_copy[index][0]
+                #index = np.random.choice(len(ws), 1, p = ws)
+                #s = ss_copy[index][0]
+                index = np.argmax(ws)
+                s = ss_copy[index]
                 reward, vec = env.rollout(s, ss_copy, ws, discount)
                 rewards.append(reward)
                 #print("Chosen state:", s, "Weight of that state:", ws[index], "Reward:", reward, "Vector:", vec, "Weights:", ws, "\n")
 
         print("Mean reward:", np.mean(np.array(rewards)))
+        print(s)
 
         fig1, ax1 = plt.subplots()
         plt.hist(ws, bins=np.linspace(min(ws), max(ws), 15), label='Weights')
