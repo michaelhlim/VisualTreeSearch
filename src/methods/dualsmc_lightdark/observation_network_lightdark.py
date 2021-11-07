@@ -84,8 +84,8 @@ class ProposerNetwork(nn.Module):
                 nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
                 nn.LeakyReLU(),
-                nn.Linear(mlp_hunits, self.dim_state),
-                nn.Sigmoid()
+                nn.Linear(mlp_hunits, self.dim_state)
+                #nn.Sigmoid()
             )
 
 
