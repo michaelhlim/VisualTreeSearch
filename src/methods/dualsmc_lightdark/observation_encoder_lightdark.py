@@ -21,12 +21,15 @@ class ObservationEncoder(nn.Module):
             nn.Conv2d(in_channels=self.in_channels, out_channels=16,
                       kernel_size=3, stride=2, padding=1),
             nn.MaxPool2d(2),
+            nn.ReLU(),
             nn.Conv2d(in_channels=16, out_channels=32,
                       kernel_size=3, stride=2, padding=1),
             nn.MaxPool2d(2),
+            nn.ReLU(),
             nn.Conv2d(in_channels=32, out_channels=64,
                       kernel_size=3, stride=2, padding=1),
-            nn.Dropout(0.2)
+            nn.Dropout(0.2),
+            nn.ReLU()
         )
         
 

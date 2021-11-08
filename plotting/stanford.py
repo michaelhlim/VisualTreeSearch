@@ -110,9 +110,9 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
         ax.plot(x[j], y[j], 'gx', alpha=min(pf_weights[j]*heuristic_alpha_mult, 1.0))
     #ax.plot(x, y, 'gx')
 
-    # xy = pp_state[:, :2]
-    # x, y = zip(*xy)
-    # ax.plot(x, y, 'bx')
+    xy = pp_state[:, :2]
+    x, y = zip(*xy)
+    ax.plot(x, y, 'bx')
 
     ax.set_aspect('equal')
 

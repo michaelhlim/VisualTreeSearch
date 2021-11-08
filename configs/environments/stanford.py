@@ -6,9 +6,9 @@ class Stanford_Environment_Params():
         self.velocity = 0.2 #0.1 #0.5 
         self.dim_state = 2
         self.img_size = 32 
-        self.dim_obs = 4
+        #self.dim_obs = 4
         self.obs_std = 0.01
-        self.end_range = 0.01
+        #self.end_range = 0.01
         self.step_range = 1 #0.05
         self.max_steps = 200
         self.discount = 0.99
@@ -16,6 +16,11 @@ class Stanford_Environment_Params():
         self.fig_format = '.png'
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'
+
+        self.training_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
+        self.testing_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_hallway/rgbs/*"
+        # self.training_data_path = "/home/sampada/training_hallway/rgbs/*"
+        # self.testing_data_path = "/home/sampada/testing_hallway/rgbs/*"
         
 
 

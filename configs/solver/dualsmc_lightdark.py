@@ -1,11 +1,11 @@
 class DualSMC_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:2'
+        self.device = 'cuda:1'
 
         ######################
         # Network
-        self.model_name = 'dualsmc'
+        self.model_name = 'dualsmc_lightdark'
         self.dim_first_layer = 64 
         self.dim_lstm_hidden = 64 
         self.num_lstm_layer = 2

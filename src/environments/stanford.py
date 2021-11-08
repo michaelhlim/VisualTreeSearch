@@ -1,7 +1,9 @@
 # author: @wangyunbo
 import cv2
+import glob
 import numpy as np
 import os
+import pickle
 import random
 
 from src.environments.abstract import AbstractEnvironment
@@ -23,9 +25,9 @@ class StanfordEnvironment(AbstractEnvironment):
         self.xrange = [0, 8.5]
         self.yrange = [0, 1.5]
         self.thetas = [0.0, 2*np.pi]
-        self.trap_x = [[1.5, 2], [6.5, 7]] #[[1.5, 2], [6, 6.5]] #[[0, 0], [8, 8]] #[[0, 1], [7, 8]] 
+        self.trap_x = [[1.5, 2], [6.5, 7]] 
         self.trap_y = [0, 0.25]
-        self.target_x = [4, 4.5] #[3.5, 4.5] #[1.5, 6.5] #[3, 5] #[3.5, 4.5]
+        self.target_x = [4, 4.5] 
         self.target_y = [0, 0.25]
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
@@ -34,23 +36,29 @@ class StanfordEnvironment(AbstractEnvironment):
         self.dark_line_true = self.dark_line + self.true_env_corner[1]
 
         # Get the traversible
-        path = os.getcwd() + '/temp/'
-        os.mkdir(path)
-        _, _, traversible, dx_m = self.get_observation(path=path)
+        try:
+            traversible = pickle.load(open("traversible.p", "rb"))
+            dx_m = 0.05
+        except Exception:
+            path = os.getcwd() + '/temp/'
+            os.mkdir(path)
+            _, _, traversible, dx_m = self.get_observation(normalize=False)  
+            pickle.dump(traversible, open("traversible.p", "wb"))
+
         self.traversible = traversible
         self.dx = dx_m
         self.map_origin = [0, 0]
+
+        # For making training batches
+        self.training_data_path = sep.training_data_path
+        self.training_data_files = glob.glob(self.training_data_path)
+        self.testing_data_path = sep.testing_data_path
+        self.testing_data_files = glob.glob(self.testing_data_path)
 
     
     def reset_environment(self):
         self.done = False
         self.state, self.orientation = self.initial_state()
-
-        # self.state = np.random.rand(sep.dim_state)
-        # self.orientation = np.random.rand()
-        # self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
-        # self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
-        # self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
 
 
     def initial_state(self):
@@ -70,36 +78,113 @@ class StanfordEnvironment(AbstractEnvironment):
         return state, orientation 
 
 
-    def get_observation(self, state=None, path=None, normalize=True):
-        if state == None:
-            state = self.state + self.true_env_corner
-            state_arr = np.array([[state[0], state[1], self.orientation]])
-        else:
-            state = state + self.true_env_corner
-            state_arr = np.array([state])
+    # def get_observation(self, state=None, path=None, normalize=True):
+    #     if state == None:
+    #         state = self.state + self.true_env_corner
+    #         state_arr = np.array([[state[0], state[1], self.orientation]])
+    #     else:
+    #         state = state + self.true_env_corner
+    #         state_arr = np.array([state])
 
-        if path == None:
-            path = os.getcwd() + '/images/' 
-            os.mkdir(path)
+    #     if path == None:
+    #         path = os.getcwd() + '/images/' 
+    #         os.mkdir(path)
 
-        img_path, traversible, dx_m = generate_observation(state_arr, path)
-        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
-        image = np.ascontiguousarray(image)
+    #     img_path, traversible, dx_m = generate_observation(state_arr, path)
+    #     image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    #     image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
+    #     image = np.ascontiguousarray(image)
  
-        # salt = np.max(image)
-        # pepper = np.min(image)
+    #     # salt = np.max(image)
+    #     # pepper = np.min(image)
+    #     salt = 255
+    #     pepper = 0
+
+    #     out = image
+
+    #     if state_arr[0][1] <= self.dark_line_true: 
+    #         # Dark observation - add salt & pepper noise
+            
+    #         row,col,ch = image.shape
+    #         s_vs_p = 0.5
+    #         amount = sep.noise_amount  
+    #         out = np.copy(image)
+    #         num_salt = np.ceil(amount * image.size * s_vs_p)
+    #         num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+    #         noise_indices = np.random.choice(image.size, int(num_salt + num_pepper), replace=False) 
+    #         salt_indices = noise_indices[:int(num_salt)]
+    #         pepper_indices = noise_indices[int(num_salt):]
+    #         salt_coords = np.unravel_index(salt_indices, image.shape)
+    #         pepper_coords = np.unravel_index(pepper_indices, image.shape)
+    #         out[salt_coords] = salt
+    #         out[pepper_coords] = pepper
+
+    #         # coords = [np.random.randint(0, i - 1, int(num_salt))
+    #         #         for i in image.shape]
+    #         # out[coords] = salt 
+
+            
+    #         # coords = [np.random.randint(0, i - 1, int(num_pepper))
+    #         #         for i in image.shape]
+    #         # out[coords] = pepper 
+
+    #     #cv2.imwrite(img_path, out)
+
+    #     if normalize:
+    #         out = (out - out.mean())/out.std()  # "Normalization" -- TODO
+
+    #     os.remove(img_path)
+    #     os.rmdir(path)
+
+    #     return out, img_path, traversible, dx_m
+
+    
+    def preprocess_data(self):
+        # For normalizing the images - per channel mean and std
+        print("Preprocessing the data")
+
+        try:
+            normalization_data = pickle.load(open("data_normalization.p", "rb"))
+            rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+            print("Done preprocessing")
+            return rmean, gmean, bmean, rstd, gstd, bstd
+        except Exception:
+            rmean = 0
+            gmean = 0
+            bmean = 0
+            rstd = 0
+            gstd = 0
+            bstd = 0
+            for i in range(len(self.training_data_files)):
+                img_path = self.training_data_files[i]
+                src = cv2.imread(img_path, cv2.IMREAD_COLOR)
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+                
+                rmean += src[:, :, 0].mean()/len(self.training_data_files)
+                gmean += src[:, :, 1].mean()/len(self.training_data_files)
+                bmean += src[:, :, 2].mean()/len(self.training_data_files)
+                
+                rstd += src[:, :, 0].std()/len(self.training_data_files)  ## TODO: FIX?
+                gstd += src[:, :, 1].std()/len(self.training_data_files)
+                bstd += src[:, :, 2].std()/len(self.training_data_files)
+            
+            normalization_data = [rmean, gmean, bmean, rstd, gstd, bstd]
+            pickle.dump(normalization_data, open("data_normalization.p", "wb"))
+
+            print("Done preprocessing")
+
+            return rmean, gmean, bmean, rstd, gstd, bstd
+
+
+    def noise_image(self, image, state, noise_amount=sep.noise_amount):
         salt = 255
         pepper = 0
 
         out = image
 
-        if state_arr[0][1] <= self.dark_line_true: 
-            # Dark observation - add salt & pepper noise
-            
-            row,col,ch = image.shape
+        if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
             s_vs_p = 0.5
-            amount = sep.noise_amount  
+            amount = noise_amount  
             out = np.copy(image)
             num_salt = np.ceil(amount * image.size * s_vs_p)
             num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
@@ -110,20 +195,44 @@ class StanfordEnvironment(AbstractEnvironment):
             pepper_coords = np.unravel_index(pepper_indices, image.shape)
             out[salt_coords] = salt
             out[pepper_coords] = pepper
+        
+        cv2.imwrite("out_debug.png", out)
 
-            # coords = [np.random.randint(0, i - 1, int(num_salt))
-            #         for i in image.shape]
-            # out[coords] = salt 
+        return out
 
-            
-            # coords = [np.random.randint(0, i - 1, int(num_pepper))
-            #         for i in image.shape]
-            # out[coords] = pepper 
 
-        #cv2.imwrite(img_path, out)
+    def get_observation(self, state=None, normalize=True, normalization_data=None):
+        if state == None:
+            state_temp = self.state
+            state = self.state + self.true_env_corner
+            state_arr = np.array([[state[0], state[1], self.orientation]])
+        else:
+            state_temp = state
+            state = state + self.true_env_corner
+            state_arr = np.array([state])
+
+        path = os.getcwd() + '/images/' 
+        #os.mkdir(path)
+        check_path(path)
+
+        img_path, traversible, dx_m = generate_observation(state_arr, path)
+        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        
+        out = self.noise_image(image, state_temp)
+        out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now out is in RGB
+        out = np.ascontiguousarray(out)
 
         if normalize:
-            out = (out - out.mean())/out.std()  # "Normalization" -- TODO
+            if normalization_data is None: raise Exception("Normalization data is None!")
+
+            rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
+            img_rslice = (out[:, :, 0] - rmean)/rstd
+            img_gslice = (out[:, :, 1] - gmean)/gstd
+            img_bslice = (out[:, :, 2] - bmean)/bstd
+
+            out = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
+
+            #out = (out - out.mean())/out.std()  # "Normalization" -- TODO
 
         os.remove(img_path)
         os.rmdir(path)
@@ -131,6 +240,7 @@ class StanfordEnvironment(AbstractEnvironment):
         return out, img_path, traversible, dx_m
     
 
+    # Don't think this is used
     def read_observation(self, img_path, normalize):
         obs = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         #obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
