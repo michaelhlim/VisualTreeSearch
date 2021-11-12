@@ -6,13 +6,11 @@ class Stanford_Environment_Params():
         self.velocity = 0.2 #0.1 #0.5 
         self.dim_state = 2
         self.img_size = 32 
-        #self.dim_obs = 4
         self.obs_std = 0.01
-        #self.end_range = 0.01
         self.step_range = 1 #0.05
         self.max_steps = 200
         self.discount = 0.99
-        self.noise_amount = 0.4 #1.0 #0.4 #0.15
+        self.noise_amount = 0.8 #0.4 #1.0 #0.4 #0.15
         self.fig_format = '.png'
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'

@@ -196,7 +196,44 @@ class StanfordEnvironment(AbstractEnvironment):
             out[salt_coords] = salt
             out[pepper_coords] = pepper
         
-        cv2.imwrite("out_debug.png", out)
+        #cv2.imwrite("out_debug.png", out)
+
+        return out
+    
+
+    def noise_image_plane(self, image, state, noise_amount=sep.noise_amount):
+        # Corrupts the R, G, and B channels of noise_amount * (32 x 32) pixels
+
+        salt = 255
+        pepper = 0
+
+        out = image
+
+        image_plane_size = image.shape[0] * image.shape[1]
+        image_plane_shape = (image.shape[0], image.shape[1])
+        if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
+            s_vs_p = 0.5
+            amount = noise_amount  
+            out = np.copy(image)
+            num_salt = np.ceil(amount * image_plane_size * s_vs_p)
+            num_pepper = np.ceil(amount * image_plane_size * (1. - s_vs_p))
+            noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+            salt_indices = noise_indices[:int(num_salt)]
+            pepper_indices = noise_indices[int(num_salt):]
+            salt_coords = np.unravel_index(salt_indices, image_plane_shape)
+            pepper_coords = np.unravel_index(pepper_indices, image_plane_shape)
+            for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
+                row = salt_coords[0][i]
+                col = salt_coords[1][i]
+                for j in range(3):
+                    out[row, col, j] = salt
+            for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
+                row = pepper_coords[0][i]
+                col = pepper_coords[1][i]
+                for j in range(3):
+                    out[row, col, j] = pepper
+        
+        #cv2.imwrite("out_debug1.png", out)
 
         return out
 
@@ -218,7 +255,8 @@ class StanfordEnvironment(AbstractEnvironment):
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
         
-        out = self.noise_image(image, state_temp)
+        #out = self.noise_image(image, state_temp)
+        out = self.noise_image_plane(image, state_temp)
         out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now out is in RGB
         out = np.ascontiguousarray(out)
 

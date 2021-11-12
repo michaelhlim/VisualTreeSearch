@@ -250,7 +250,8 @@ def dualsmc(model, experiment_id, train, model_path):
                 prev_q = q
                 normalized_smc_weight = F.softmax(smc_weight, -1)  # [num_par_smc]
 
-                if dlp.smcp_resample and (i % dlp.smcp_resample_step == 0):
+                # NOTE: this block of code is never executed bc smcp_resample_step is 1!
+                if dlp.smcp_resample and (i % dlp.smcp_resample_step == 1):
                     # Resample 10 actions based on the action/trajectory weights 
                     idx = torch.multinomial(normalized_smc_weight, dlp.num_par_smc, replacement=True).detach().cpu().numpy()
                     smc_action = smc_action[:, idx, :]
@@ -413,7 +414,7 @@ def dualsmc(model, experiment_id, train, model_path):
         step_list.append(step)
 
         if episode >= dlp.summary_iter:
-            step_list.pop(0)
+            #step_list.pop(0)
             dist_list.pop(0)
         
         reach = np.array(step_list) < (sep.max_steps - 1)
