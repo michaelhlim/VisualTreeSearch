@@ -155,9 +155,9 @@ def vts_lightdark(model, experiment_id, train, model_path):
             # For visualizing the planned trajectory
             mean_s = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
             state_traj = [mean_s] 
-            if traj is not None:
+            if traj is not None:  # For visualization purposes
                 for action in traj:
-                    state_traj.append(mean_s + action)
+                    state_traj.append(mean_s + action)  # This is wrong
             state_traj = np.array(state_traj)
             #######################################
             
@@ -373,13 +373,21 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
             # if epoch >= 3*vlp.num_epochs_zp/4:
             #     percent_blur = 0.25
 
+            # noise_amount = 0
+            # if epoch >= vlp.num_epochs_zp/4:
+            #     noise_amount = 0.1
+            # if epoch >= vlp.num_epochs_zp/2:
+            #     noise_amount = 0.25
+            # if epoch >= 3*vlp.num_epochs_zp/4:
+            #     noise_amount = 0.4
+
             noise_amount = 0
             if epoch >= vlp.num_epochs_zp/4:
-                noise_amount = 0.1
+                noise_amount = sep.noise_amount/4
             if epoch >= vlp.num_epochs_zp/2:
-                noise_amount = 0.25
+                noise_amount = sep.noise_amount/2
             if epoch >= 3*vlp.num_epochs_zp/4:
-                noise_amount = 0.4
+                noise_amount = sep.noise_amount
 
             data_files_indices = env.shuffle_dataset()
 
@@ -504,7 +512,8 @@ if __name__ == "__main__":
 
         # Just testing
         #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
-        vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-13-15_54_50"], pre_training=False, end_to_end=False, save_online_model=False)
         
         # Everything
         # vts_lightdark_driver()

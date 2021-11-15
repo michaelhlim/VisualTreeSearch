@@ -133,7 +133,7 @@ class PFTDPW():
 		s = b.states[index]
 		ss = b.states
 		ws = b.weights
-		return self.env.rollout(s, ss, ws, self.discount)
+		return self.env.rollout(s, ss, ws, self.discount, "deterministic")
 	
 
 	def solve(self, s, w):

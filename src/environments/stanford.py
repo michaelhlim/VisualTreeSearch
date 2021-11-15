@@ -67,14 +67,24 @@ class StanfordEnvironment(AbstractEnvironment):
         self.normalization = sep.normalization
 
 
-        # s_vs_p = 0.5
-        # amount = 0.4 
-        # size = 32*32*3
-        # num_salt = np.ceil(amount * size * s_vs_p)
-        # num_pepper = np.ceil(amount * size * (1. - s_vs_p))
-        # noise_indices = np.random.choice(size, int(num_salt + num_pepper), replace=False) 
-        # self.salt_indices = noise_indices[:int(num_salt)]
-        # self.pepper_indices = noise_indices[int(num_salt):]
+        # TODO: Unclean code!
+        # For training the generator with noisy images
+        # Pre-generate the corrupted indices in the image
+        # Noise in the image plane 
+        self.generator_is_training = False  
+        self.diff_pattern = False
+        s_vs_p = 0.5
+        image_plane_size = 32 * 32
+        num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
+        num_pepper = np.ceil(sep.noise_amount * image_plane_size * (1. - s_vs_p))
+        if self.diff_pattern: # Same noise pattern in all dark images or a different noise pattern per image?
+            # Pre-generate the corrupted indices per image in the training data
+            self.noise_list = []
+            for i in range(len(self.training_data_files)):
+                self.noise_list.append(np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False)) 
+        else:
+            self.noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+
 
     
     def reset_environment(self):
@@ -108,25 +118,6 @@ class StanfordEnvironment(AbstractEnvironment):
         return state, orientation 
 
 
-    # def noise_image(self, image, state, noise_amount=sep.noise_amount):
-    #     salt = 255
-    #     pepper = 0
-
-    #     out = image
-
-    #     if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
-    #     #if True:
-    #         out = np.copy(image)
-
-    #         salt_coords = np.unravel_index(self.salt_indices, image.shape)
-    #         pepper_coords = np.unravel_index(self.pepper_indices, image.shape)
-    #         out[salt_coords] = salt
-    #         out[pepper_coords] = pepper
-        
-    #     #cv2.imwrite("out_debug.png", out)
-
-    #     return out
-
     def noise_image(self, image, state, noise_amount=sep.noise_amount):
         salt = 255
         pepper = 0
@@ -151,6 +142,50 @@ class StanfordEnvironment(AbstractEnvironment):
         #cv2.imwrite("out_debug.png", out)
 
         return out
+    
+
+    def noise_image_plane(self, image, state, noise_amount=sep.noise_amount, img_index=None):
+        # Corrupts the R, G, and B channels of noise_amount * (32 x 32) pixels
+
+        salt = 255
+        pepper = 0
+
+        out = image
+
+        image_plane_size = image.shape[0] * image.shape[1]
+        image_plane_shape = (image.shape[0], image.shape[1])
+        if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
+            s_vs_p = 0.5
+            amount = noise_amount  
+            out = np.copy(image)
+            num_salt = np.ceil(amount * image_plane_size * s_vs_p)
+            num_pepper = np.ceil(amount * image_plane_size * (1. - s_vs_p))
+            if self.generator_is_training:
+                if self.diff_pattern:
+                    noise_indices = self.noise_list[img_index]
+                else:
+                    noise_indices = self.noise_indices
+            else:
+                noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+            salt_indices = noise_indices[:int(num_salt)]
+            pepper_indices = noise_indices[int(num_salt):]
+            salt_coords = np.unravel_index(salt_indices, image_plane_shape)
+            pepper_coords = np.unravel_index(pepper_indices, image_plane_shape)
+            for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
+                row = salt_coords[0][i]
+                col = salt_coords[1][i]
+                for j in range(3):
+                    out[row, col, j] = salt
+            for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
+                row = pepper_coords[0][i]
+                col = pepper_coords[1][i]
+                for j in range(3):
+                    out[row, col, j] = pepper
+        
+        #cv2.imwrite("out_debug1.png", out)
+
+        return out
+
 
     def get_observation(self, state=None, normalize=True, normalization_data=None):
         if state == None:
@@ -169,7 +204,7 @@ class StanfordEnvironment(AbstractEnvironment):
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
         
-        out = self.noise_image(image, state_temp)
+        out = self.noise_image_plane(image, state_temp)
         out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
         out = np.ascontiguousarray(out)
 
@@ -443,15 +478,15 @@ class StanfordEnvironment(AbstractEnvironment):
         if type == None:
             reward, vec = self.rollout_default(s, ss, ws, discount)
             return reward#, vec
-        elif type == "optimism":
+        elif type == "optimistic":
             reward, vec = self.rollout_optimistic(s, ss, ws, discount)
-            return reward, vec
-        elif type == "pessimism":
+            return reward#, vec
+        elif type == "pessimistic":
             reward, vec = self.rollout_pessimistic(s, ss, ws, discount)
-            return reward, vec
+            return reward#, vec
         elif type == "deterministic":
             reward, vec = self.rollout_deterministic(s, ss, ws, discount)
-            return reward, vec
+            return reward#, vec
         else:
             raise Exception("ERROR: Need to specify a proper rollout type!")
             
@@ -499,7 +534,7 @@ class StanfordEnvironment(AbstractEnvironment):
         # plt.savefig('made_it')
         # plt.close()
 
-        alpha = 5.
+        alpha = 0. #5.
         # Only return reward coming from the state with highest weight, ignore all other states
         # Optionally - penalize the standard deviation of the particle distribution
         reward += gamma * np.max(ws) * sep.epi_reward - alpha*np.sum(np.std(ss, axis=0)[:2])
@@ -644,7 +679,8 @@ class StanfordEnvironment(AbstractEnvironment):
 
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)  # src is now in BGR
 
-            src = self.noise_image(src, state, noise_amount)
+            # For training the generator: pass in the index of the image in the dataset
+            src = self.noise_image_plane(src, state, noise_amount, index)
 
             if blur[i] == 1:
                 blurred = cv2.GaussianBlur(src,(blur_kernel,blur_kernel),cv2.BORDER_DEFAULT)
@@ -706,7 +742,7 @@ class StanfordEnvironment(AbstractEnvironment):
             orientations.append(state[sep.dim_state])
 
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
-            src = self.noise_image(src, state)
+            src = self.noise_image_plane(src, state)
 
             blurred = cv2.GaussianBlur(src,(5,5),cv2.BORDER_DEFAULT)
             src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB

@@ -105,14 +105,14 @@ class ObservationGenerator(nn.Module):
         #enc_obs_batch = self.observation_encoder(enc_obs_batch, normalize=True)
         #intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
 
-        if shared_enc:
+        if shared_enc:  # Z and P already trained the encoder, don't pass gradients through
             with torch.no_grad():
                 intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
                 # Normalizing the output of the observation encoder
                 intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True)
         else:
             intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
-            # Normalizing the output of the observation encoder
+            # Normalizing the output of the observation encoder -- optional?
             intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True) 
 
         mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]

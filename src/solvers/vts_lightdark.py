@@ -36,7 +36,7 @@ class SaveFeatures():
 # Training Process
 class VTS:
     def __init__(self, shared_enc=False):
-        self.replay_buffer = ReplayMemory(vlp.replay_buffer_size)
+        self.replay_buffer = ReplayMemory(vlp.replay_buffer_size)  # Is only used for online training, which we don't do
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
 
@@ -116,6 +116,7 @@ class VTS:
         x = (par_states - mean_state).pow(2).sum(-1)  # [B, K]
         return x.mean(-1)  # [B]
 
+    # Don't plan on using this function for VTS
     def online_training(self):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
             obs, curr_par, mean_state, pf_sample, curr_orientation = self.replay_buffer.sample(vlp.batch_size)

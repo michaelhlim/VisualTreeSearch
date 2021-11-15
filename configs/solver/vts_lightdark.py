@@ -27,7 +27,7 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 400 
+        self.num_epochs_g = 400 #0 #400 
 
         ## Encoder
         self.leak_rate_enc = 0
@@ -40,7 +40,7 @@ class VTS_LightDark_Params():
         # Training
         self.num_training_data = 16000 #8000
         self.max_episodes_train = 2000 #5000
-        self.max_episodes_test = 20 #10 #1 #500 #1000
+        self.max_episodes_test = 500 #20 #10 #1 #500 #1000
         self.batch_size = 64 #128 #64
         self.fil_lr = 3e-4 #1e-3 # filtering
         self.pla_lr = 3e-4 #1e-3 # planning
@@ -63,7 +63,7 @@ class VTS_LightDark_Params():
         self.num_query = 100  # Change 1000
         self.ucb_exploration = 10.0  # Needs to be changed by order of 10's    2*max reward
         self.k_observation = 4.0  # Change 3
-        self.alpha_observation = 0.25   # Check POMCPOW papaer
+        self.alpha_observation = 0.25   # Check POMCPOW paper
         self.k_action = 3.0   # Change 5    # Don't do any widening? 
         self.alpha_action = 0.25     # Check POMCPOW paper
         self.num_par_pftdpw = 100
