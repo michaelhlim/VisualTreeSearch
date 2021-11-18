@@ -430,6 +430,23 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         plt.savefig(foldername + "/p_loss.png")
 
         
+        # For training the generator with noisy images
+        # Pre-generate the corrupted indices in the image
+        # Noise in the image plane
+        diff_pattern = False 
+        s_vs_p = sep.salt_vs_pepper
+        image_plane_size = sep.img_size**2
+        num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
+        num_pepper = np.ceil(sep.noise_amount * image_plane_size * (1. - s_vs_p))
+        if diff_pattern: # Same noise pattern in all dark images or a different noise pattern per image?
+            # Pre-generate the corrupted indices per image in the training data
+            noise_list = []
+            for i in range(len(env.training_data_files)):
+                noise_list.append(np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False)) 
+        else:
+            noise_list = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+        noise_list = np.array(noise_list)
+
         steps = []
         # Train G
         for epoch in range(vlp.num_epochs_g):
@@ -448,7 +465,8 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
             for step in range(steps_per_epoch):
 
                 states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
-                                                        step, normalization_data, vlp.num_par_pf)
+                                                        step, normalization_data, vlp.num_par_pf, 
+                                                        noise_list=noise_list, noise_amount=sep.noise_amount)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
@@ -470,7 +488,6 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         plt.ylabel("Total Loss")
         plt.legend()
         plt.savefig(foldername + "/g_loss.png")
-
 
         if save_pretrained_model:
             model.save_model(model_path + "/vts_pre_trained")
@@ -513,7 +530,8 @@ if __name__ == "__main__":
         # Just testing
         #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
         #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
-        vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-13-15_54_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-13-15_54_50"], pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], pre_training=False, end_to_end=False, save_online_model=False)
         
         # Everything
         # vts_lightdark_driver()

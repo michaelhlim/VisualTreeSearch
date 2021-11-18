@@ -46,14 +46,6 @@ class StanfordEnvironment(AbstractEnvironment):
             _, _, traversible, dx_m = self.get_observation(path=path)
             pickle.dump(traversible, open("traversible.p", "wb"))
 
-        # if traversible_dump:
-        #     path = os.getcwd() + '/temp/'
-        #     os.mkdir(path)
-        #     _, _, traversible, dx_m = self.get_observation(path=path)
-        #     pickle.dump(traversible, open("traversible.p", "wb"))
-        # else:
-        #     traversible = pickle.load(open("traversible.p", "rb"))
-        #     dx_m = 0.05
 
         self.traversible = traversible
         self.dx = dx_m
@@ -65,26 +57,6 @@ class StanfordEnvironment(AbstractEnvironment):
         self.testing_data_path = sep.testing_data_path
         self.testing_data_files = glob.glob(self.testing_data_path)
         self.normalization = sep.normalization
-
-
-        # TODO: Unclean code!
-        # For training the generator with noisy images
-        # Pre-generate the corrupted indices in the image
-        # Noise in the image plane 
-        self.generator_is_training = False  
-        self.diff_pattern = False
-        s_vs_p = 0.5
-        image_plane_size = 32 * 32
-        num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
-        num_pepper = np.ceil(sep.noise_amount * image_plane_size * (1. - s_vs_p))
-        if self.diff_pattern: # Same noise pattern in all dark images or a different noise pattern per image?
-            # Pre-generate the corrupted indices per image in the training data
-            self.noise_list = []
-            for i in range(len(self.training_data_files)):
-                self.noise_list.append(np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False)) 
-        else:
-            self.noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
-
 
     
     def reset_environment(self):
@@ -126,7 +98,7 @@ class StanfordEnvironment(AbstractEnvironment):
 
         if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
         #if True:
-            s_vs_p = 0.5
+            s_vs_p = sep.salt_vs_pepper
             amount = noise_amount  
             out = np.copy(image)
             num_salt = np.ceil(amount * image.size * s_vs_p)
@@ -144,7 +116,7 @@ class StanfordEnvironment(AbstractEnvironment):
         return out
     
 
-    def noise_image_plane(self, image, state, noise_amount=sep.noise_amount, img_index=None):
+    def noise_image_plane(self, image, state, noise_amount=sep.noise_amount, noise_indices=None):
         # Corrupts the R, G, and B channels of noise_amount * (32 x 32) pixels
 
         salt = 255
@@ -155,18 +127,23 @@ class StanfordEnvironment(AbstractEnvironment):
         image_plane_size = image.shape[0] * image.shape[1]
         image_plane_shape = (image.shape[0], image.shape[1])
         if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
-            s_vs_p = 0.5
+            s_vs_p = sep.salt_vs_pepper
             amount = noise_amount  
             out = np.copy(image)
             num_salt = np.ceil(amount * image_plane_size * s_vs_p)
             num_pepper = np.ceil(amount * image_plane_size * (1. - s_vs_p))
-            if self.generator_is_training:
-                if self.diff_pattern:
-                    noise_indices = self.noise_list[img_index]
-                else:
-                    noise_indices = self.noise_indices
-            else:
+            # We may provide pre-generated noise indices when the generator is training
+            if noise_indices is None:
                 noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+            
+            # if self.generator_is_training:
+            #     if self.diff_pattern:
+            #         noise_indices = self.noise_list[img_index]
+            #     else:
+            #         noise_indices = self.noise_indices
+            # else:
+            #     noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+            
             salt_indices = noise_indices[:int(num_salt)]
             pepper_indices = noise_indices[int(num_salt):]
             salt_coords = np.unravel_index(salt_indices, image_plane_shape)
@@ -647,6 +624,7 @@ class StanfordEnvironment(AbstractEnvironment):
     def get_training_batch(self, batch_size, data_files_indices, epoch_step, 
                             normalization_data, num_particles, 
                             noise_amount=sep.noise_amount,
+                            noise_list=None,
                             percent_blur=0, blur_kernel=3):
 
         rmean, gmean, bmean, rstd, gstd, bstd = normalization_data
@@ -680,7 +658,12 @@ class StanfordEnvironment(AbstractEnvironment):
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)  # src is now in BGR
 
             # For training the generator: pass in the index of the image in the dataset
-            src = self.noise_image_plane(src, state, noise_amount, index)
+            if noise_list is not None:
+                if len(noise_list.shape) == 2:
+                    noise_indices = noise_list[index]
+                else:
+                    noise_indices = noise_list
+            src = self.noise_image_plane(src, state, noise_amount, noise_list)
 
             if blur[i] == 1:
                 blurred = cv2.GaussianBlur(src,(blur_kernel,blur_kernel),cv2.BORDER_DEFAULT)
