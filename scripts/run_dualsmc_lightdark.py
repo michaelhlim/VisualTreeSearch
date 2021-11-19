@@ -20,7 +20,7 @@ dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
  
 
-def dualsmc(model, experiment_id, train, model_path):
+def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -63,6 +63,10 @@ def dualsmc(model, experiment_id, train, model_path):
         #real_display_iter *= 10
 
     env = StanfordEnvironment()
+
+    # If the test environment is different - ie there's a new trap
+    if not train and test_env_is_diff:
+        env.set_test_trap()
 
     normalization_data = env.preprocess_data()
     # Begin main dualSMC loop
@@ -324,12 +328,23 @@ def dualsmc(model, experiment_id, train, model_path):
                     trap2 = [trap2_x[0], env.trap_y[0], 
                             trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
+
+                    if not train and test_env_is_diff:
+                        test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
+                                    env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
+                                dark, frm_name, curr_state, mean_state, resample_state, 
+                                normalized_weights.cpu().numpy(), proposal_state, smc_xy)
+                    else:
+                        plot_par(xlim, ylim, goal, [trap1, trap2], None, 
+                                dark, frm_name, curr_state, mean_state, resample_state, 
+                                normalized_weights.cpu().numpy(), proposal_state, smc_xy)
                     # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #        mean_state, resample_state, proposal_state, smc_xy)
                     # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #         mean_state, par_states, normalized_weights.cpu().numpy(), None, smc_xy)
-                    plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                           mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, smc_xy)
+                    # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
+                    #        mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, smc_xy)
             
             #######################################
             # Update the environment
@@ -453,7 +468,17 @@ def dualsmc(model, experiment_id, train, model_path):
             trap2 = [trap2_x[0], env.trap_y[0], 
                     trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
             dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
-            plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
+            
+            #plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
+
+            if not train and test_env_is_diff:
+                test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
+                            env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
+                         dark, figure_name=st, states=np.array(trajectory))
+            else:
+                plot_maze(xlim, ylim, goal, [trap1, trap2], None, 
+                        dark, figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
@@ -481,12 +506,13 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
 
-def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
+def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, 
+                    test=True, test_env_is_diff=False):
     # This block of code creates the folders for plots
     experiment_id = "dualsmc_lightdark" + get_datetime()
     model_path = "nets/" + experiment_id
     check_path(model_path)
-
+  
     check_path("data")
     check_path("nets")
 
@@ -496,12 +522,12 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path)
+        model.load_model(cwd + "/nets/" + load_path + "/dpf_online")
 
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        dualsmc(model, experiment_id, train, model_path)
+        dualsmc(model, experiment_id, train, model_path, test_env_is_diff)
 
     if save_model:
         # Save the model
@@ -510,9 +536,13 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
 
     if test:
         train = False
-        dualsmc(model, experiment_id, train, model_path)
+        dualsmc(model, experiment_id, train, model_path, test_env_is_diff)
 
 
 if __name__ == "__main__":
     if dlp.model_name == 'dualsmc_lightdark':
-        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+
+        # Just testing
+        dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
+                        save_model=False, test=True, test_env_is_diff=True)

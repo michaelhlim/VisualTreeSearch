@@ -29,6 +29,12 @@ class StanfordEnvironment(AbstractEnvironment):
         self.trap_y = [0, 0.25]
         self.target_x = [4, 4.5] 
         self.target_y = [0, 0.25]
+        
+        # During test time - have an additional trap region (optional)
+        self.test_trap = False
+        self.test_trap_x = [3.5, 5]
+        self.test_trap_y = [0.75, 1.25]
+
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
         self.state, self.orientation = self.initial_state()
@@ -55,7 +61,11 @@ class StanfordEnvironment(AbstractEnvironment):
         self.testing_data_path = sep.testing_data_path
         self.testing_data_files = glob.glob(self.testing_data_path)
 
-    
+
+    def set_test_trap(self):
+        self.test_trap = True
+
+
     def reset_environment(self):
         self.done = False
         self.state, self.orientation = self.initial_state()
@@ -76,67 +86,6 @@ class StanfordEnvironment(AbstractEnvironment):
                 state[1] = temp * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
 
         return state, orientation 
-
-
-    # def get_observation(self, state=None, path=None, normalize=True):
-    #     if state == None:
-    #         state = self.state + self.true_env_corner
-    #         state_arr = np.array([[state[0], state[1], self.orientation]])
-    #     else:
-    #         state = state + self.true_env_corner
-    #         state_arr = np.array([state])
-
-    #     if path == None:
-    #         path = os.getcwd() + '/images/' 
-    #         os.mkdir(path)
-
-    #     img_path, traversible, dx_m = generate_observation(state_arr, path)
-    #     image = cv2.imread(img_path, cv2.IMREAD_COLOR)
-    #     image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
-    #     image = np.ascontiguousarray(image)
- 
-    #     # salt = np.max(image)
-    #     # pepper = np.min(image)
-    #     salt = 255
-    #     pepper = 0
-
-    #     out = image
-
-    #     if state_arr[0][1] <= self.dark_line_true: 
-    #         # Dark observation - add salt & pepper noise
-            
-    #         row,col,ch = image.shape
-    #         s_vs_p = 0.5
-    #         amount = sep.noise_amount  
-    #         out = np.copy(image)
-    #         num_salt = np.ceil(amount * image.size * s_vs_p)
-    #         num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
-    #         noise_indices = np.random.choice(image.size, int(num_salt + num_pepper), replace=False) 
-    #         salt_indices = noise_indices[:int(num_salt)]
-    #         pepper_indices = noise_indices[int(num_salt):]
-    #         salt_coords = np.unravel_index(salt_indices, image.shape)
-    #         pepper_coords = np.unravel_index(pepper_indices, image.shape)
-    #         out[salt_coords] = salt
-    #         out[pepper_coords] = pepper
-
-    #         # coords = [np.random.randint(0, i - 1, int(num_salt))
-    #         #         for i in image.shape]
-    #         # out[coords] = salt 
-
-            
-    #         # coords = [np.random.randint(0, i - 1, int(num_pepper))
-    #         #         for i in image.shape]
-    #         # out[coords] = pepper 
-
-    #     #cv2.imwrite(img_path, out)
-
-    #     if normalize:
-    #         out = (out - out.mean())/out.std()  # "Normalization" -- TODO
-
-    #     os.remove(img_path)
-    #     os.rmdir(path)
-
-    #     return out, img_path, traversible, dx_m
 
     
     def preprocess_data(self):
@@ -336,6 +285,12 @@ class StanfordEnvironment(AbstractEnvironment):
         trap_x = first_trap_x or second_trap_x
 
         trap = trap_x and (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) 
+
+        # Traps that may appear during test time -- optional
+        if self.test_trap:
+            in_test_trap = (state[0] >= self.test_trap_x[0] and state[0] <= self.test_trap_x[1]) and \
+                      (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
+            return (trap or in_test_trap) and not self.in_goal(state)
         
         return trap and not self.in_goal(state)
     
