@@ -11,7 +11,7 @@ from configs.environments.stanford import *
 sep = Stanford_Environment_Params()
 
 
-def plot_maze(xlim, ylim, goal, trap, dark, figure_name='default', states=None):
+def plot_maze(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', states=None):
     plt.figure(figure_name)
     ax = plt.axes()
 
@@ -37,7 +37,14 @@ def plot_maze(xlim, ylim, goal, trap, dark, figure_name='default', states=None):
         trap2[0]-(goal[0]+goal[2]), trap1[3], facecolor='black', alpha=0.2))
     ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
         xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
-    
+
+    if test_trap is not None:
+        # trap i: [start_x, start_y, width, height]
+        # ax.add_patch(Rectangle((test_trap[0], test_trap[1]), test_trap[2], test_trap[3], facecolor='orange'))
+        test_trap1 = test_trap[0]
+        test_trap2 = test_trap[1]
+        ax.add_patch(Rectangle((test_trap1[0], test_trap1[1]), test_trap1[2], test_trap1[3], facecolor='orange'))
+        ax.add_patch(Rectangle((test_trap2[0], test_trap2[1]), test_trap2[2], test_trap2[3], facecolor='orange'))
 
     # goals
     # cir = plt.Circle(goal, 0.07, color='orange')
@@ -60,8 +67,8 @@ def plot_maze(xlim, ylim, goal, trap, dark, figure_name='default', states=None):
     plt.close()
 
 
-def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=None, mean_state=None, pf_state=None,
-             pf_weights=None, pp_state=None, smc_traj=None):
+def plot_par(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', true_state=None, mean_state=None, 
+            pf_state=None, pf_weights=None, pp_state=None, smc_traj=None):
     plt.figure(figure_name)
     ax = plt.axes()
     ax.set_xlim(xlim)
@@ -87,7 +94,14 @@ def plot_par(xlim, ylim, goal, trap, dark, figure_name='default', true_state=Non
     ax.add_patch(Rectangle((trap2[0]+trap2[2], trap1[1]), 
         xlim[1]-(trap2[0]+trap2[2]), trap1[3], facecolor='black', alpha=0.2))
 
-
+    if test_trap is not None:
+        # trap i: [start_x, start_y, width, height]
+        # ax.add_patch(Rectangle((test_trap[0], test_trap[1]), test_trap[2], test_trap[3], facecolor='orange'))
+        test_trap1 = test_trap[0]
+        test_trap2 = test_trap[1]
+        ax.add_patch(Rectangle((test_trap1[0], test_trap1[1]), test_trap1[2], test_trap1[3], facecolor='orange'))
+        ax.add_patch(Rectangle((test_trap2[0], test_trap2[1]), test_trap2[2], test_trap2[3], facecolor='orange'))
+         
     # goals
     # cir = plt.Circle(goal, 0.07, color='orange')
     # ax.add_artist(cir)

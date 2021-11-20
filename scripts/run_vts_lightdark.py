@@ -25,7 +25,7 @@ vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-def vts_lightdark(model, experiment_id, train, model_path):
+def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=False):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -61,6 +61,11 @@ def vts_lightdark(model, experiment_id, train, model_path):
 
 
     env = StanfordEnvironment(disc_thetas=True)
+
+    # If the test environment is different - ie there's a new trap
+    if not train and test_env_is_diff:
+        env.set_test_trap()
+
     normalization_data = env.preprocess_data()
 
     # Begin main dualSMC loop
@@ -211,8 +216,26 @@ def vts_lightdark(model, experiment_id, train, model_path):
                     trap2 = [trap2_x[0], env.trap_y[0], 
                             trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
-                    plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                            mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, state_traj)
+                    if not train and test_env_is_diff:
+                        test_trap1_x = env.test_trap_x[0]
+                        test_trap2_x = env.test_trap_x[1]
+                        test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
+                            test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
+                            test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap_plot_params = [test_trap1, test_trap2]
+                        # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
+                        #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        
+                        plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
+                                 dark, frm_name, curr_state, mean_state, resample_state, 
+                                 normalized_weights.cpu().numpy(), proposal_state, state_traj)
+                    else:
+                        plot_par(xlim, ylim, goal, [trap1, trap2], None, 
+                                 dark, frm_name, curr_state, mean_state, resample_state, 
+                                 normalized_weights.cpu().numpy(), proposal_state, state_traj)
+                    # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
+                    #         mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, state_traj)
                     #plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #        mean_state, par_states, normalized_weights.cpu().numpy(), None, None)
 
@@ -308,7 +331,25 @@ def vts_lightdark(model, experiment_id, train, model_path):
         trap2 = [trap2_x[0], env.trap_y[0], 
                 trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
         dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
-        plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
+
+        #plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
+
+        if not train and test_env_is_diff:
+            test_trap1_x = env.test_trap_x[0]
+            test_trap2_x = env.test_trap_x[1]
+            test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
+                test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+            test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
+                test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+            test_trap_plot_params = [test_trap1, test_trap2]
+            # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
+            #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+            
+            plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
+                          dark, figure_name=st, states=np.array(trajectory))
+        else:
+            plot_maze(xlim, ylim, goal, [trap1, trap2], None, 
+                         dark, figure_name=st, states=np.array(trajectory))
 
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
@@ -325,7 +366,7 @@ def vts_lightdark(model, experiment_id, train, model_path):
 
 
 def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_model=True,
-                   end_to_end=True, save_online_model=True, test=True):
+                   end_to_end=True, save_online_model=True, test=True, test_env_is_diff=False):
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
     foldername = "data/pretraining/" + experiment_id
@@ -501,7 +542,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         train = True
         # After pretraining move into the end to end training
         vts_lightdark(model, experiment_id,
-            train, model_path)
+            train, model_path, test_env_is_diff)
 
     if save_online_model:
         # Save the model
@@ -511,7 +552,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
     if test:
         train = False
         vts_lightdark(model, experiment_id,
-            train, model_path)
+            train, model_path, test_env_is_diff)
 
 
 if __name__ == "__main__":
@@ -529,9 +570,14 @@ if __name__ == "__main__":
 
         # Just testing
         #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
-        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], pre_training=False, end_to_end=False, save_online_model=False)
-        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-13-15_54_50"], pre_training=False, end_to_end=False, save_online_model=False)
-        vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], 
+        #           pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-13-15_54_50"], 
+        #           pre_training=False, end_to_end=False, save_online_model=False)
+        # vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
+        #             pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
+                    pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
         
         # Everything
         # vts_lightdark_driver()
