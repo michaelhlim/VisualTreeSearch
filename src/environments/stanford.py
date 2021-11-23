@@ -174,7 +174,30 @@ class StanfordEnvironment(AbstractEnvironment):
         return out
 
 
-    def get_observation(self, state=None, normalize=True, normalization_data=None):
+    def noise_image_occlusion(self, image, state, occlusion_amount=sep.occlusion_amount):
+         # Turns a randomly chosen occlusion_amount x occlusion_amount square in the image to black 
+
+         out = image
+
+         if state[1] <= self.dark_line: # Dark observation - add occlusion
+             amount = occlusion_amount
+
+             start_index_x = np.random.randint(image.shape[1] - occlusion_amount)  # column index
+             start_index_y = np.random.randint(image.shape[0] - occlusion_amount)  # row index
+             start_point = (start_index_x, start_index_y)
+             end_point = (start_index_x + amount, start_index_y + amount)
+             color = (0, 0, 0)
+             thickness = -1
+
+             out = np.copy(image)
+             out = cv2.rectangle(out, start_point, end_point, color, thickness)
+
+         #cv2.imwrite("out_debug2.png", out)
+
+         return out
+
+
+    def get_observation(self, state=None, normalize=True, normalization_data=None, occlusion=False):
         if state == None:
             state_temp = self.state
             state = self.state + self.true_env_corner
@@ -184,14 +207,18 @@ class StanfordEnvironment(AbstractEnvironment):
             state = state + self.true_env_corner
             state_arr = np.array([state])
 
-        path = os.getcwd() + '/images/' 
+        path = os.getcwd() + '/images1/' 
         #os.mkdir(path)
         check_path(path)
 
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
         
-        out = self.noise_image_plane(image, state_temp)
+        if occlusion:
+            out = self.noise_image_occlusion(image, state_temp)
+        else:
+            out = self.noise_image_plane(image, state_temp)
+
         out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
         out = np.ascontiguousarray(out)
 

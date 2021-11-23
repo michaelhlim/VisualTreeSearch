@@ -25,7 +25,7 @@ vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=False):
+def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=False, test_img_is_diff=False):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -82,7 +82,10 @@ def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=Fals
 
         curr_state = env.state
         curr_orientation = env.orientation
-        curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
+        if not train and test_img_is_diff:
+            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+        else:     
+            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
         trajectory.append(curr_state)
 
         par_states, par_orientations = env.make_pars(vlp.num_par_pf)   
@@ -244,7 +247,10 @@ def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=Fals
             reward = env.step(action * sep.step_range, action_is_vector=True)
             next_state = env.state
             next_orientation = env.orientation
-            next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
+            if not train and test_img_is_diff:
+                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+            else:  
+                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
             #######################################
             if train:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs_tensor,
@@ -366,7 +372,8 @@ def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=Fals
 
 
 def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_model=True,
-                   end_to_end=True, save_online_model=True, test=True, test_env_is_diff=False):
+                   end_to_end=True, save_online_model=True, test=True, test_env_is_diff=False,
+                   test_img_is_diff=False):
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
     foldername = "data/pretraining/" + experiment_id
@@ -542,7 +549,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         train = True
         # After pretraining move into the end to end training
         vts_lightdark(model, experiment_id,
-            train, model_path, test_env_is_diff)
+            train, model_path, test_env_is_diff, test_img_is_diff)
 
     if save_online_model:
         # Save the model
@@ -552,7 +559,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
     if test:
         train = False
         vts_lightdark(model, experiment_id,
-            train, model_path, test_env_is_diff)
+            train, model_path, test_env_is_diff, test_img_is_diff)
 
 
 if __name__ == "__main__":
@@ -569,15 +576,15 @@ if __name__ == "__main__":
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35"], pre_training=False, end_to_end=False, save_online_model=False)
-        #vts_lightdark_driver(load_paths=["vts_lightdark10-14-19_08_35", "vts_lightdark10-22-18_22_50"], 
-        #           pre_training=False, end_to_end=False, save_online_model=False)
-        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-13-15_54_50"], 
-        #           pre_training=False, end_to_end=False, save_online_model=False)
-        # vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
+        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
         #             pre_training=False, end_to_end=False, save_online_model=False)
+        # Generalization Experiment 1
+        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
+        #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
+        # Generalization Experiment 2
         vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
-                    pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
+                    pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 
+                    test_img_is_diff=True)
         
         # Everything
         # vts_lightdark_driver()
