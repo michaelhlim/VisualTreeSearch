@@ -20,7 +20,7 @@ dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
  
 
-def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
+def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, test_img_is_diff=False):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -94,7 +94,10 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
         curr_state = env.state
         curr_orientation = env.orientation
         #tg = time.time()
-        curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
+        if not train and test_img_is_diff:
+            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+        else:     
+            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
         #tf = time.time()
         #print("TIME BEFORE STEP GET_OBS", tf-tg)
         trajectory.append(curr_state)
@@ -361,7 +364,10 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
             next_state = env.state
             next_orientation = env.orientation
             #ts = time.time()
-            next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
+            if not train and test_img_is_diff:
+                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+            else:  
+                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
             #tt = time.time()
             #print("TIME DURING STEP GET_OBS", tt-ts)
             #######################################
@@ -524,7 +530,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
 
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, 
-                    test=True, test_env_is_diff=False):
+                    test=True, test_env_is_diff=False, test_img_is_diff=False):
     # This block of code creates the folders for plots
     experiment_id = "dualsmc_lightdark" + get_datetime()
     model_path = "nets/" + experiment_id
@@ -544,7 +550,7 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
-        dualsmc(model, experiment_id, train, model_path, test_env_is_diff)
+        dualsmc(model, experiment_id, train, model_path, test_env_is_diff, test_img_is_diff)
 
     if save_model:
         # Save the model
@@ -553,13 +559,19 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
 
     if test:
         train = False
-        dualsmc(model, experiment_id, train, model_path, test_env_is_diff)
+        dualsmc(model, experiment_id, train, model_path, test_env_is_diff, test_img_is_diff)
 
 
 if __name__ == "__main__":
     if dlp.model_name == 'dualsmc_lightdark':
-        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
         # Just testing
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
-        #                save_model=False, test=True, test_env_is_diff=True)
+        #                save_model=False, test=True)
+        # Generalization Experiment 1
+        #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
+        #                save_model=False, test=True, test_env_is_diff=False)
+        # Generalization Experiment 2
+        dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
+                        save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
