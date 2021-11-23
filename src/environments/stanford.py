@@ -32,8 +32,8 @@ class StanfordEnvironment(AbstractEnvironment):
         
         # During test time - have an additional trap region (optional)
         self.test_trap = False
-        self.test_trap_x = [3.5, 5]
-        self.test_trap_y = [0.75, 1.25]
+        self.test_trap_x = [[3, 3.5], [5, 5.5]] #[[1.5, 2], [6.5, 7]] #[3.5, 5]
+        self.test_trap_y = [0.5, 1] #[0.75, 1.25]
 
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
@@ -288,9 +288,15 @@ class StanfordEnvironment(AbstractEnvironment):
 
         # Traps that may appear during test time -- optional
         if self.test_trap:
-            in_test_trap = (state[0] >= self.test_trap_x[0] and state[0] <= self.test_trap_x[1]) and \
-                      (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
-            return (trap or in_test_trap) and not self.in_goal(state)
+            first_test_trap = self.test_trap_x[0]
+            first_test_trap_x = (state[0] >= first_test_trap[0] and state[0] <= first_test_trap[1])
+            second_test_trap = self.test_trap_x[1]
+            second_test_trap_x = (state[0] >= second_test_trap[0] and state[0] <= second_test_trap[1])
+            test_trap_x = first_test_trap_x or second_test_trap_x
+            test_trap = test_trap_x and (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
+            # in_test_trap = (state[0] >= self.test_trap_x[0] and state[0] <= self.test_trap_x[1]) and \
+            #            (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
+            return (trap or test_trap) and not self.in_goal(state)
         
         return trap and not self.in_goal(state)
     

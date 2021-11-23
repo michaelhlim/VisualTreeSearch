@@ -330,15 +330,24 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
 
                     if not train and test_env_is_diff:
-                        test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
-                                    env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap1_x = env.test_trap_x[0]
+                        test_trap2_x = env.test_trap_x[1]
+                        test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
+                            test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
+                            test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap_plot_params = [test_trap1, test_trap2]
+                        # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
+                        #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+
                         plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
                                 dark, frm_name, curr_state, mean_state, resample_state, 
                                 normalized_weights.cpu().numpy(), proposal_state, smc_xy)
                     else:
                         plot_par(xlim, ylim, goal, [trap1, trap2], None, 
-                                dark, frm_name, curr_state, mean_state, resample_state, 
-                                normalized_weights.cpu().numpy(), proposal_state, smc_xy)
+                                  dark, frm_name, curr_state, mean_state, resample_state, 
+                                  normalized_weights.cpu().numpy(), proposal_state, smc_xy)
+
                     # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #        mean_state, resample_state, proposal_state, smc_xy)
                     # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
@@ -472,13 +481,21 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False):
             #plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
 
             if not train and test_env_is_diff:
-                test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
-                            env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                test_trap1_x = env.test_trap_x[0]
+                test_trap2_x = env.test_trap_x[1]
+                test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
+                    test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
+                    test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                test_trap_plot_params = [test_trap1, test_trap2]
+                # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
+                #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+
                 plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
-                         dark, figure_name=st, states=np.array(trajectory))
+                            dark, figure_name=st, states=np.array(trajectory))
             else:
                 plot_maze(xlim, ylim, goal, [trap1, trap2], None, 
-                        dark, figure_name=st, states=np.array(trajectory))
+                            dark, figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
@@ -541,8 +558,8 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
 
 if __name__ == "__main__":
     if dlp.model_name == 'dualsmc_lightdark':
-        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
         # Just testing
-        dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
-                        save_model=False, test=True, test_env_is_diff=True)
+        #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
+        #                save_model=False, test=True, test_env_is_diff=True)
