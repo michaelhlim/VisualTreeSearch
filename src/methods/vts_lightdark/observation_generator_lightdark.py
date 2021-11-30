@@ -120,7 +120,7 @@ class ObservationGenerator(nn.Module):
         z = self.reparameterize(mu, log_var)  # [batch_size, latent_dim]
 
         recons = self.decode(conditional_input, z)  # [batch_size, obs_encode_out]
-        recons = self.conv.decode(recons)
+        recons = self.conv.decode(recons)  # [batch_size, in_channels, img_size, img_size]
 
         #return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]
         return [recons, enc_obs_batch, mu, log_var]
@@ -183,7 +183,7 @@ class ObservationGenerator(nn.Module):
         """
         z = torch.randn(num_samples, self.latent_dim).to(vlp.device)
 
-        samples = self.decode(conditional_input, z)
+        samples = self.decode(conditional_input, z)  # [batch_size, obs_encode_out]
         return samples
     
 

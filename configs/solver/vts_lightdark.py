@@ -16,7 +16,7 @@ class VTS_LightDark_Params():
         self.obs_encode_out = 256 #2048 #64
         self.mlp_hunits_zp = 128
         self.zp_lr = 3e-4
-        self.num_epochs_zp = 0 #400 
+        self.num_epochs_zp = 400 #0 #400 
 
         ## G
         self.num_layers = 5
@@ -27,14 +27,14 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 400 #0 #400 
+        self.num_epochs_g = 0 #400 
 
         ## Encoder
         self.leak_rate_enc = 0
-        self.mlp_hunits_enc1 = 1024
-        self.mlp_hunits_enc2 = 512
-        self.mlp_hunits_enc3 = 256
-        self.obs_encode_out_conv = 2048
+        self.mlp_hunits_enc = [1024, 512, 256]
+        self.obs_encode_out_conv = 64*4*4 #2048
+
+        self.hidden_dims_generator_conv = [16, 32, 64]  # [32, 64, 128, 256, 512]
 
         ######################
         # Training

@@ -398,8 +398,7 @@ class VTS:
         print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_gen_img, 
                 #"\nProposed States:", state_propose_gen_img[:15, :], "\nFake Logit:", fake_logit_gen_img,
                 "\nDummy Logits:", logits_gen_img)
-
-
+        
 
         # Plotting
         xlim = env.xrange
@@ -419,8 +418,181 @@ class VTS:
         vts_pretraining_analysis(xlim, ylim, goal, [trap1, trap2], dark, 
             ['proposed_particles', 'dummy_particles', 'dummy_particles_blur', 'dummy_particles_gen'], 
             true_state, true_orientation, random_states, 
-            likelihoods, likelihoods_blur, likelihoods_gen,
+            [likelihoods, likelihoods_blur, likelihoods_gen],
             proposed_states)
+    
+
+    def test_models_encobs(self, batch_size, state, orientation, obs, blurred_images, env):
+        # NOTE: Code assumes that the batch size is 1!
+
+        cutoff = 15
+
+        state = torch.FloatTensor(state).to(vlp.device).detach()  # [batch_size, dim_state]
+        orientation = torch.FloatTensor(orientation).unsqueeze(1).to(vlp.device).detach()  # [batch_size, 1]
+        obs = torch.FloatTensor(obs)  # [batch_size, img_size, img_size, in_channels]
+        obs = obs.permute(0, 3, 1, 2).to(vlp.device).detach()  # [batch_size, in_channels, 32, 32]
+
+        # blurred_images = torch.FloatTensor(blurred_images)
+        # blurred_images = blurred_images.permute(0, 3, 1, 2).to(vlp.device).detach()
+
+        num_random_states = 50
+        # Generate a normal distribution with covariance matrix 0.01 * I around the true state
+        random_states = state + (torch.randn(num_random_states, sep.dim_state)*0.1).to(vlp.device)
+
+        ## True encoded observation
+        enc_obs = self.generator.conv.encode(obs)   # [batch_size, obs_encode_out]
+        enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+
+        ## Generator Performance
+        # Looking at generated image
+        conditional_input = torch.cat((state, orientation), -1)  # [batch_size, dim_state + 1]
+        # Generated encoded observation
+        enc_obs_hat = self.generator.sample(batch_size, conditional_input)  # [batch_size, obs_encode_out]
+        # Generated image
+        image_hat = self.generator.conv.decode(enc_obs_hat.detach())
+        output = image_hat.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
+        output = output.detach().cpu().numpy()  
+        import pickle
+        import cv2
+        normalization_data = pickle.load(open("data_normalization.p", "rb"))
+        rmean, gmean, bmean, rstd, gstd, bstd = normalization_data   
+        output[:, :, 0] = (output[:, :, 0] * rstd + rmean)
+        output[:, :, 1] = (output[:, :, 1] * gstd + gmean)
+        output[:, :, 2] = (output[:, :, 2] * bstd + bmean)
+        output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
+        cv2.imwrite("output.png", output)
+
+
+        print("True encoded observation (normalized):", enc_obs[:, :cutoff])
+        print("Generated encoded observation:", enc_obs_hat[:, :cutoff])
+        
+        # True image
+        original = obs[0]  
+        original = original.permute(1, 2, 0)  # [32, 32, in_channels]
+        original = original.detach().cpu().numpy()
+        original[:, :, 0] = (original[:, :, 0] * rstd + rmean)
+        original[:, :, 1] = (original[:, :, 1] * gstd + gmean)
+        original[:, :, 2] = (original[:, :, 2] * bstd + bmean)
+        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+        cv2.imwrite("original.png", original)
+        
+        # Blurred image
+        # original_blurred = blurred_images[0]  
+        # original_blurred = original_blurred.permute(1, 2, 0)  # [32, 32, in_channels]
+        # original_blurred = original_blurred.detach().cpu().numpy()
+        # original_blurred[:, :, 0] = (original_blurred[:, :, 0] * rstd + rmean)
+        # original_blurred[:, :, 1] = (original_blurred[:, :, 1] * gstd + gmean)
+        # original_blurred[:, :, 2] = (original_blurred[:, :, 2] * bstd + bmean)
+        # original_blurred = original_blurred[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+        # cv2.imwrite("original_blurred.png", original_blurred)
+
+
+        ## Performance of Z and P on true state and image
+        real_logit = self.measure_net.m_model(state, orientation, obs, 1)  # [batch_size, 1]
+        state_propose = self.pp_net(obs, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # Performance of Z on proposed particles -- just to check the balance between Z and P
+        fake_logit = self.measure_net.m_model(state_propose.detach(), orientation.repeat(vlp.num_par_pf, 1),
+                                                           obs, vlp.num_par_pf)  # [batch_size, num_par]
+        logits = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
+                                                           obs, num_random_states)  # [batch_size, num_random_states]
+        # For plotting
+        proposed_states = state_propose.detach().cpu().numpy()
+        likelihoods = logits.detach().cpu().numpy().reshape([num_random_states])
+
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit,
+                "\nProposed States:", state_propose[:cutoff, :], "\nFake Logit:", fake_logit,
+                "\nDummy Logits:", logits)
+
+
+        ## Performance of Z and P on true encoded observation
+        print("\nPlugging true encoded observation back into Z/P")
+        real_logit_encobs = self.measure_net.m_model(state, orientation, enc_obs.detach(), 1, obs_is_encoded=True)  # [batch_size, 1]
+        # state_propose_gen_img = self.pp_net(image_hat.detach(), orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # fake_logit_gen_img = self.measure_net.m_model(state_propose_gen_img.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        #                                                    image_hat.detach(), vlp.num_par_pf)  # [batch_size, num_par]
+        logits_encobs = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
+                                                           enc_obs.detach(), num_random_states, obs_is_encoded=True)  # [batch_size, num_random_states]
+        # For plotting
+        # proposed_states_gen = state_propose_gen_img.detach().cpu().numpy()  
+        likelihoods_encobs = logits_encobs.detach().cpu().numpy().reshape([num_random_states])
+
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_encobs, 
+                #"\nProposed States:", state_propose_gen_img[:15, :], "\nFake Logit:", fake_logit_gen_img,
+                "\nDummy Logits:", logits_encobs)
+
+
+        # ## Performance of Z and P on blurred image
+        # print("\nInputting blurry image into Z/P")
+        # real_logit_blur = self.measure_net.m_model(state, orientation, blurred_images, 1)  # [batch_size, 1]
+        # # state_propose_blur = self.pp_net(blurred_images, orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # # fake_logit_blur = self.measure_net.m_model(state_propose_blur.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        # #                                                    blurred_images, vlp.num_par_pf)  # [batch_size, num_par]
+        # logits_blur = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
+        #                                                    blurred_images, num_random_states)  # [batch_size, num_random_states]
+        # # For plotting
+        # # proposed_states_blur = state_propose_blur.detach().cpu().numpy()
+        # likelihoods_blur = logits_blur.detach().cpu().numpy().reshape([num_random_states])
+        
+        # print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_blur,
+        #      #"\nProposed States:", state_propose_blur[:15, :], "\nFake Logit:", fake_logit_blur,
+        #         "\nDummy Logits:", logits_blur)
+
+
+        ## Performance of Z and P on generated image
+        print("\nPlugging generated image back into Z/P")
+        real_logit_gen_img = self.measure_net.m_model(state, orientation, image_hat.detach(), 1)  # [batch_size, 1]
+        # state_propose_gen_img = self.pp_net(image_hat.detach(), orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # fake_logit_gen_img = self.measure_net.m_model(state_propose_gen_img.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        #                                                    image_hat.detach(), vlp.num_par_pf)  # [batch_size, num_par]
+        logits_gen_img = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
+                                                           image_hat.detach(), num_random_states)  # [batch_size, num_random_states]
+        # For plotting
+        # proposed_states_gen = state_propose_gen_img.detach().cpu().numpy()  
+        likelihoods_gen = logits_gen_img.detach().cpu().numpy().reshape([num_random_states])
+
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_gen_img, 
+                #"\nProposed States:", state_propose_gen_img[:15, :], "\nFake Logit:", fake_logit_gen_img,
+                "\nDummy Logits:", logits_gen_img)
+        
+
+        ## Performance of Z and P on generated encoded observation
+        print("\nPlugging generated encoded observation back into Z/P")
+        real_logit_gen_encobs = self.measure_net.m_model(state, orientation, enc_obs_hat.detach(), 1, obs_is_encoded=True)  # [batch_size, 1]
+        # state_propose_gen_img = self.pp_net(image_hat.detach(), orientation, vlp.num_par_pf)   # [batch_size * num_par, dim_state]
+        # fake_logit_gen_img = self.measure_net.m_model(state_propose_gen_img.detach(), orientation.repeat(vlp.num_par_pf, 1),
+        #                                                    image_hat.detach(), vlp.num_par_pf)  # [batch_size, num_par]
+        logits_gen_encobs = self.measure_net.m_model(random_states, orientation.repeat(num_random_states, 1),
+                                                           enc_obs_hat.detach(), num_random_states, obs_is_encoded=True)  # [batch_size, num_random_states]
+        # For plotting
+        # proposed_states_gen = state_propose_gen_img.detach().cpu().numpy()  
+        likelihoods_gen_encobs = logits_gen_encobs.detach().cpu().numpy().reshape([num_random_states])
+
+        print("State:", state, "\nOrientation:", orientation, "\nReal Logit:", real_logit_gen_encobs, 
+                #"\nProposed States:", state_propose_gen_img[:15, :], "\nFake Logit:", fake_logit_gen_img,
+                "\nDummy Logits:", logits_gen_encobs)
+
+
+
+        # Plotting
+        xlim = env.xrange
+        ylim = env.yrange  
+        goal = [env.target_x[0], env.target_y[0], 
+                env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
+        trap1_x = env.trap_x[0]
+        trap2_x = env.trap_x[1]
+        trap1 = [trap1_x[0], env.trap_y[0], 
+                trap1_x[1]-trap1_x[0], env.trap_y[1]-env.trap_y[0]]
+        trap2 = [trap2_x[0], env.trap_y[0], 
+                trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
+        dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
+        true_state = state.cpu().numpy()[0]
+        true_orientation = orientation.cpu().numpy()[0][0] 
+        random_states = random_states.cpu().numpy()
+
+        figure_names = ['proposed_particles', 'dummy_particles', 'dummy_particles_encobs', 'dummy_particles_gen', 'dummy_particles_gen_encobs']
+        likelihoods_list = [likelihoods, likelihoods_encobs, likelihoods_gen, likelihoods_gen_encobs]
+        vts_pretraining_analysis(xlim, ylim, goal, [trap1, trap2], dark, figure_names, 
+            true_state, true_orientation, random_states, likelihoods_list, proposed_states)
 
 
     def test_models_old(self, batch_size, state, orientation, obs, blurred_images, env):

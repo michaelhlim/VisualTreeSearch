@@ -25,7 +25,8 @@ vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=False, test_img_is_diff=False):
+def vts_lightdark(model, experiment_id, train, model_path, 
+                shared_enc=False, test_env_is_diff=False, test_img_is_diff=False):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -93,7 +94,7 @@ def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=Fals
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()  # Goes into replay buffer
 
-        pft_planner = PFTDPW(env, model.measure_net, model.generator)  # Why is this created in each episode
+        pft_planner = PFTDPW(env, model.measure_net, model.generator, shared_enc)  # Why is this created in each episode
 
         if vlp.show_traj and episode % vlp.display_iter == 0:
             check_path(img_path + "/iters/")
@@ -371,7 +372,7 @@ def vts_lightdark(model, experiment_id, train, model_path, test_env_is_diff=Fals
     file2.close()
 
 
-def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_model=True,
+def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True, test_env_is_diff=False,
                    test_img_is_diff=False):
     # This block of code creates the folders for plots
@@ -385,7 +386,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
     check_path("nets")
 
     # Create a model and environment object
-    model = VTS()
+    model = VTS(shared_enc)
     env = StanfordEnvironment(disc_thetas=True) 
 
     #observation_generator = ObservationGenerator()
@@ -478,10 +479,18 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         plt.savefig(foldername + "/p_loss.png")
 
         
+        if save_pretrained_model:
+            model.save_model(model_path + "/vts_pre_trained")
+            print("Saving pre-trained Z, P models to %s" % model_path)
+
+        tocc = time.perf_counter()
+        time_this_step = tocc - tic
+        print("Time elapsed for pre-training Z and P: ", time_this_step, "seconds.")
+
         # For training the generator with noisy images
         # Pre-generate the corrupted indices in the image
         # Noise in the image plane
-        diff_pattern = False 
+        diff_pattern = True 
         s_vs_p = sep.salt_vs_pepper
         image_plane_size = sep.img_size**2
         num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
@@ -494,6 +503,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         else:
             noise_list = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
         noise_list = np.array(noise_list)
+
 
         steps = []
         # Train G
@@ -543,13 +553,13 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
         
         toc = time.perf_counter()
         time_this_step = toc - tic
-        print("Time elapsed for pre-training: ", time_this_step, "seconds.")
+        print("Time elapsed for pre-training all models: ", time_this_step, "seconds.")
 
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
         vts_lightdark(model, experiment_id,
-            train, model_path, test_env_is_diff, test_img_is_diff)
+            train, model_path, shared_enc, test_env_is_diff, test_img_is_diff)
 
     if save_online_model:
         # Save the model
@@ -559,7 +569,7 @@ def vts_lightdark_driver(load_paths=None, pre_training=True, save_pretrained_mod
     if test:
         train = False
         vts_lightdark(model, experiment_id,
-            train, model_path, test_env_is_diff, test_img_is_diff)
+            train, model_path, shared_enc, test_env_is_diff, test_img_is_diff)
 
 
 if __name__ == "__main__":
@@ -571,20 +581,23 @@ if __name__ == "__main__":
         # Just pre-training
         #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        vts_lightdark_driver(shared_enc=True, end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
         #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
-        #             pre_training=False, end_to_end=False, save_online_model=False)
+        #            pre_training=False, end_to_end=False, save_online_model=False)
         # Generalization Experiment 1
         #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
         # Generalization Experiment 2
-        vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
-                    pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 
-                    test_img_is_diff=True)
+        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
+        #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 
+        #            test_img_is_diff=True)
+         
+
         
         # Everything
         # vts_lightdark_driver()

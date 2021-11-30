@@ -28,7 +28,7 @@ class PFTTree:
 
 
 class PFTDPW():
-	def __init__(self, environment, obs_density_module, obs_generator_module):
+	def __init__(self, environment, obs_density_module, obs_generator_module, shared_enc=False):
 		# Initialize tree
 		self.initialize_tree()
 
@@ -47,6 +47,9 @@ class PFTDPW():
 		self.k_act = vlp.k_action 
 		self.alpha_act = vlp.alpha_action 
 		self.discount = vlp.discount 
+
+		self.shared_enc = shared_enc
+
 
 	def initialize_tree(self):
 		self.tree = PFTTree(child_actions={}, n_b_visits=[], belief_ids=[], n_act_visits=[], q=[], action_ids=[], transitions={})
@@ -105,15 +108,23 @@ class PFTDPW():
 			# Generate an observation from a random state
 			s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
 			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(vlp.device))  # [1, obs_encode_out]
-			o = self.G.conv.decode(o)  # [1, 3, 32, 32]
-
+			
 			# Generate particle belief set
-			# lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
-			# 							torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
-			# 							o.detach(), self.n_par, obs_is_encoded=True)  # [1, num_par]
-			lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
-										torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
-										o.detach(), self.n_par)  # [1, num_par]
+			if self.shared_enc:
+				# If we are planning with the image encodings, do not run the decoder to get the image
+				# Also, do not run the encoder inside m_model because the obs is already encoded
+				lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
+											torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
+											o.detach(), self.n_par, obs_is_encoded=True)  # [1, num_par]
+			else:
+				# If we are not planning with the image encodings, run the decoder (convolutional layers) 
+				# to get the image
+				# m_model should run the encoder because the obs is an image
+				o = self.G.conv.decode(o)  # [1, 3, 32, 32]
+				lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
+											torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
+											o.detach(), self.n_par)  # [1, num_par]
+
 			new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
 			
 			# Resample states (naive resampling)

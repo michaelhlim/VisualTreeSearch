@@ -707,7 +707,7 @@ class StanfordEnvironment(AbstractEnvironment):
 
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)  # src is now in BGR
 
-            # For training the generator: pass in the index of the image in the dataset
+            # For training the generator: each dark image has a pre-determined list of corrupted indices passed in
             if noise_list is not None:
                 if len(noise_list.shape) == 2:
                     noise_indices = noise_list[index]

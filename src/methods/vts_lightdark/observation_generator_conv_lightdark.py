@@ -10,7 +10,7 @@ vlp = VTS_LightDark_Params()
 
 
 class ObservationGeneratorConv(nn.Module):
-    def __init__(self, hidden_dims=None):
+    def __init__(self):
         super(ObservationGeneratorConv, self).__init__()
 
         self.in_channels = vlp.in_channels
@@ -22,29 +22,38 @@ class ObservationGeneratorConv(nn.Module):
         ## Encoder Convolutional Layers
 
         modules = []
-        if hidden_dims is None:
-            hidden_dims = [32, 64, 128, 256, 512]
+        hidden_dims = vlp.hidden_dims_generator_conv
         
         self.hidden_dims = hidden_dims.copy()
 
         in_channels = self.in_channels
 
         # Build Encoder
+        # for h_dim in hidden_dims:
+        #     if h_dim == hidden_dims[-1]:
+        #         modules.append(
+        #             nn.Sequential(
+        #                 nn.Conv2d(in_channels, out_channels=h_dim,
+        #                         kernel_size=3, stride=1, padding=1),
+        #                 nn.LeakyReLU(self.leak_rate))
+        #         )
+        #     else:    
+        #         modules.append(
+        #             nn.Sequential(
+        #                 nn.Conv2d(in_channels, out_channels=h_dim,
+        #                         kernel_size=3, stride=2, padding=1),
+        #                 nn.LeakyReLU(self.leak_rate))
+        #         )
+        #     in_channels = h_dim
+
         for h_dim in hidden_dims:
-            if h_dim == hidden_dims[-1]:
-                modules.append(
-                    nn.Sequential(
-                        nn.Conv2d(in_channels, out_channels=h_dim,
-                                kernel_size=3, stride=1, padding=1),
-                        nn.LeakyReLU(self.leak_rate))
-                )
-            else:    
-                modules.append(
-                    nn.Sequential(
-                        nn.Conv2d(in_channels, out_channels=h_dim,
-                                kernel_size=3, stride=2, padding=1),
-                        nn.LeakyReLU(self.leak_rate))
-                )
+            modules.append(
+                nn.Sequential(
+                    nn.Conv2d(in_channels, out_channels=h_dim,
+                            kernel_size=3, stride=2, padding=1),
+                    nn.LeakyReLU(self.leak_rate))
+            )   
+  
             in_channels = h_dim
 
         self.encoder_conv = nn.Sequential(*modules)
@@ -53,12 +62,19 @@ class ObservationGeneratorConv(nn.Module):
         ## Encoder MLP Layers
 
         mlp_modules = []
-        mlp_modules.append(nn.Linear(vlp.obs_encode_out_conv, vlp.mlp_hunits_enc1))
+        mlp_modules.append(nn.Linear(vlp.obs_encode_out_conv, vlp.mlp_hunits_enc[0]))
         mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.mlp_hunits_enc2))
-        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc3)) # mlp_hunits_enc3 = obs_encode_out
-        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        for i in range(len(vlp.mlp_hunits_enc) - 1):
+            ind = i + 1
+            mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc[ind-1], vlp.mlp_hunits_enc[ind]))
+            mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        
+        # mlp_modules.append(nn.Linear(vlp.obs_encode_out_conv, vlp.mlp_hunits_enc1))
+        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.mlp_hunits_enc2))
+        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc3)) # mlp_hunits_enc3 = obs_encode_out
+        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
 
         self.encoder_mlp = nn.Sequential(*mlp_modules)
 
@@ -66,12 +82,20 @@ class ObservationGeneratorConv(nn.Module):
         ## Decoder MLP Layers
 
         mlp_modules = []
-        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc3, vlp.mlp_hunits_enc2))
+        for i in range(len(vlp.mlp_hunits_enc) - 1):
+            ind = len(vlp.mlp_hunits_enc) - i - 1
+            mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc[ind], vlp.mlp_hunits_enc[ind-1]))
+            mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        ind -= 1
+        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc[ind], vlp.obs_encode_out_conv))
         mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc1))
-        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.obs_encode_out_conv))
-        mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+
+        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc3, vlp.mlp_hunits_enc2))
+        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc1))
+        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
+        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.obs_encode_out_conv))
+        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
 
         self.decoder_mlp = nn.Sequential(*mlp_modules)
 
@@ -111,8 +135,8 @@ class ObservationGeneratorConv(nn.Module):
 
     def encode(self, obs):
         embedded_input = self.embed_obs(obs)  # [batch_size, in_channels, 32, 32]
-        intermediate = self.encoder_conv(embedded_input)  # [batch_size, 512, 2, 2]
-        intermediate = torch.flatten(intermediate, start_dim=1)  # [batch_size, 512*4]
+        intermediate = self.encoder_conv(embedded_input)  # [batch_size, 64, 4, 4]  # [batch_size, 512, 2, 2]
+        intermediate = torch.flatten(intermediate, start_dim=1)  # [batch_size, 64*16]  # [batch_size, 512*4]
 
         intermediate = self.encoder_mlp(intermediate) # [batch_size, 256]
 

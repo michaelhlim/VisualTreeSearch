@@ -154,8 +154,8 @@ def plot_crosses_with_alphas(data, color, alphas, ax):
         ax.plot(x[j], y[j], color, alpha=min(alphas[j] + heuristic_alpha, 1.0))
 
 def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names, 
-            true_state, true_orientation, random_states, 
-            likelihoods, likelihoods_blur, likelihoods_gen,
+            true_state, true_orientation, random_states, likelihoods_list,
+            #likelihoods, likelihoods_blur, likelihoods_gen,
             proposed_states):
     '''
     Plot on the environment the state and proposed states for when the input is the true image
@@ -219,23 +219,34 @@ def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names,
         plt.savefig(fig_name)
         plt.close()
 
-    ## Plot the dummy particles for the true image as input
-    plot_dummys(likelihoods, figure_names[1])
+    
+    num_bins = 25
+    for i in range(len(likelihoods_list)):
+        lik = likelihoods_list[i]
+        fig_name = figure_names[i+1]
+        plot_dummys(lik, fig_name)
+        plt.figure()
+        plt.hist(lik, bins=np.linspace(min(lik), max(lik), num_bins))
+        plt.savefig(fig_name + "_logits")
+        plt.close()
 
-    ## Plot the dummy particles for the blurred image as input
-    plot_dummys(likelihoods_blur, figure_names[2])
+    # ## Plot the dummy particles for the true image as input
+    # plot_dummys(likelihoods, figure_names[1])
 
-    ## Plot the dummy particles for the generated image as input
-    plot_dummys(likelihoods_gen, figure_names[3])
+    # ## Plot the dummy particles for the blurred image as input
+    # plot_dummys(likelihoods_blur, figure_names[2])
 
+    # ## Plot the dummy particles for the generated image as input
+    # plot_dummys(likelihoods_gen, figure_names[3])
 
-    fig1, ax1 = plt.subplots()
-    plt.hist(likelihoods, bins=np.linspace(min(likelihoods), max(likelihoods), 25), label='dummy_logits')
-    plt.hist(likelihoods_gen, bins=np.linspace(min(likelihoods_gen), max(likelihoods_gen), 25), label='dummy_logits_gen')
-    ax1.set_xlim(min(min(likelihoods), min(likelihoods_gen)), max(max(likelihoods), max(likelihoods_gen)))
-    plt.legend()
-    plt.savefig("likelihoods")
-    plt.close()
+        
+
+    # plt.hist(likelihoods, bins=np.linspace(min(likelihoods), max(likelihoods), 25), label='dummy_logits')
+    # plt.hist(likelihoods_gen, bins=np.linspace(min(likelihoods_gen), max(likelihoods_gen), 25), label='dummy_logits_gen')
+    # ax1.set_xlim(min(min(likelihoods), min(likelihoods_gen)), max(max(likelihoods), max(likelihoods_gen)))
+    # plt.legend()
+    # plt.savefig("likelihoods")
+    # plt.close()
 
     
 
