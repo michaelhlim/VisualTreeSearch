@@ -29,32 +29,34 @@ class ObservationGeneratorConv(nn.Module):
         in_channels = self.in_channels
 
         # Build Encoder
-        # for h_dim in hidden_dims:
-        #     if h_dim == hidden_dims[-1]:
-        #         modules.append(
-        #             nn.Sequential(
-        #                 nn.Conv2d(in_channels, out_channels=h_dim,
-        #                         kernel_size=3, stride=1, padding=1),
-        #                 nn.LeakyReLU(self.leak_rate))
-        #         )
-        #     else:    
-        #         modules.append(
-        #             nn.Sequential(
-        #                 nn.Conv2d(in_channels, out_channels=h_dim,
-        #                         kernel_size=3, stride=2, padding=1),
-        #                 nn.LeakyReLU(self.leak_rate))
-        #         )
-        #     in_channels = h_dim
-
-        for h_dim in hidden_dims:
-            modules.append(
-                nn.Sequential(
-                    nn.Conv2d(in_channels, out_channels=h_dim,
-                            kernel_size=3, stride=2, padding=1),
-                    nn.LeakyReLU(self.leak_rate))
-            )   
+        if vlp.final_img_size == 2: # Don't do the downsampling at the final layer
+            for h_dim in hidden_dims:
+                if h_dim == hidden_dims[-1]:
+                    modules.append(
+                        nn.Sequential(
+                            nn.Conv2d(in_channels, out_channels=h_dim,
+                                    kernel_size=3, stride=1, padding=1),
+                            nn.LeakyReLU(self.leak_rate))
+                    )
+                else:    
+                    modules.append(
+                        nn.Sequential(
+                            nn.Conv2d(in_channels, out_channels=h_dim,
+                                    kernel_size=3, stride=2, padding=1),
+                            nn.LeakyReLU(self.leak_rate))
+                    )
+                in_channels = h_dim
+        else:
+            for h_dim in hidden_dims:
+                modules.append(
+                    nn.Sequential(
+                        nn.Conv2d(in_channels, out_channels=h_dim,
+                                kernel_size=3, stride=2, padding=1),
+                        nn.LeakyReLU(self.leak_rate))
+                )   
   
-            in_channels = h_dim
+                in_channels = h_dim
+
 
         self.encoder_conv = nn.Sequential(*modules)
 
@@ -119,13 +121,27 @@ class ObservationGeneratorConv(nn.Module):
 
         self.decoder_conv = nn.Sequential(*modules)
 
-        self.final_layer = nn.Sequential(
-                            #nn.ConvTranspose2d(hidden_dims[-1],
-                            #                   hidden_dims[-1],
-                            #                   kernel_size=3,
-                            #                   stride=2,
-                            #                   padding=1,
-                            #                   output_padding=1),
+        # Assumes that there is at most one convolutional layer in the encoder with stride 1
+        # and that layer is at the end
+        # If there is one such layer, it must be because the "final image size" is 2 
+        # (can't be downsampled any more)
+        # If there are no such layers, this final_layer is needed to make the encoder 
+        # and decoder perfectly symmetric
+        if vlp.final_img_size == 2:
+            self.final_layer = nn.Sequential(   
+                            #nn.BatchNorm2d(hidden_dims[-1]),
+                            #nn.LeakyReLU(self.leak_rate),
+                            nn.Conv2d(hidden_dims[-1], out_channels=self.in_channels,
+                                      kernel_size=3, padding=1))
+                            #nn.Tanh())
+        else:
+            self.final_layer = nn.Sequential(  
+                            nn.ConvTranspose2d(hidden_dims[-1],
+                                              hidden_dims[-1],
+                                              kernel_size=3,
+                                              stride=2,
+                                              padding=1,
+                                              output_padding=1),
                             #nn.BatchNorm2d(hidden_dims[-1]),
                             nn.LeakyReLU(self.leak_rate),
                             nn.Conv2d(hidden_dims[-1], out_channels=self.in_channels,
@@ -134,21 +150,21 @@ class ObservationGeneratorConv(nn.Module):
 
 
     def encode(self, obs):
-        embedded_input = self.embed_obs(obs)  # [batch_size, in_channels, 32, 32]
-        intermediate = self.encoder_conv(embedded_input)  # [batch_size, 64, 4, 4]  # [batch_size, 512, 2, 2]
-        intermediate = torch.flatten(intermediate, start_dim=1)  # [batch_size, 64*16]  # [batch_size, 512*4]
+        embedded_input = self.embed_obs(obs)  # [batch_size, in_channels, img_size, img_size]
+        intermediate = self.encoder_conv(embedded_input)  # [batch_size, final_num_channels, final_img_size, final_img_size]  
+        intermediate = torch.flatten(intermediate, start_dim=1)  # [batch_size, obs_encode_out_conv] 
 
-        intermediate = self.encoder_mlp(intermediate) # [batch_size, 256]
+        intermediate = self.encoder_mlp(intermediate) # [batch_size, obs_encode_out]
 
         return intermediate
 
 
-    def decode(self, intermediate):
-        intermediate = self.decoder_mlp(intermediate) # [batch_size, 512*4]
+    def decode(self, intermediate):  
+        intermediate = self.decoder_mlp(intermediate) # [batch_size, obs_encode_out_conv]
 
-        intermediate = intermediate.view(-1, self.hidden_dims[-1], 2, 2)  # [batch_size, 512, 2, 2]
-        result = self.decoder_conv(intermediate)  # [batch_size, 32, 32, 32]
-        result = self.final_layer(result)  # [batch_size, 3, 32, 32]
+        intermediate = intermediate.view(-1, self.hidden_dims[-1], 4, 4)  # [batch_size, final_num_channels, final_img_size, final_img_size]  
+        result = self.decoder_conv(intermediate)  # [batch_size, first num channels, img_size/2, img_size/2] OR [batch_size, first num channels, img_size, img_size]
+        result = self.final_layer(result)  # [batch_size, in_channels, img_size, img_size]
         return result 
 
 

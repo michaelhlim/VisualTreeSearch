@@ -219,7 +219,7 @@ class VTS:
             state_propose = self.pp_net(curr_obs, curr_orientation, vlp.num_par_pf)  # [batch_size * num_par, dim_state]
             PP_loss = 0
             P_loss = PP_loss
-            if 'mse' in vlp.pp_loss_type:
+            if 'mse' in vlp.pp_loss_type:  # NOTE: Have not tested that the mse block works
                 PP_loss += self.MSE_criterion(state_batch.repeat(vlp.num_par_pf, 1), state_propose)
                 P_loss = PP_loss
             if 'adv' in vlp.pp_loss_type:
@@ -228,7 +228,7 @@ class VTS:
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
                 P_loss = PP_loss
-            if 'density' in vlp.pp_loss_type:
+            if 'density' in vlp.pp_loss_type:  # NOTE: Have not tested that the density block works
                 std = 0.1
                 DEN_COEF = 1
                 std_scale = torch.FloatTensor(np.array([2, 1])).to(vlp.device)
@@ -424,8 +424,11 @@ class VTS:
 
     def test_models_encobs(self, batch_size, state, orientation, obs, blurred_images, env):
         # NOTE: Code assumes that the batch size is 1!
+        
+        import pickle
+        import cv2
 
-        cutoff = 15
+        cutoff = 16
 
         state = torch.FloatTensor(state).to(vlp.device).detach()  # [batch_size, dim_state]
         orientation = torch.FloatTensor(orientation).unsqueeze(1).to(vlp.device).detach()  # [batch_size, 1]
@@ -435,6 +438,9 @@ class VTS:
         # blurred_images = torch.FloatTensor(blurred_images)
         # blurred_images = blurred_images.permute(0, 3, 1, 2).to(vlp.device).detach()
 
+        normalization_data = pickle.load(open("data_normalization.p", "rb"))
+        rmean, gmean, bmean, rstd, gstd, bstd = normalization_data  
+        
         num_random_states = 50
         # Generate a normal distribution with covariance matrix 0.01 * I around the true state
         random_states = state + (torch.randn(num_random_states, sep.dim_state)*0.1).to(vlp.device)
@@ -451,17 +457,12 @@ class VTS:
         # Generated image
         image_hat = self.generator.conv.decode(enc_obs_hat.detach())
         output = image_hat.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
-        output = output.detach().cpu().numpy()  
-        import pickle
-        import cv2
-        normalization_data = pickle.load(open("data_normalization.p", "rb"))
-        rmean, gmean, bmean, rstd, gstd, bstd = normalization_data   
+        output = output.detach().cpu().numpy()   
         output[:, :, 0] = (output[:, :, 0] * rstd + rmean)
         output[:, :, 1] = (output[:, :, 1] * gstd + gmean)
         output[:, :, 2] = (output[:, :, 2] * bstd + bmean)
         output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
         cv2.imwrite("output.png", output)
-
 
         print("True encoded observation (normalized):", enc_obs[:, :cutoff])
         print("Generated encoded observation:", enc_obs_hat[:, :cutoff])
@@ -473,7 +474,7 @@ class VTS:
         original[:, :, 0] = (original[:, :, 0] * rstd + rmean)
         original[:, :, 1] = (original[:, :, 1] * gstd + gmean)
         original[:, :, 2] = (original[:, :, 2] * bstd + bmean)
-        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
         cv2.imwrite("original.png", original)
         
         # Blurred image

@@ -1,3 +1,7 @@
+from configs.environments.stanford import *
+sep = Stanford_Environment_Params()
+
+
 class VTS_LightDark_Params():
     def __init__(self):
 
@@ -5,16 +9,31 @@ class VTS_LightDark_Params():
 
         ######################
         self.model_name = 'vts_lightdark'
-
+        
+        ## Encoder --- this is represented by the file observation_generator_conv_lightdark
         self.in_channels = 3
+        self.leak_rate_enc = 0
+        # Channel dimensions for generator_conv_lightdark
+        self.hidden_dims_generator_conv = [16, 32, 64]  # [32, 64, 128, 256, 512]
+        # Each convolution in generator_conv_lightdark downsamples by a factor of 2
+        # So the final "image size" after the convolutions is img_size * (1/2)^(# layers)
+        # And the output shape is [batch_size, final # of channels, final image size, final image size]
+        # obs_encode_out_conv is the size that comes from doing a torch.flatten on the above shape
+        self.final_num_channels = self.hidden_dims_generator_conv[-1]
+        self.final_img_size = int((0.5)**(len(self.hidden_dims_generator_conv)) * sep.img_size)
+        if self.final_img_size < 2:
+            self.final_img_size = 2 # The last convolution will not downsample in this case
+        self.obs_encode_out_conv = self.final_num_channels * self.final_img_size**2 
+        self.mlp_hunits_enc = [512, 256, 128, 64, 32, 16] #[1024, 512, 256]
+        # This should be the same as self.mlp_hunits_enc[-1]
+        self.obs_encode_out = self.mlp_hunits_enc[-1] #16 #256 
 
         ## Z and P
-        self.dim_m = 256
-        self.dim_first_layer = 256 #64 
-        self.dim_lstm_hidden = 256 #64 
-        self.num_lstm_layer = 2
-        self.obs_encode_out = 256 #2048 #64
-        self.mlp_hunits_zp = 128
+        self.dim_m = self.obs_encode_out #256
+        self.dim_first_layer = self.obs_encode_out #256 #64 
+        self.dim_lstm_hidden = self.obs_encode_out #256 #64 
+        self.num_lstm_layer = 2      
+        self.mlp_hunits_zp = self.obs_encode_out #128
         self.zp_lr = 3e-4
         self.num_epochs_zp = 400 #0 #400 
 
@@ -27,14 +46,7 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 0 #400 
-
-        ## Encoder
-        self.leak_rate_enc = 0
-        self.mlp_hunits_enc = [1024, 512, 256]
-        self.obs_encode_out_conv = 64*4*4 #2048
-
-        self.hidden_dims_generator_conv = [16, 32, 64]  # [32, 64, 128, 256, 512]
+        self.num_epochs_g = 0 #400         
 
         ######################
         # Training
@@ -42,8 +54,8 @@ class VTS_LightDark_Params():
         self.max_episodes_train = 2000 #5000
         self.max_episodes_test = 500 #20 #10 #1 #500 #1000
         self.batch_size = 64 #128 #64
-        self.fil_lr = 3e-4 #1e-3 # filtering
-        self.pla_lr = 3e-4 #1e-3 # planning
+        # self.fil_lr = 3e-4 #1e-3 # filtering
+        # self.pla_lr = 3e-4 #1e-3 # planning
         self.summary_iter = 100
         self.save_iter = 1 #40 #100
         self.display_iter = 1 #4 #10
