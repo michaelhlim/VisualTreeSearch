@@ -26,7 +26,8 @@ sep = Stanford_Environment_Params()
 
 
 def vts_lightdark(model, experiment_id, train, model_path, 
-                shared_enc=False, test_env_is_diff=False, test_img_is_diff=False):
+                shared_enc=False, independent_enc=False,
+                test_env_is_diff=False, test_img_is_diff=False):
     ################################
     # Create variables necessary for tracking diagnostics
     ################################
@@ -304,6 +305,12 @@ def vts_lightdark(model, experiment_id, train, model_path,
         dist_list.append(filter_dist)
         step_list.append(step)
 
+        if episode >= vlp.summary_iter:
+            step_list.pop(0)
+            dist_list.pop(0)
+        
+        reach = np.array(step_list) < (sep.max_steps - 1)
+
         if episode % vlp.save_iter == 0 and train:
             model.save_model(model_path + "/vts_online")
             print("Saving online trained models to %s" % model_path)
@@ -317,12 +324,13 @@ def vts_lightdark(model, experiment_id, train, model_path,
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
 
-            interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
                 np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
+            
         
         # Plot every trajectory
         check_path(img_path + "/traj/")
@@ -360,8 +368,8 @@ def vts_lightdark(model, experiment_id, train, model_path,
 
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
-        interaction = 'Episode %s: steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
-            episode, step, tot_reward, avg_time_this_episode, filter_dist)
+        interaction = 'Episode %s: cumulative success rate = %s, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
+            episode, np.mean(reach), step, tot_reward, avg_time_this_episode, filter_dist)
         print('\r{}'.format(interaction))
         file1.write('\n{}'.format(interaction))
         file1.flush()
@@ -372,9 +380,13 @@ def vts_lightdark(model, experiment_id, train, model_path,
     file2.close()
 
 
-def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, save_pretrained_model=True,
+def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True, test_env_is_diff=False,
                    test_img_is_diff=False):
+
+    if independent_enc and not shared_enc:
+        raise Exception("If the encoder is independent, it must also be shared!")
+
     # This block of code creates the folders for plots
     experiment_id = "vts_lightdark" + get_datetime()
     foldername = "data/pretraining/" + experiment_id
@@ -386,7 +398,7 @@ def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, s
     check_path("nets")
 
     # Create a model and environment object
-    model = VTS(shared_enc)
+    model = VTS(shared_enc, independent_enc)
     env = StanfordEnvironment(disc_thetas=True) 
 
     #observation_generator = ObservationGenerator()
@@ -407,12 +419,88 @@ def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, s
         measure_loss = []
         proposer_loss = []
         generator_loss = []
+        encoder_loss = []
 
         steps_per_epoch = int(np.ceil(vlp.num_training_data/vlp.batch_size))
         normalization_data = env.preprocess_data()
-        
+
+
+        ###################
+        # Train independent encoder 
+        ###################
+
+        # For training the independent encoder with noisy images
+        # Pre-generate the corrupted indices in the image
+        # Noise in the image plane
+        diff_pattern = True 
+        s_vs_p = sep.salt_vs_pepper
+        image_plane_size = sep.img_size**2
+        num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
+        num_pepper = np.ceil(sep.noise_amount * image_plane_size * (1. - s_vs_p))
+        if diff_pattern: # Same noise pattern in all dark images or a different noise pattern per image?
+            # Pre-generate the corrupted indices per image in the training data
+            noise_list = []
+            for i in range(len(env.training_data_files)):
+                noise_list.append(np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False)) 
+        else:
+            noise_list = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+        noise_list = np.array(noise_list)
+
+
         steps = []
+        for epoch in range(vlp.num_epochs_e):
+            # noise_amount = 0
+            # if epoch >= vlp.num_epochs_g/4:
+            #     noise_amount = 0.1
+            # if epoch >= vlp.num_epochs_g/2:
+            #     noise_amount = 0.25
+            # if epoch >= 3*vlp.num_epochs_g/4:
+            #     noise_amount = 0.4
+
+            #noise_amount = 0.25 
+
+            data_files_indices = env.shuffle_dataset()
+
+            for step in range(steps_per_epoch):
+
+                states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
+                                                        step, normalization_data, vlp.num_par_pf, 
+                                                        noise_list=noise_list, noise_amount=sep.noise_amount)
+                states = torch.from_numpy(states).float()
+                images = torch.from_numpy(images).float()
+                images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
+                state_batch = states
+                obs_batch = images  
+
+                E_loss = model.pretraining_independent_encoder(state_batch, orientations, obs_batch)
+                encoder_loss.append(E_loss.item())
+
+                # Print loss and stuff for the last $print_freq batches
+                if step % print_freq == 0:
+                    print("Epoch: ", epoch, "Step: ", step, ", E loss: ", np.mean(encoder_loss[-print_freq:]))
+                    steps.append(epoch * steps_per_epoch + step)
+
+        plt.figure()
+        plt.plot(steps, np.array(encoder_loss)[steps], label="Independet Encoder Training Loss")
+        plt.xlabel("Training Steps")
+        plt.ylabel("Total Loss")
+        plt.legend()
+        plt.savefig(foldername + "/indep_e_loss.png")
+
+        if save_pretrained_model:
+            model.save_model(model_path + "/vts_pre_trained")
+            print("Saving pre-trained (independent) encoder model to %s" % model_path)
+
+        tocq = time.perf_counter()
+        time_this_step = tocq - tic
+        print("Time elapsed for pre-training independent encoder: ", time_this_step, "seconds.")
+
+        
+        ###################
         # Train Z and P 
+        ###################
+
+        steps = [] 
         for epoch in range(vlp.num_epochs_zp):
             percent_blur = 0
             # if epoch >= vlp.num_epochs_zp/4:
@@ -487,6 +575,11 @@ def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, s
         time_this_step = tocc - tic
         print("Time elapsed for pre-training Z and P: ", time_this_step, "seconds.")
 
+
+        ###################
+        # Train generator 
+        ###################
+
         # For training the generator with noisy images
         # Pre-generate the corrupted indices in the image
         # Noise in the image plane
@@ -506,7 +599,6 @@ def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, s
 
 
         steps = []
-        # Train G
         for epoch in range(vlp.num_epochs_g):
             # noise_amount = 0
             # if epoch >= vlp.num_epochs_g/4:
@@ -559,7 +651,8 @@ def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, s
         train = True
         # After pretraining move into the end to end training
         vts_lightdark(model, experiment_id,
-            train, model_path, shared_enc, test_env_is_diff, test_img_is_diff)
+            train, model_path, shared_enc, independent_enc,
+            test_env_is_diff, test_img_is_diff)
 
     if save_online_model:
         # Save the model
@@ -569,7 +662,8 @@ def vts_lightdark_driver(shared_enc=False, load_paths=None, pre_training=True, s
     if test:
         train = False
         vts_lightdark(model, experiment_id,
-            train, model_path, shared_enc, test_env_is_diff, test_img_is_diff)
+            train, model_path, shared_enc, independent_enc,
+            test_env_is_diff, test_img_is_diff)
 
 
 if __name__ == "__main__":
@@ -582,6 +676,7 @@ if __name__ == "__main__":
         #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
         vts_lightdark_driver(shared_enc=True, end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
@@ -597,7 +692,6 @@ if __name__ == "__main__":
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 
         #            test_img_is_diff=True)
          
-
         
         # Everything
         # vts_lightdark_driver()

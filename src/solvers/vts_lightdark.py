@@ -5,6 +5,7 @@ from torch.distributions import Normal
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
+from methods.vts_lightdark.observation_encoder_independent_lightdark import ObservationEncoderIndependent
 from utils.utils import *
 
 # Configs for floor and no LSTM dual smc
@@ -16,6 +17,7 @@ from plotting.stanford import *
 
 # Methods for no LSTM dual smc
 from src.methods.vts_lightdark.replay_memory import *
+from src.methods.vts_lightdark.observation_encoder_independent_lightdark import *
 from src.methods.vts_lightdark.observation_generator_lightdark import *
 from src.methods.vts_lightdark.observation_generator_conv_lightdark import * 
 from src.methods.vts_lightdark.observation_network_lightdark import *
@@ -35,14 +37,23 @@ class SaveFeatures():
 #########################
 # Training Process
 class VTS:
-    def __init__(self, shared_enc=False):
+    def __init__(self, shared_enc=False, independent_enc=False):
         self.replay_buffer = ReplayMemory(vlp.replay_buffer_size)  # Is only used for online training, which we don't do
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
 
         self.shared_enc = shared_enc
+        self.independent_enc = independent_enc
 
-        if self.shared_enc:
+        if self.shared_enc and self.independent_enc:
+            # The encoder is an autoencoder that is trained separately and not by Z and P
+            self.observation_encoder_independent = ObservationEncoderIndependent().to(vlp.device)
+            self.encoder_optimizer = Adam(self.observation_encoder_independent.parameters(), lr=vlp.g_lr)
+            self.measure_net = MeasureNetwork(self.observation_encoder_independent).to(vlp.device)
+            self.pp_net = ProposerNetwork(self.observation_encoder_independent).to(vlp.device)
+            self.generator = ObservationGenerator(self.observation_encoder_independent).to(vlp.device)
+
+        if self.shared_enc and not self.independent_enc:
             self.observation_encoder = ObservationGeneratorConv().to(vlp.device)
             self.measure_net = MeasureNetwork(self.observation_encoder).to(vlp.device)
             self.pp_net = ProposerNetwork(self.observation_encoder).to(vlp.device)
@@ -58,6 +69,7 @@ class VTS:
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=vlp.zp_lr)
         self.pp_optimizer = Adam(self.pp_net.parameters(), lr=vlp.zp_lr)
         self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
+
 
     def save_model(self, path):
         stats = {}
@@ -216,15 +228,19 @@ class VTS:
         # ------------------------
         if vlp.pp_exist:
             self.pp_optimizer.zero_grad()
-            state_propose = self.pp_net(curr_obs, curr_orientation, vlp.num_par_pf)  # [batch_size * num_par, dim_state]
+            state_propose = self.pp_net(curr_obs, curr_orientation, 
+                                        vlp.num_par_pf, indep_enc=self.independent_enc)  # [batch_size * num_par, dim_state]
             PP_loss = 0
             P_loss = PP_loss
             if 'mse' in vlp.pp_loss_type:  # NOTE: Have not tested that the mse block works
                 PP_loss += self.MSE_criterion(state_batch.repeat(vlp.num_par_pf, 1), state_propose)
                 P_loss = PP_loss
             if 'adv' in vlp.pp_loss_type:
-                fake_logit = self.measure_net.m_model(state_propose, curr_orientation.repeat(vlp.num_par_pf, 1),
-                                                             curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
+                fake_logit = self.measure_net.m_model(state_propose, 
+                                                    curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                    curr_obs, 
+                                                    vlp.num_par_pf, 
+                                                    indep_enc=self.independent_enc)  # [batch_size, num_par]
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
                 P_loss = PP_loss
@@ -247,19 +263,28 @@ class VTS:
         # ------------------------
         self.measure_optimizer.zero_grad()
         fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
-                                                    torch.repeat_interleave(curr_orientation, vlp.num_par_pf, dim=0),
-                                                    curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
+                                                    torch.repeat_interleave(curr_orientation, 
+                                                    vlp.num_par_pf, dim=0),
+                                                    curr_obs, 
+                                                    vlp.num_par_pf,
+                                                    indep_enc=self.independent_enc)  # [batch_size, num_par]
         # fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
         #                                             curr_orientation.repeat(vlp.num_par_pf, 1), 
         #                                             curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
         if vlp.pp_exist:
-            fake_logit_pp = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(vlp.num_par_pf, 1),
-                                                           curr_obs, vlp.num_par_pf)  # [batch_size, num_par]
+            fake_logit_pp = self.measure_net.m_model(state_propose.detach(), 
+                                                    curr_orientation.repeat(vlp.num_par_pf, 1),
+                                                    curr_obs, 
+                                                    vlp.num_par_pf,
+                                                    indep_enc=self.independent_enc)  # [batch_size, num_par]
             fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # [batch_size, 2 * num_par]
         fake_target = torch.zeros_like(fake_logit)
         fake_loss = self.BCE_criterion(fake_logit, fake_target)
-        real_logit = self.measure_net.m_model(state_batch, curr_orientation, 
-                                                    curr_obs, 1)  # [batch_size, 1]
+        real_logit = self.measure_net.m_model(state_batch, 
+                                                curr_orientation, 
+                                                curr_obs, 
+                                                1, 
+                                                indep_enc=self.independent_enc)  # [batch_size, 1]
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
@@ -293,6 +318,26 @@ class VTS:
         self.generator_optimizer.step()
 
         return G_loss
+    
+
+    def pretraining_independent_encoder(self, state_batch, curr_orientation, obs):
+        # Train the autoencoder
+
+        state_batch = torch.FloatTensor(state_batch).to(vlp.device)  # [batch_size, dim_state]
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)  # [batch_size, 1]
+        obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
+
+        # ------------------------
+        #  Train Observation Encoder
+        # ------------------------
+        self.encoder_optimizer.zero_grad()
+        latent_var = self.observation_encoder_independent.encode(state_batch, curr_orientation, obs)
+        recons = self.observation_encoder_independent.decode(state_batch, curr_orientation, latent_var)
+        recons_loss = -F.mse_loss(recons, obs)
+        recons_loss.backward()
+        self.encoder_optimizer.step()
+
+        return recons_loss
     
 
     def test_models(self, batch_size, state, orientation, obs, blurred_images, env):

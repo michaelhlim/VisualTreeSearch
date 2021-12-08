@@ -55,17 +55,23 @@ class MeasureNetwork(nn.Module):
                 nn.Sigmoid()
             )
 
-    def m_model(self, state, orientation, obs, num_par=vlp.num_par_pf, obs_is_encoded=False):
+    def m_model(self, state, orientation, obs, num_par=vlp.num_par_pf, obs_is_encoded=False, indep_enc=False):
         # state [batch_size * num_par, dim_state]
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size * num_par, 1]
         if not obs_is_encoded:
             #enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
             
-            #with torch.no_grad():
-            enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
-            # Normalizing the output of the observation encoder
-            enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+            if indep_enc:
+                with torch.no_grad():
+                    enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
+                    # Normalizing the output of the observation encoder
+                    enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+            else:
+                #with torch.no_grad():
+                enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
+                # Normalizing the output of the observation encoder
+                enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
         
         else:
             enc_obs = obs
@@ -109,17 +115,23 @@ class ProposerNetwork(nn.Module):
             )
 
 
-    def forward(self, obs, orientation, num_par=vlp.num_par_pf, obs_is_encoded=False):
+    def forward(self, obs, orientation, num_par=vlp.num_par_pf, obs_is_encoded=False, indep_enc=False):
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size, 1]
 
         if not obs_is_encoded:
             #enc_obs = self.observation_encoder(obs)  # enc_obs [batch_size, obs_encode_out]
         
-            #with torch.no_grad():
-            enc_obs = self.observation_encoder.encode(obs)  # enc_obs [batch_size, obs_encode_out]
-            # Normalizing the output of the observation encoder
-            enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+            if indep_enc:
+                with torch.no_grad():
+                    enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
+                    # Normalizing the output of the observation encoder
+                    enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+            else:
+                #with torch.no_grad():
+                enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
+                # Normalizing the output of the observation encoder
+                enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
 
         else:
             enc_obs = obs

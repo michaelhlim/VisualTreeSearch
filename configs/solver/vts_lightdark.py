@@ -28,6 +28,9 @@ class VTS_LightDark_Params():
         # This should be the same as self.mlp_hunits_enc[-1]
         self.obs_encode_out = self.mlp_hunits_enc[-1] #16 #256 
 
+        # If the encoder is trained independently, this is nonzero
+        self.num_epochs_e = 0 
+
         ## Z and P
         self.dim_m = self.obs_encode_out #256
         self.dim_first_layer = self.obs_encode_out #256 #64 

@@ -151,7 +151,7 @@ class ObservationGenerator(nn.Module):
         log_var = args[3]  # log variance of latent variable Gaussian
 
         recons_loss = self.gaussian_likelihood(recons, self.log_scale, enc_obs).mean() 
-        #recons_loss = -F.mse_loss(recons, input)
+        #recons_loss = -F.mse_loss(recons, input) 
 
         if self.calibration:
             log_sigma = ((enc_obs - recons) ** 2).mean().sqrt().log()
