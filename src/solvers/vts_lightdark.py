@@ -5,7 +5,6 @@ from torch.distributions import Normal
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from methods.vts_lightdark.observation_encoder_independent_lightdark import ObservationEncoderIndependent
 from utils.utils import *
 
 # Configs for floor and no LSTM dual smc
@@ -71,17 +70,25 @@ class VTS:
         self.generator_optimizer = Adam(self.generator.parameters(), lr=vlp.g_lr)
 
 
-    def save_model(self, path):
+    def save_model(self, path, shared_enc=False, indep_enc=False):
         stats = {}
-        #stats['obs_encoder'] = self.observation_encoder.state_dict()
+        if shared_enc and not indep_enc:
+            stats['obs_encoder'] = self.observation_encoder.state_dict()
+        if shared_enc and indep_enc:
+            stats['obs_encoder'] = self.observation_encoder_independent.state_dict()
+
         stats['m_net'] = self.measure_net.state_dict()
         stats['pp_net'] = self.pp_net.state_dict()
         stats['generator'] = self.generator.state_dict()
         torch.save(stats, path)
 
-    def load_model(self, path, load_zp=True, load_g=True):
+    def load_model(self, path, load_zp=True, load_g=True, shared_enc=False, indep_enc=False):
         stats = torch.load(path, map_location=vlp.device)
-        #self.observation_encoder.load_state_dict(stats['obs_encoder'])
+        if shared_enc and not indep_enc:
+            self.observation_encoder.load_state_dict(stats['obs_encoder'])
+        if shared_enc and indep_enc:
+            self.observation_encoder_independent.load_state_dict(stats['obs_encoder'])
+
         if load_zp:
             self.measure_net.load_state_dict(stats['m_net'])
             self.pp_net.load_state_dict(stats['pp_net'])
@@ -263,8 +270,7 @@ class VTS:
         # ------------------------
         self.measure_optimizer.zero_grad()
         fake_logit = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
-                                                    torch.repeat_interleave(curr_orientation, 
-                                                    vlp.num_par_pf, dim=0),
+                                                    torch.repeat_interleave(curr_orientation, vlp.num_par_pf, dim=0),
                                                     curr_obs, 
                                                     vlp.num_par_pf,
                                                     indep_enc=self.independent_enc)  # [batch_size, num_par]
@@ -300,16 +306,13 @@ class VTS:
         curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(vlp.device)  # [batch_size, 1]
         obs = torch.FloatTensor(obs).to(vlp.device)  # [batch_size, in_channels, img_size, img_size]
 
-        #enc_obs = self.measure_net.observation_encoder(obs.detach())   # [batch_size, obs_encode_out]
-        enc_obs = obs
-
         # ------------------------
         #  Train Observation Generator
         # ------------------------
         conditional_input = torch.cat((state_batch, curr_orientation), -1)  # [batch_size, dim_state + 1]
         self.generator_optimizer.zero_grad()
         #[recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs.detach())
-        [recons, input, mu, log_var] = self.generator.forward(conditional_input, enc_obs, shared_enc=self.shared_enc)
+        [recons, input, mu, log_var] = self.generator.forward(conditional_input, obs, shared_enc=self.shared_enc)
         args = [recons, input, mu, log_var]
         loss_dict = self.generator.loss_function(*args)
         OG_loss = loss_dict['loss']
@@ -465,7 +468,6 @@ class VTS:
             true_state, true_orientation, random_states, 
             [likelihoods, likelihoods_blur, likelihoods_gen],
             proposed_states)
-    
 
     def test_models_encobs(self, batch_size, state, orientation, obs, blurred_images, env):
         # NOTE: Code assumes that the batch size is 1!

@@ -1,6 +1,8 @@
 # author: @wangyunbo, @liubo
 import math
+import numpy as np
 import os.path
+import random
 import shutil
 from statistics import mean, stdev
 import sys
@@ -312,7 +314,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
         reach = np.array(step_list) < (sep.max_steps - 1)
 
         if episode % vlp.save_iter == 0 and train:
-            model.save_model(model_path + "/vts_online")
+            model.save_model(model_path + "/vts_online", shared_enc=shared_enc, indep_enc=independent_enc)
             print("Saving online trained models to %s" % model_path)
 
         if episode % vlp.display_iter == 0:
@@ -384,6 +386,10 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
                    end_to_end=True, save_online_model=True, test=True, test_env_is_diff=False,
                    test_img_is_diff=False):
 
+    torch.manual_seed(vlp.torch_seed)
+    random.seed(vlp.random_seed)
+    np.random.seed(vlp.np_random_seed)
+
     if independent_enc and not shared_enc:
         raise Exception("If the encoder is independent, it must also be shared!")
 
@@ -401,16 +407,17 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
     model = VTS(shared_enc, independent_enc)
     env = StanfordEnvironment(disc_thetas=True) 
 
-    #observation_generator = ObservationGenerator()
-
     # Let the user load in a previous model
     if load_paths is not None:
         cwd = os.getcwd()
         if len(load_paths) > 1:
-            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False) # Load Z/P
-            model.load_model(cwd + "/nets/" + load_paths[1] + "/vts_pre_trained", load_zp=False) # Load G
+            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained", load_g=False,
+                shared_enc=shared_enc, indep_enc=independent_enc) # Load Z/P
+            model.load_model(cwd + "/nets/" + load_paths[1] + "/vts_pre_trained", load_zp=False,
+                shared_enc=shared_enc, indep_enc=independent_enc) # Load G
         else:
-            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained") # Load all models
+            model.load_model(cwd + "/nets/" + load_paths[0] + "/vts_pre_trained",
+                shared_enc=shared_enc, indep_enc=independent_enc) # Load all models
 
     if pre_training:
         tic = time.perf_counter()
@@ -432,19 +439,20 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
         # For training the independent encoder with noisy images
         # Pre-generate the corrupted indices in the image
         # Noise in the image plane
-        diff_pattern = True 
-        s_vs_p = sep.salt_vs_pepper
-        image_plane_size = sep.img_size**2
-        num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
-        num_pepper = np.ceil(sep.noise_amount * image_plane_size * (1. - s_vs_p))
-        if diff_pattern: # Same noise pattern in all dark images or a different noise pattern per image?
-            # Pre-generate the corrupted indices per image in the training data
-            noise_list = []
-            for i in range(len(env.training_data_files)):
-                noise_list.append(np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False)) 
-        else:
-            noise_list = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
-        noise_list = np.array(noise_list)
+        if vlp.num_epochs_e != 0:
+            diff_pattern = vlp.diff_pattern
+            s_vs_p = sep.salt_vs_pepper
+            image_plane_size = sep.img_size**2
+            num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
+            num_pepper = np.ceil(sep.noise_amount * image_plane_size * (1. - s_vs_p))
+            if diff_pattern: # Same noise pattern in all dark images or a different noise pattern per image?
+                # Pre-generate the corrupted indices per image in the training data
+                noise_list = []
+                for i in range(len(env.training_data_files)):
+                    noise_list.append(np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False)) 
+            else:
+                noise_list = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
+            noise_list = np.array(noise_list)
 
 
         steps = []
@@ -479,16 +487,17 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
                 if step % print_freq == 0:
                     print("Epoch: ", epoch, "Step: ", step, ", E loss: ", np.mean(encoder_loss[-print_freq:]))
                     steps.append(epoch * steps_per_epoch + step)
-
-        plt.figure()
-        plt.plot(steps, np.array(encoder_loss)[steps], label="Independet Encoder Training Loss")
-        plt.xlabel("Training Steps")
-        plt.ylabel("Total Loss")
-        plt.legend()
-        plt.savefig(foldername + "/indep_e_loss.png")
+        
+        if vlp.num_epochs_e != 0:
+            plt.figure()
+            plt.plot(steps, np.array(encoder_loss)[steps], label="Independent Encoder Training Loss")
+            plt.xlabel("Training Steps")
+            plt.ylabel("Total Loss")
+            plt.legend()
+            plt.savefig(foldername + "/indep_e_loss.png")
 
         if save_pretrained_model:
-            model.save_model(model_path + "/vts_pre_trained")
+            model.save_model(model_path + "/vts_pre_trained", shared_enc=shared_enc, indep_enc=independent_enc)
             print("Saving pre-trained (independent) encoder model to %s" % model_path)
 
         tocq = time.perf_counter()
@@ -568,7 +577,7 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
 
         
         if save_pretrained_model:
-            model.save_model(model_path + "/vts_pre_trained")
+            model.save_model(model_path + "/vts_pre_trained", shared_enc=shared_enc, indep_enc=independent_enc)
             print("Saving pre-trained Z, P models to %s" % model_path)
 
         tocc = time.perf_counter()
@@ -583,7 +592,7 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
         # For training the generator with noisy images
         # Pre-generate the corrupted indices in the image
         # Noise in the image plane
-        diff_pattern = True 
+        diff_pattern = vlp.diff_pattern  
         s_vs_p = sep.salt_vs_pepper
         image_plane_size = sep.img_size**2
         num_salt = np.ceil(sep.noise_amount * image_plane_size * s_vs_p)
@@ -640,7 +649,7 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
         plt.savefig(foldername + "/g_loss.png")
 
         if save_pretrained_model:
-            model.save_model(model_path + "/vts_pre_trained")
+            model.save_model(model_path + "/vts_pre_trained", shared_enc=shared_enc, indep_enc=independent_enc)
             print("Saving pre-trained Z, P, G models to %s" % model_path)
         
         toc = time.perf_counter()
@@ -656,7 +665,7 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
 
     if save_online_model:
         # Save the model
-        model.save_model(model_path + "/vts_online_trained")
+        model.save_model(model_path + "/vts_online_trained", shared_enc=shared_enc, indep_enc=independent_enc)
         print("Saving online trained Z, P models to %s" % model_path)
 
     if test:
@@ -674,8 +683,8 @@ if __name__ == "__main__":
 
         # Just pre-training
         #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
-        #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
-        vts_lightdark_driver(shared_enc=True, end_to_end=False, save_online_model=False, test=False)
+        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(shared_enc=True, end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing

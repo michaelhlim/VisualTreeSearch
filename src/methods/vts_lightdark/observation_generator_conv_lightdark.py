@@ -22,7 +22,7 @@ class ObservationGeneratorConv(nn.Module):
         ## Encoder Convolutional Layers
 
         modules = []
-        hidden_dims = vlp.hidden_dims_generator_conv
+        hidden_dims = vlp.hidden_dims_generator_conv.copy()
         
         self.hidden_dims = hidden_dims.copy()
 
@@ -162,7 +162,7 @@ class ObservationGeneratorConv(nn.Module):
     def decode(self, intermediate):  
         intermediate = self.decoder_mlp(intermediate) # [batch_size, obs_encode_out_conv]
 
-        intermediate = intermediate.view(-1, self.hidden_dims[-1], 4, 4)  # [batch_size, final_num_channels, final_img_size, final_img_size]  
+        intermediate = intermediate.view(-1, self.hidden_dims[-1], vlp.final_img_size, vlp.final_img_size)  # [batch_size, final_num_channels, final_img_size, final_img_size]  
         result = self.decoder_conv(intermediate)  # [batch_size, first num channels, img_size/2, img_size/2] OR [batch_size, first num channels, img_size, img_size]
         result = self.final_layer(result)  # [batch_size, in_channels, img_size, img_size]
         return result 

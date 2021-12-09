@@ -12,7 +12,7 @@ vlp = VTS_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 
-model = VTS(shared_enc=True)
+model = VTS(shared_enc=False)
 env = StanfordEnvironment(disc_thetas=True) 
 load_paths = ["vts_lightdark11-30-12_51_28"]
 
@@ -25,14 +25,13 @@ else:
 
 normalization_data = env.preprocess_data()
 
-num_tests = 1
-states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
-model.test_models_encobs(num_tests, states, orientations, images, blurred_images, env) 
-
-
 # num_tests = 1
 # states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
-# model.test_models(num_tests, states, orientations, images, blurred_images, env) 
+# model.test_models_encobs(num_tests, states, orientations, images, blurred_images, env) 
+
+num_tests = 1
+states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)
+model.test_models(num_tests, states, orientations, images, blurred_images, env) 
 
 # num_tests = 1
 # states, orientations, images, blurred_images = env.get_testing_batch(num_tests, normalization_data)

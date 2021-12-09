@@ -5,7 +5,10 @@ sep = Stanford_Environment_Params()
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:1'
+        self.device = 'cuda:2'
+        self.torch_seed = 50
+        self.random_seed = 0
+        self.np_random_seed = 0
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -14,7 +17,7 @@ class VTS_LightDark_Params():
         self.in_channels = 3
         self.leak_rate_enc = 0
         # Channel dimensions for generator_conv_lightdark
-        self.hidden_dims_generator_conv = [16, 32, 64]  # [32, 64, 128, 256, 512]
+        self.hidden_dims_generator_conv = [32, 64, 128, 256, 512]  #[16, 32, 64]  # [32, 64, 128, 256, 512]
         # Each convolution in generator_conv_lightdark downsamples by a factor of 2
         # So the final "image size" after the convolutions is img_size * (1/2)^(# layers)
         # And the output shape is [batch_size, final # of channels, final image size, final image size]
@@ -24,7 +27,7 @@ class VTS_LightDark_Params():
         if self.final_img_size < 2:
             self.final_img_size = 2 # The last convolution will not downsample in this case
         self.obs_encode_out_conv = self.final_num_channels * self.final_img_size**2 
-        self.mlp_hunits_enc = [512, 256, 128, 64, 32, 16] #[1024, 512, 256]
+        self.mlp_hunits_enc = [1024, 512, 256] #[512, 256, 128, 64, 32, 16] #[1024, 512, 256]
         # This should be the same as self.mlp_hunits_enc[-1]
         self.obs_encode_out = self.mlp_hunits_enc[-1] #16 #256 
 
@@ -32,15 +35,16 @@ class VTS_LightDark_Params():
         self.num_epochs_e = 0 
 
         ## Z and P
-        self.dim_m = self.obs_encode_out #256
-        self.dim_first_layer = self.obs_encode_out #256 #64 
-        self.dim_lstm_hidden = self.obs_encode_out #256 #64 
+        self.dim_m = 256 #self.obs_encode_out #256
+        self.dim_first_layer = 256 #self.obs_encode_out #256 #64 
+        self.dim_lstm_hidden = 256 #self.obs_encode_out #256 #64 
         self.num_lstm_layer = 2      
-        self.mlp_hunits_zp = self.obs_encode_out #128
+        self.mlp_hunits_zp = 128 #self.obs_encode_out #128
         self.zp_lr = 3e-4
         self.num_epochs_zp = 400 #0 #400 
 
         ## G
+        self.diff_pattern = True  # Training: Pre-generate the corrupted indices per noisy image
         self.num_layers = 5
         self.latent_dim = 128 #32
         self.mlp_hunits_g = 256 #128
@@ -49,7 +53,7 @@ class VTS_LightDark_Params():
         self.calibration = True
         self.g_lr = 3e-4 #1e-3 
         self.beta = 1
-        self.num_epochs_g = 0 #400         
+        self.num_epochs_g = 400 #0 #400         
 
         ######################
         # Training
@@ -87,5 +91,5 @@ class VTS_LightDark_Params():
 
         # ######################
         # SAC
-        self.replay_buffer_size = 100000
+        self.replay_buffer_size = 100000  # Not really used because we don't do online training
 

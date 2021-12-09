@@ -101,17 +101,14 @@ class ObservationGenerator(nn.Module):
         return eps * std + mu 
 
 
-    def forward(self, conditional_input, enc_obs_batch, shared_enc=True):
-        #enc_obs_batch = self.observation_encoder(enc_obs_batch, normalize=True)
-        #intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
-
+    def forward(self, conditional_input, obs_batch, shared_enc=True):
         if shared_enc:  # Z and P already trained the encoder, don't pass gradients through
             with torch.no_grad():
-                intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+                intermediate = self.conv.encode(obs_batch)  # [batch_size, obs_encode_out]
                 # Normalizing the output of the observation encoder
                 intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True)
         else:
-            intermediate = self.conv.encode(enc_obs_batch)  # [batch_size, obs_encode_out]
+            intermediate = self.conv.encode(obs_batch)  # [batch_size, obs_encode_out]
             # Normalizing the output of the observation encoder -- optional?
             intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True) 
 
@@ -123,7 +120,7 @@ class ObservationGenerator(nn.Module):
         recons = self.conv.decode(recons)  # [batch_size, in_channels, img_size, img_size]
 
         #return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]
-        return [recons, enc_obs_batch, mu, log_var]
+        return [recons, obs_batch, mu, log_var]
 
 
     def gaussian_likelihood(self, x_hat, logscale, x):
@@ -146,15 +143,15 @@ class ObservationGenerator(nn.Module):
         :return:
         """
         recons = args[0]  # output generated image
-        enc_obs = args[1]  # input true image
+        obs = args[1]  # input true image
         mu = args[2]  # mean of latent variable Gaussian
         log_var = args[3]  # log variance of latent variable Gaussian
 
-        recons_loss = self.gaussian_likelihood(recons, self.log_scale, enc_obs).mean() 
+        recons_loss = self.gaussian_likelihood(recons, self.log_scale, obs).mean() 
         #recons_loss = -F.mse_loss(recons, input) 
 
         if self.calibration:
-            log_sigma = ((enc_obs - recons) ** 2).mean().sqrt().log()
+            log_sigma = ((obs - recons) ** 2).mean().sqrt().log()
 
             def softclip(tensor, min):
                 """ Clips the tensor values at the minimum value min in a softway. Taken from Handful of Trials """
@@ -163,7 +160,7 @@ class ObservationGenerator(nn.Module):
                 return result_tensor
 
             log_sigma = softclip(log_sigma, -6)
-            rec = self.gaussian_likelihood(recons, log_sigma, enc_obs)  # [batch_size]
+            rec = self.gaussian_likelihood(recons, log_sigma, obs)  # [batch_size]
             recons_loss = rec.mean()
 
 
