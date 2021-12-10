@@ -147,7 +147,7 @@ class StanfordEnvironment(AbstractEnvironment):
         out = image
 
         image_plane_size = image.shape[0] * image.shape[1]
-        image_plane_shape = (image.shape[0], image.shape[1])
+        image_plane_shape = image.shape[:2]
         if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
             s_vs_p = sep.salt_vs_pepper
             amount = noise_amount  
@@ -158,28 +158,27 @@ class StanfordEnvironment(AbstractEnvironment):
             if noise_indices is None:
                 noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
             
-            # if self.generator_is_training:
-            #     if self.diff_pattern:
-            #         noise_indices = self.noise_list[img_index]
-            #     else:
-            #         noise_indices = self.noise_indices
-            # else:
-            #     noise_indices = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
-            
             salt_indices = noise_indices[:int(num_salt)]
             pepper_indices = noise_indices[int(num_salt):]
-            salt_coords = np.unravel_index(salt_indices, image_plane_shape)
-            pepper_coords = np.unravel_index(pepper_indices, image_plane_shape)
-            for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
-                row = salt_coords[0][i]
-                col = salt_coords[1][i]
-                for j in range(3):
-                    out[row, col, j] = salt
-            for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
-                row = pepper_coords[0][i]
-                col = pepper_coords[1][i]
-                for j in range(3):
-                    out[row, col, j] = pepper
+            #salt_coords = np.unravel_index(salt_indices, image_plane_shape)
+            #pepper_coords = np.unravel_index(pepper_indices, image_plane_shape)
+            salt_coords = (np.array([int(elem) for elem in salt_indices/image_plane_shape[1]]), 
+                            salt_indices%image_plane_shape[1])
+            pepper_coords = (np.array([int(elem) for elem in pepper_indices/image_plane_shape[1]]), 
+                            pepper_indices%image_plane_shape[1])
+            
+            out[salt_coords[0], salt_coords[1], :] = salt
+            # for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
+            #     row = salt_coords[0][i]
+            #     col = salt_coords[1][i]
+            #     for j in range(3):
+            #         out[row, col, j] = salt
+            out[pepper_coords[0], pepper_coords[1], :] = pepper
+            # for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
+            #     row = pepper_coords[0][i]
+            #     col = pepper_coords[1][i]
+            #     for j in range(3):
+            #         out[row, col, j] = pepper
         
         #cv2.imwrite("out_debug1.png", out)
 
@@ -728,12 +727,12 @@ class StanfordEnvironment(AbstractEnvironment):
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)  # src is now in BGR
 
             # For training the generator: each dark image has a pre-determined list of corrupted indices passed in
+            noise_indices = noise_list
             if noise_list is not None:
                 if len(noise_list.shape) == 2:
                     noise_indices = noise_list[index]
-                else:
-                    noise_indices = noise_list
-            src = self.noise_image_plane(src, state, noise_amount, noise_list)
+            
+            src = self.noise_image_plane(src, state, noise_amount, noise_indices)
 
             if blur[i] == 1:
                 blurred = cv2.GaussianBlur(src,(blur_kernel,blur_kernel),cv2.BORDER_DEFAULT)

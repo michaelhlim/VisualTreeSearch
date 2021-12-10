@@ -592,6 +592,7 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
         # For training the generator with noisy images
         # Pre-generate the corrupted indices in the image
         # Noise in the image plane
+
         diff_pattern = vlp.diff_pattern  
         s_vs_p = sep.salt_vs_pepper
         image_plane_size = sep.img_size**2
@@ -605,7 +606,6 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
         else:
             noise_list = np.random.choice(image_plane_size, int(num_salt + num_pepper), replace=False) 
         noise_list = np.array(noise_list)
-
 
         steps = []
         for epoch in range(vlp.num_epochs_g):
@@ -622,10 +622,10 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
             data_files_indices = env.shuffle_dataset()
 
             for step in range(steps_per_epoch):
-
                 states, orientations, images, _ = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                         step, normalization_data, vlp.num_par_pf, 
                                                         noise_list=noise_list, noise_amount=sep.noise_amount)
+
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
@@ -682,8 +682,8 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        #vts_lightdark_driver(load_paths=["vts_lightdark08-05-15_13_47"], end_to_end=False, save_online_model=False, test=False)
-        vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark12-08-16_14_39"], end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(shared_enc=True, end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
 

@@ -41,7 +41,7 @@ class VTS_LightDark_Params():
         self.num_lstm_layer = 2      
         self.mlp_hunits_zp = 128 #self.obs_encode_out #128
         self.zp_lr = 3e-4
-        self.num_epochs_zp = 400 #0 #400 
+        self.num_epochs_zp = 0 #400 
 
         ## G
         self.diff_pattern = True  # Training: Pre-generate the corrupted indices per noisy image
