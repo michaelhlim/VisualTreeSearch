@@ -1,6 +1,8 @@
 # author: @wangyunbo, @liubo
 import math
+import numpy as np
 import os.path
+import random
 import shutil
 from statistics import mean, stdev
 import sys
@@ -531,6 +533,12 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, 
                     test=True, test_env_is_diff=False, test_img_is_diff=False):
+    
+    torch.manual_seed(dlp.torch_seed)
+    random.seed(dlp.random_seed)
+    np.random.seed(dlp.np_random_seed)
+
+
     # This block of code creates the folders for plots
     experiment_id = "dualsmc_lightdark" + get_datetime()
     model_path = "nets/" + experiment_id
@@ -564,6 +572,10 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
 
 if __name__ == "__main__":
     if dlp.model_name == 'dualsmc_lightdark':
+        # Just training
+        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
+
+        # Both testing and training
         #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
         # Just testing
@@ -573,5 +585,5 @@ if __name__ == "__main__":
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
         #                save_model=False, test=True, test_env_is_diff=False)
         # Generalization Experiment 2
-        dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
-                        save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
+        #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
+        #                save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)

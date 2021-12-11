@@ -12,6 +12,7 @@ class Stanford_Environment_Params():
         self.discount = 0.99
         self.noise_amount = 0.4 #0.8 #0.4 #1.0 #0.4 #0.15
         self.occlusion_amount = 15
+        self.salt_vs_pepper = 0.5
         self.fig_format = '.png'
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'
