@@ -166,8 +166,10 @@ def vts_lightdark(model, experiment_id, train, model_path,
             action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Action already includes velocity
             # For visualizing the planned trajectory
             mean_s = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
+
+            # For visualization purposes
             state_traj = [mean_s] 
-            if traj is not None:  # For visualization purposes
+            if traj is not None:  
                 for action in traj:
                     state_traj.append(mean_s + action)  # This is wrong
             state_traj = np.array(state_traj)
@@ -226,10 +228,12 @@ def vts_lightdark(model, experiment_id, train, model_path,
                     if not train and test_env_is_diff:
                         test_trap1_x = env.test_trap_x[0]
                         test_trap2_x = env.test_trap_x[1]
-                        test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
-                            test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-                        test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
-                            test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap1_y = env.test_trap_y[0]
+                        test_trap2_y = env.test_trap_y[1]
+                        test_trap1 = [test_trap1_x[0], test_trap1_y[0], 
+                            test_trap1_x[1]-test_trap1_x[0], test_trap1_y[1]-test_trap1_y[0]]
+                        test_trap2 = [test_trap2_x[0], test_trap2_y[0], 
+                            test_trap2_x[1]-test_trap2_x[0], test_trap2_y[1]-test_trap2_y[0]]
                         test_trap_plot_params = [test_trap1, test_trap2]
                         # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
                         #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
@@ -307,9 +311,9 @@ def vts_lightdark(model, experiment_id, train, model_path,
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        if episode >= vlp.summary_iter:
-            step_list.pop(0)
-            dist_list.pop(0)
+        #if episode >= vlp.summary_iter:
+        #    step_list.pop(0)
+        #    dist_list.pop(0)
         
         reach = np.array(step_list) < (sep.max_steps - 1)
 
@@ -354,10 +358,12 @@ def vts_lightdark(model, experiment_id, train, model_path,
         if not train and test_env_is_diff:
             test_trap1_x = env.test_trap_x[0]
             test_trap2_x = env.test_trap_x[1]
-            test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
-                test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-            test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
-                test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+            test_trap1_y = env.test_trap_y[0]
+            test_trap2_y = env.test_trap_y[1]
+            test_trap1 = [test_trap1_x[0], test_trap1_y[0], 
+                test_trap1_x[1]-test_trap1_x[0], test_trap1_y[1]-test_trap1_y[0]]
+            test_trap2 = [test_trap2_x[0], test_trap2_y[0], 
+                test_trap2_x[1]-test_trap2_x[0], test_trap2_y[1]-test_trap2_y[0]]
             test_trap_plot_params = [test_trap1, test_trap2]
             # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
             #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
@@ -682,7 +688,7 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        vts_lightdark_driver(load_paths=["vts_lightdark12-08-16_14_39"], end_to_end=False, save_online_model=False, test=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark12-08-16_14_39"], end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(shared_enc=True, end_to_end=False, save_online_model=False, test=False)
         #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
@@ -691,8 +697,8 @@ if __name__ == "__main__":
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
-        #            pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_16_38"], 
+                    pre_training=False, end_to_end=False, save_online_model=False)
         # Generalization Experiment 1
         #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)

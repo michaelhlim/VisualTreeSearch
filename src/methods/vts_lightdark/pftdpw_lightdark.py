@@ -120,7 +120,7 @@ class PFTDPW():
 				# If we are not planning with the image encodings, run the decoder (convolutional layers) 
 				# to get the image
 				# m_model should run the encoder because the obs is an image
-				o = self.G.conv.decode(o)  # [1, 3, 32, 32]
+				o = self.G.conv.decode(o.detach())  # [1, 3, 32, 32]
 				lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
 											torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
 											o.detach(), self.n_par)  # [1, num_par]

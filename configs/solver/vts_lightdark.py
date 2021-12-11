@@ -5,8 +5,8 @@ sep = Stanford_Environment_Params()
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:2'
-        self.torch_seed = 50
+        self.device = 'cuda:1'
+        self.torch_seed = 1
         self.random_seed = 0
         self.np_random_seed = 0
 

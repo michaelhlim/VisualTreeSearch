@@ -288,7 +288,10 @@ class StanfordEnvironment(AbstractEnvironment):
             return True
 
         # Check if state y-value is the same as trap/goal but it's not in the trap or goal - that's a wall
-        if self.in_trap([self.trap_x[0][0], state[1]]) and \
+        # if self.in_trap([self.trap_x[0][0], state[1]]) and \
+        #     not self.in_trap(state) and not self.in_goal(state):
+        #     return True
+        if (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) and \
             not self.in_trap(state) and not self.in_goal(state):
             return True
 
@@ -558,7 +561,7 @@ class StanfordEnvironment(AbstractEnvironment):
     
 
     def rollout_deterministic(self, s, ss, ws, discount):
-        # Roll out from state s, calculating the naive distance & reward to the goal, then check how it would do for all other particles
+        # Roll out from state s, calculating the naive distance & reward to the goal
         vec, dist = self.distance_to_goal(s)
         steps = int(np.floor(dist/sep.velocity))
         ss_copy = np.copy(ss)
