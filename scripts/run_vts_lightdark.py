@@ -68,7 +68,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
 
     # If the test environment is different - ie there's a new trap
     if not train and test_env_is_diff:
-        env.set_test_trap()
+        env.set_test_trap(test_trap_is_random=True)
 
     normalization_data = env.preprocess_data()
 
@@ -697,11 +697,11 @@ if __name__ == "__main__":
         # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_16_38"], 
-                    pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_16_38"], 
+        #            pre_training=False, end_to_end=False, save_online_model=False)
         # Generalization Experiment 1
-        #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
-        #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
+        vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_19_23"], 
+                    pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
         # Generalization Experiment 2
         #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 

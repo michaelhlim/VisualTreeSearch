@@ -218,7 +218,7 @@ class StanfordEnvironment(AbstractEnvironment):
             state = state + self.true_env_corner
             state_arr = np.array([state])
 
-        path = os.getcwd() + '/images1/' 
+        path = os.getcwd() + '/images2/' 
         #os.mkdir(path)
         check_path(path)
 
