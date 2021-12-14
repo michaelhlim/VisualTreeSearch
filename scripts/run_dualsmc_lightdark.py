@@ -445,11 +445,25 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        if episode >= dlp.summary_iter:
+        #if episode >= dlp.summary_iter:
             #step_list.pop(0)
-            dist_list.pop(0)
+            #dist_list.pop(0)
         
         reach = np.array(step_list) < (sep.max_steps - 1)
+        
+        # print("Reach", reach)
+        # print("Step List", step_list)
+        # print("Reward List", reward_list_episode)
+        # print("Time List", time_list_episode)
+        # print("Dist List", dist_list) 
+        reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
+        reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
+        reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
+        reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+        # print("Reach Step List", reach_steps)
+        # print("Reach Reward List", reach_rewards)
+        # print("Reach Time List", reach_times)
+        # print("Reach Dist List", reach_dists)
 
         if episode % dlp.save_iter == 0 and train:
             model.save_model(model_path + "/dpf_lightdark_online")
@@ -464,9 +478,28 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             
+            # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+            #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+            #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+            if len(reach_steps) == 0:
+                rs = [-1, -1]
+            else:
+                rs = [np.mean(reach_steps), np.std(reach_steps)]
+            if len(reach_rewards) == 0:
+                rr = [-1, -1]
+            else:
+                rr = [np.mean(reach_rewards), np.std(reach_rewards)]
+            if len(reach_times) == 0:
+                rt = [-1, -1]
+            else:
+                rt = [np.mean(reach_times), np.std(reach_times)]
+            if len(reach_dists) == 0:
+                rd = [-1, -1]
+            else:
+                rd = [np.mean(reach_dists), np.std(reach_dists)]
             interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+                episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
+                rt[0], rt[1], rd[0], rd[1])
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
@@ -573,10 +606,10 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
 if __name__ == "__main__":
     if dlp.model_name == 'dualsmc_lightdark':
         # Just training
-        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
+        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
 
         # Both testing and training
-        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
         # Just testing
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
