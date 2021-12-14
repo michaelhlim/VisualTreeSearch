@@ -370,9 +370,9 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
-    torch.manual_seed(dlp.torch_seed)
-    random.seed(dlp.random_seed)
-    np.random.seed(dlp.np_random_seed)
+    torch.manual_seed(torch_seed)
+    random.seed(random_seed)
+    np.random.seed(np_random_seed)
 
     # This block of code creates the folders for plots
     experiment_id = "dualsmc" + get_datetime()

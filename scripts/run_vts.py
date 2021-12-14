@@ -232,9 +232,18 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
+        
+        reach = np.array(step_list) < (MAX_STEPS - 1)
+
         if episode % SAVE_ITER == 0 and train:
-            model.save_model(model_path + "/dualsmc_online")
-            print("save model to %s" % model_path)
+            model.save_model(model_path + "/dpf_online")
+            print("Saving online trained models to %s" % model_path)
+        
+        reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
+        reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
+        reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
+        reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+        
 
         if episode % DISPLAY_ITER == 0:
             st2 = img_path + "/"
@@ -245,9 +254,28 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
 
-            interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+            # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+            #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+            #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+            if len(reach_steps) == 0:
+                rs = [-1, -1]
+            else:
+                rs = [np.mean(reach_steps), np.std(reach_steps)]
+            if len(reach_rewards) == 0:
+                rr = [-1, -1]
+            else:
+                rr = [np.mean(reach_rewards), np.std(reach_rewards)]
+            if len(reach_times) == 0:
+                rt = [-1, -1]
+            else:
+                rt = [np.mean(reach_times), np.std(reach_times)]
+            if len(reach_dists) == 0:
+                rd = [-1, -1]
+            else:
+                rd = [np.mean(reach_dists), np.std(reach_dists)]
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
+                rt[0], rt[1], rd[0], rd[1])
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
@@ -272,6 +300,10 @@ def vts(model, observation_generator, experiment_id, train, model_path):
 
 def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True):
+    torch.manual_seed(torch_seed)
+    random.seed(random_seed)
+    np.random.seed(np_random_seed)
+
     # This block of code creates the folders for plots
     experiment_id = "vts" + get_datetime()
     foldername = "data/" + experiment_id
@@ -361,11 +393,11 @@ if __name__ == "__main__":
         # vts_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        # vts_driver(end_to_end=False, save_online_model=False)
+        vts_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_driver(load_path="test500k",
-                   gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
+        # vts_driver(load_path="test500k",
+        #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
 
         # Everything
         # vts_driver()
