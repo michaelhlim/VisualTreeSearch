@@ -17,4 +17,6 @@ IMG = 'data/img/'
 CKPT = 'data/ckpt/'
 
 
+NUM_PAR_PF = 100
+
 

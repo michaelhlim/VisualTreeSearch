@@ -197,10 +197,10 @@ class ObservationGenerator(nn.Module):
 
         t1 = time.time()
 
-        if cvae_params.save_model:
-            torch.save(self.state_dict(), cvae_params.save_path + "/gen_pre_trained")
-            print("Saving pre-trained generative model to %s" %
-                  (cvae_params.save_path + "/gen_pre_trained"))
+        # if cvae_params.save_model:
+        #     torch.save(self.state_dict(), cvae_params.save_path + "/gen_pre_trained")
+        #     print("Saving pre-trained generative model to %s" %
+        #           (cvae_params.save_path + "/gen_pre_trained"))
 
 
         print("Done pretraining")
@@ -389,15 +389,15 @@ class ObservationGenerator(nn.Module):
 
 
 ##################### TESTING ###########################
-cvae = ObservationGenerator()
+#cvae = ObservationGenerator()
 #t = cvae.pretrain()
 #print("Time to pretrain", str(t))
 #cvae.test_with_prints()
 #cvae.plot_training_losses()
 #cvae.plot_testing_losses()
 
-cvae = ObservationGenerator()
-cvae.load_model("/home/sampada_deglurkar/VisualTreeSearch/floor_domain_records/pretrain_cvae_sched_nocalib_500k.pth")
-cvae.test_with_prints()
+# cvae = ObservationGenerator()
+# cvae.load_model("/home/sampada_deglurkar/VisualTreeSearch/floor_domain_records/pretrain_cvae_sched_nocalib_500k.pth")
+# cvae.test_with_prints()
 
 

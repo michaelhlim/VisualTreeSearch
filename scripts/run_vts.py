@@ -323,9 +323,10 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained")
-        observation_generator.load_model(
-            cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
+        model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained", observation_generator)
+    # if gen_load_path is not None: 
+    #     observation_generator.load_model(
+    #         cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
 
     # This is where we need to perform individual training (if the user wants).
     # The process for this is to (1) create a observation and state batch.
@@ -359,7 +360,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         training_time = observation_generator.pretrain(save_pretrained_model, model_path)
 
         if save_pretrained_model:
-            model.save_model(model_path + "/dpf_pre_trained")
+            model.save_model(model_path + "/dpf_pre_trained", observation_generator)
             print("Saving pre-trained Z, P models to %s" % model_path)
         
         toc = time.perf_counter()
@@ -398,6 +399,8 @@ if __name__ == "__main__":
         # Just testing
         # vts_driver(load_path="test500k",
         #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
+        # vts_driver(load_path="vts12-14-05_42_01", pre_training=False, end_to_end=False, save_online_model=False)
+        
 
         # Everything
         # vts_driver()

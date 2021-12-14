@@ -31,17 +31,19 @@ class VTS:
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=FIL_LR)
         self.pp_optimizer = Adam(self.pp_net.parameters(), lr=FIL_LR)
 
-    def save_model(self, path):
+    def save_model(self, path, g):
         stats = {}
         stats['m_net'] = self.measure_net.state_dict()
         stats['pp_net'] = self.pp_net.state_dict()
+        stats['generator'] = g.state_dict()
         torch.save(stats, path)
 
-    def load_model(self, path):
+    def load_model(self, path, g):
         stats = torch.load(path)
         # Filtering
         self.measure_net.load_state_dict(stats['m_net'])
         self.pp_net.load_state_dict(stats['pp_net'])
+        g.load_state_dict(stats['generator'])
 
     def get_mean_state(self, state, weight):
         if len(state.shape) == 2:

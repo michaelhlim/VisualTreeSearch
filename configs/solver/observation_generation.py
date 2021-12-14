@@ -10,6 +10,6 @@ class CVAE_Params():
         self.num_training_steps = int(500e3)
         self.calibration = False
         self.save_model = True
-        self.save_path = "pretrain_cvae_sched_nocalib_500k.pth"
+        self.save_path = "" #"pretrain_cvae_sched_nocalib_500k.pth"
         self.num_tests = 50
 

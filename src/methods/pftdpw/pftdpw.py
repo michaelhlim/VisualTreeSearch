@@ -4,6 +4,7 @@ from numpy import random
 from dataclasses import dataclass
 from utils.utils import *
 from configs.solver.pftdpw import *
+from configs.solver.dualsmc import *
 
 
 @dataclass
