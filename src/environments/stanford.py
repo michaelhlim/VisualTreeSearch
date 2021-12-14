@@ -167,13 +167,15 @@ class StanfordEnvironment(AbstractEnvironment):
             pepper_coords = (np.array([int(elem) for elem in pepper_indices/image_plane_shape[1]]), 
                             pepper_indices%image_plane_shape[1])
             
-            out[salt_coords[0], salt_coords[1], :] = salt
+            if num_salt != 0:
+                out[salt_coords[0], salt_coords[1], :] = salt
             # for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
             #     row = salt_coords[0][i]
             #     col = salt_coords[1][i]
             #     for j in range(3):
             #         out[row, col, j] = salt
-            out[pepper_coords[0], pepper_coords[1], :] = pepper
+            if num_pepper != 0:
+                out[pepper_coords[0], pepper_coords[1], :] = pepper
             # for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
             #     row = pepper_coords[0][i]
             #     col = pepper_coords[1][i]

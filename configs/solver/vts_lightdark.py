@@ -6,9 +6,9 @@ class VTS_LightDark_Params():
     def __init__(self):
 
         self.device = 'cuda:2'
-        self.torch_seed = 50
-        self.random_seed = 0
-        self.np_random_seed = 0
+        self.torch_seed = 3
+        self.random_seed = 3
+        self.np_random_seed = 3
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -41,7 +41,7 @@ class VTS_LightDark_Params():
         self.num_lstm_layer = 2      
         self.mlp_hunits_zp = 128 #self.obs_encode_out #128
         self.zp_lr = 3e-4
-        self.num_epochs_zp = 0 #400 
+        self.num_epochs_zp = 400 #0 #400 
 
         ## G
         self.diff_pattern = True  # Training: Pre-generate the corrupted indices per noisy image
