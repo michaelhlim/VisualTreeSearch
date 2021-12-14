@@ -15,6 +15,6 @@ DISCOUNT = 0.99
 FIG_FORMAT = '.png'
 IMG = 'data/img/'
 CKPT = 'data/ckpt/'
-device = 'cuda'
+
 
 

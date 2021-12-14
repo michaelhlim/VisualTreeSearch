@@ -1,5 +1,10 @@
 # author: @wangyunbo
 
+device = 'cuda:1'
+torch_seed = 1
+random_seed = 1
+np_random_seed = 1
+
 ######################
 # Network
 MODEL_NAME = 'dualsmc'

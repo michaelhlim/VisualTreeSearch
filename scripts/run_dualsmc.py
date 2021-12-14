@@ -289,15 +289,21 @@ def dualsmc(model, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        if episode >= SUMMARY_ITER:
-            step_list.pop(0)
-            dist_list.pop(0)
-
+        #if episode >= SUMMARY_ITER:
+            #step_list.pop(0)
+            #dist_list.pop(0)
+        
         reach = np.array(step_list) < (MAX_STEPS - 1)
 
         if episode % SAVE_ITER == 0 and train:
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
+        
+        reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
+        reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
+        reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
+        reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+        
 
         if episode % real_display_iter == 0:
             episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
@@ -308,9 +314,28 @@ def dualsmc(model, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             
+            # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+            #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+            #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+            if len(reach_steps) == 0:
+                rs = [-1, -1]
+            else:
+                rs = [np.mean(reach_steps), np.std(reach_steps)]
+            if len(reach_rewards) == 0:
+                rr = [-1, -1]
+            else:
+                rr = [np.mean(reach_rewards), np.std(reach_rewards)]
+            if len(reach_times) == 0:
+                rt = [-1, -1]
+            else:
+                rt = [np.mean(reach_times), np.std(reach_times)]
+            if len(reach_dists) == 0:
+                rd = [-1, -1]
+            else:
+                rd = [np.mean(reach_dists), np.std(reach_dists)]
             interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+                episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
+                rt[0], rt[1], rd[0], rd[1])
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
@@ -345,6 +370,10 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
+    torch.manual_seed(dlp.torch_seed)
+    random.seed(dlp.random_seed)
+    np.random.seed(dlp.np_random_seed)
+
     # This block of code creates the folders for plots
     experiment_id = "dualsmc" + get_datetime()
     model_path = "nets/" + experiment_id
