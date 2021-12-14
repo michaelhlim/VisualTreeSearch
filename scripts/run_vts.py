@@ -367,6 +367,14 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         time_this_step = toc - tic
         print("Time elapsed for pre-training: ", time_this_step, "seconds.")
 
+        train_save_path = CKPT + experiment_id + "/train"
+        check_path(train_save_path)
+        train_file_str = experiment_id + "_train.txt"
+        train_file = open(train_save_path + "/" + train_file_str, 'w+')
+        training_time = 'Time elapsed for pre-training: %s ' % (time_this_step)
+        train_file.write('\n{}'.format(training_time))
+        train_file.flush()
+
     if end_to_end:
         train = True
         # After pretraining move into the end to end training
