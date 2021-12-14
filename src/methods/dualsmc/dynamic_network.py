@@ -6,6 +6,7 @@ from torch.distributions import Normal
 from torch.optim import Adam
 from utils.utils import *
 from configs.solver.dualsmc import *
+from configs.environments.floor import *
 
 
 #########################
