@@ -1,10 +1,10 @@
 class DualSMC_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:3'
-        self.torch_seed = 3
-        self.random_seed = 3
-        self.np_random_seed = 3
+        self.device = 'cuda:1'
+        self.torch_seed = 1
+        self.random_seed = 1
+        self.np_random_seed = 1
 
         ######################
         # Network

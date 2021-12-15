@@ -337,14 +337,14 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
                     if not train and test_env_is_diff:
                         test_trap1_x = env.test_trap_x[0]
                         test_trap2_x = env.test_trap_x[1]
-                        test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
-                            test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-                        test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
-                            test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                        test_trap1_y = env.test_trap_y[0]
+                        test_trap2_y = env.test_trap_y[1]
+                        test_trap1 = [test_trap1_x[0], test_trap1_y[0], 
+                            test_trap1_x[1]-test_trap1_x[0], test_trap1_y[1]-test_trap1_y[0]]
+                        test_trap2 = [test_trap2_x[0], test_trap2_y[0], 
+                            test_trap2_x[1]-test_trap2_x[0], test_trap2_y[1]-test_trap2_y[0]]
                         test_trap_plot_params = [test_trap1, test_trap2]
-                        # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
-                        #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-
+                        
                         plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
                                 dark, frm_name, curr_state, mean_state, resample_state, 
                                 normalized_weights.cpu().numpy(), proposal_state, smc_xy)
@@ -524,13 +524,13 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             if not train and test_env_is_diff:
                 test_trap1_x = env.test_trap_x[0]
                 test_trap2_x = env.test_trap_x[1]
-                test_trap1 = [test_trap1_x[0], env.test_trap_y[0], 
-                    test_trap1_x[1]-test_trap1_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-                test_trap2 = [test_trap2_x[0], env.test_trap_y[0], 
-                    test_trap2_x[1]-test_trap2_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
+                test_trap1_y = env.test_trap_y[0]
+                test_trap2_y = env.test_trap_y[1]
+                test_trap1 = [test_trap1_x[0], test_trap1_y[0], 
+                    test_trap1_x[1]-test_trap1_x[0], test_trap1_y[1]-test_trap1_y[0]]
+                test_trap2 = [test_trap2_x[0], test_trap2_y[0], 
+                    test_trap2_x[1]-test_trap2_x[0], test_trap2_y[1]-test_trap2_y[0]]
                 test_trap_plot_params = [test_trap1, test_trap2]
-                # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
-                #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
 
                 plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
                             dark, figure_name=st, states=np.array(trajectory))
@@ -609,14 +609,14 @@ if __name__ == "__main__":
         #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
 
         # Both testing and training
-        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        # dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
         # Just testing
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
         #                save_model=False, test=True)
         # Generalization Experiment 1
-        #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
-        #                save_model=False, test=True, test_env_is_diff=False)
+        dualsmc_driver(load_path="dualsmc_lightdark12-14-01_08_36", end_to_end=False, 
+                        save_model=False, test=True, test_env_is_diff=False)
         # Generalization Experiment 2
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
         #                save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)

@@ -32,8 +32,9 @@ class StanfordEnvironment(AbstractEnvironment):
         
         # During test time - have an additional trap region (optional)
         self.test_trap = False
+        self.test_trap_is_random = False
         self.test_trap_x = [[3, 3.5], [5, 5.5]] #[[1.5, 2], [6.5, 7]] #[3.5, 5]
-        self.test_trap_y = [0.5, 1] #[0.75, 1.25]
+        self.test_trap_y = [[0.5, 1], [0.5, 1]] #[0.5, 1] #[0.75, 1.25]
 
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
@@ -62,13 +63,30 @@ class StanfordEnvironment(AbstractEnvironment):
         self.testing_data_files = glob.glob(self.testing_data_path)
 
 
-    def set_test_trap(self):
-        self.test_trap = True
+    def set_test_trap(self, test_trap_is_random=False):
+         self.test_trap = True
+         self.test_trap_is_random = test_trap_is_random
 
 
     def reset_environment(self):
         self.done = False
         self.state, self.orientation = self.initial_state()
+
+        # Randomizing the test traps: 
+        # Each trap is size 0.5 by 0.5
+        # Trap 1 will be randomly placed between x = 0 and 4 (goal x)
+        # Trap 2 will be randomly placed between x = 4.5 and 8 (end of goal x to end of xrange - 0.5)
+        # Each trap will be randomly placed between y = 0.5 and 0.75 (dark line)
+
+        if self.test_trap and self.test_trap_is_random:
+            trap_size = 0.5
+            trap1_x = np.random.rand() * (self.target_x[0] - self.xrange[0]) + self.xrange[0]
+            trap2_x = np.random.rand() * (self.xrange[1]-trap_size - self.target_x[1]) + self.target_x[1]
+            self.test_trap_x = [[trap1_x, trap1_x+trap_size], [trap2_x, trap2_x+trap_size]] 
+
+            trap1_y = np.random.rand() * (self.dark_line - self.init_strip_y[1]) + self.init_strip_y[1]
+            trap2_y = np.random.rand() * (self.dark_line - self.init_strip_y[1]) + self.init_strip_y[1]
+            self.test_trap_y = [[trap1_y, trap1_y+trap_size], [trap2_y, trap2_y+trap_size]]
 
 
     def initial_state(self):
@@ -177,13 +195,15 @@ class StanfordEnvironment(AbstractEnvironment):
             pepper_coords = (np.array([int(elem) for elem in pepper_indices/image_plane_shape[1]]), 
                             pepper_indices%image_plane_shape[1])
             
-            out[salt_coords[0], salt_coords[1], :] = salt
+            if num_salt != 0:
+                out[salt_coords[0], salt_coords[1], :] = salt
             # for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
             #     row = salt_coords[0][i]
             #     col = salt_coords[1][i]
             #     for j in range(3):
             #         out[row, col, j] = salt
-            out[pepper_coords[0], pepper_coords[1], :] = pepper
+            if num_pepper != 0:
+                out[pepper_coords[0], pepper_coords[1], :] = pepper
             # for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
             #     row = pepper_coords[0][i]
             #     col = pepper_coords[1][i]
@@ -301,9 +321,9 @@ class StanfordEnvironment(AbstractEnvironment):
             return True
 
         # Check if state y-value is the same as trap/goal but it's not in the trap or goal
-        if self.in_trap([self.trap_x[0][0], state[1]]) and \
-            not self.in_trap(state) and not self.in_goal(state):
-            return True
+        if (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) and \
+             not self.in_trap(state) and not self.in_goal(state):
+             return True
 
         map_state = self.point_to_map(np.array(state[:2] + self.true_env_corner))
         map_value = self.traversible[map_state[1], map_state[0]]
@@ -327,12 +347,20 @@ class StanfordEnvironment(AbstractEnvironment):
             first_test_trap_x = (state[0] >= first_test_trap[0] and state[0] <= first_test_trap[1])
             second_test_trap = self.test_trap_x[1]
             second_test_trap_x = (state[0] >= second_test_trap[0] and state[0] <= second_test_trap[1])
-            test_trap_x = first_test_trap_x or second_test_trap_x
-            test_trap = test_trap_x and (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
-            # in_test_trap = (state[0] >= self.test_trap_x[0] and state[0] <= self.test_trap_x[1]) and \
-            #            (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
-            return (trap or test_trap) and not self.in_goal(state)
+            #test_trap_x = first_test_trap_x or second_test_trap_x
+            
+            first_test_trap = self.test_trap_y[0]
+            first_test_trap_y = (state[1] >= first_test_trap[0] and state[1] <= first_test_trap[1])
+            second_test_trap = self.test_trap_y[1]
+            second_test_trap_y = (state[1] >= second_test_trap[0] and state[1] <= second_test_trap[1])
+
+            test_trap = (first_test_trap_x and first_test_trap_y) or \
+                        (second_test_trap_x and second_test_trap_y)
+
+            # test_trap = test_trap_x and (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
         
+            return (trap or test_trap) and not self.in_goal(state)
+
         return trap and not self.in_goal(state)
     
     def in_goal(self, state):
