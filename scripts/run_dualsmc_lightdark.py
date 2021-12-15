@@ -68,7 +68,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
 
     # If the test environment is different - ie there's a new trap
     if not train and test_env_is_diff:
-        env.set_test_trap()
+        env.set_test_trap(test_trap_is_random=True)
 
     normalization_data = env.preprocess_data()
     # Begin main dualSMC loop
@@ -616,7 +616,7 @@ if __name__ == "__main__":
         #                save_model=False, test=True)
         # Generalization Experiment 1
         dualsmc_driver(load_path="dualsmc_lightdark12-14-01_08_36", end_to_end=False, 
-                        save_model=False, test=True, test_env_is_diff=False)
+                        save_model=False, test=True, test_env_is_diff=True)
         # Generalization Experiment 2
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
         #                save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
