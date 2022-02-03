@@ -299,10 +299,15 @@ def dualsmc(model, experiment_id, train, model_path):
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
         
-        reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
-        reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
-        reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
-        reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+        # reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
+        # reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
+        # reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
+        # reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+
+        reach_steps = np.array(step_list)[reach] 
+        reach_rewards = np.array(reward_list_episode)[reach]
+        reach_times = np.array(time_list_episode)[reach]
+        reach_dists = np.array(dist_list)[reach]
         
 
         if episode % real_display_iter == 0:
