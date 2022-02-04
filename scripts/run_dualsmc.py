@@ -293,7 +293,7 @@ def dualsmc(model, experiment_id, train, model_path):
             #step_list.pop(0)
             #dist_list.pop(0)
         
-        reach = np.array(step_list) < (MAX_STEPS - 1)
+        reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
 
         if episode % SAVE_ITER == 0 and train:
             model.save_model(model_path + "/dpf_online")
@@ -304,6 +304,7 @@ def dualsmc(model, experiment_id, train, model_path):
         # reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
         # reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
 
+        # Take only the statistics for successful episodes
         reach_steps = np.array(step_list)[reach] 
         reach_rewards = np.array(reward_list_episode)[reach]
         reach_times = np.array(time_list_episode)[reach]
@@ -322,19 +323,19 @@ def dualsmc(model, experiment_id, train, model_path):
             # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
             #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
             #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
-            if len(reach_steps) == 0:
+            if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
             else:
                 rs = [np.mean(reach_steps), np.std(reach_steps)]
-            if len(reach_rewards) == 0:
+            if len(reach_rewards) == 0:  # No episodes were successful - return a null value
                 rr = [-1, -1]
             else:
                 rr = [np.mean(reach_rewards), np.std(reach_rewards)]
-            if len(reach_times) == 0:
+            if len(reach_times) == 0:  # No episodes were successful - return a null value
                 rt = [-1, -1]
             else:
                 rt = [np.mean(reach_times), np.std(reach_times)]
-            if len(reach_dists) == 0:
+            if len(reach_dists) == 0:  # No episodes were successful - return a null value
                 rd = [-1, -1]
             else:
                 rd = [np.mean(reach_dists), np.std(reach_dists)]

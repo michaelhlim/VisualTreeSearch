@@ -1,9 +1,9 @@
 # author: @wangyunbo
 
-device = 'cuda:3'
-torch_seed = 6
-random_seed = 6
-np_random_seed = 6
+device = 'cuda:2'
+torch_seed = 1
+random_seed = 1
+np_random_seed = 1
 
 ######################
 # Network

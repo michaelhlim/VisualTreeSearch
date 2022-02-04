@@ -162,9 +162,13 @@ class VTS:
         curr_obs = torch.FloatTensor(obs).to(device)
         hidden = curr_obs
         cell = curr_obs
+
+        import time
+
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
+        tpp1 = time.time()
         if PP_EXIST:
             self.pp_optimizer.zero_grad()
             state_propose = self.pp_net(curr_obs, NUM_PAR_PF)
@@ -175,9 +179,13 @@ class VTS:
             P_loss = PP_loss
             PP_loss.backward()
             self.pp_optimizer.step()
+        tpp2 = time.time()
+        print("Time to train pp:", tpp2-tpp1)
+
         # ------------------------
         #  Train Observation Model
         # ------------------------
+        tm1 = time.time()
         self.measure_optimizer.zero_grad()
         temp = curr_par.view(-1, DIM_STATE)
         fake_logit, _, _ = self.measure_net.m_model(temp,
@@ -195,6 +203,8 @@ class VTS:
         Z_loss = OM_loss
         OM_loss.backward()
         self.measure_optimizer.step()
+        tm2 = time.time()
+        print("Time to train m:", tm2-tm1)
 
         return Z_loss, P_loss
 

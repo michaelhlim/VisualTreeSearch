@@ -232,17 +232,23 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
-        
-        reach = np.array(step_list) < (MAX_STEPS - 1)
+
+        reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
 
         if episode % SAVE_ITER == 0 and train:
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
-        
-        reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
-        reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
-        reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
-        reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+
+        # reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
+        # reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
+        # reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
+        # reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
+
+        # Take only the statistics for successful episodes
+        reach_steps = np.array(step_list)[reach] 
+        reach_rewards = np.array(reward_list_episode)[reach]
+        reach_times = np.array(time_list_episode)[reach]
+        reach_dists = np.array(dist_list)[reach]
         
 
         if episode % DISPLAY_ITER == 0:
@@ -257,19 +263,19 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
             #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
             #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
-            if len(reach_steps) == 0:
+            if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
             else:
                 rs = [np.mean(reach_steps), np.std(reach_steps)]
-            if len(reach_rewards) == 0:
+            if len(reach_rewards) == 0:  # No episodes were successful - return a null value
                 rr = [-1, -1]
             else:
                 rr = [np.mean(reach_rewards), np.std(reach_rewards)]
-            if len(reach_times) == 0:
+            if len(reach_times) == 0:  # No episodes were successful - return a null value
                 rt = [-1, -1]
             else:
                 rt = [np.mean(reach_times), np.std(reach_times)]
-            if len(reach_dists) == 0:
+            if len(reach_dists) == 0:  # No episodes were successful - return a null value
                 rd = [-1, -1]
             else:
                 rd = [np.mean(reach_dists), np.std(reach_dists)]
@@ -341,13 +347,21 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         proposer_loss = []
         # First we'll do train individually for 64 batches
         for batch in range(PRETRAIN):
+            tstep1 = time.time()
+
+            tbatch1 = time.time()
             walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
                          0, 0, 0]  # wall 0 means no wall
             state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
+            tbatch2 = time.time()
+            print("Time to make a batch:", tbatch2-tbatch1)
 
             # Train Z and P using the soft q update function
+            ttrain1 = time.time()
             Z_loss, P_loss = model.soft_q_update_individual(
                 state_batch, obs_batch, par_batch)
+            ttrain2 = time.time()
+            print("Time to do soft q update individual:", ttrain2-ttrain1)
             measure_loss.append(Z_loss.item())
             proposer_loss.append(P_loss.item())
 
@@ -355,6 +369,9 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
             if batch % print_freq == 0:
                 print("Step: ", batch, ", Z loss: ", np.mean(
                     measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
+
+            tstep2 = time.time()
+            print("Time for a step:", tstep2-tstep1)
 
         # Observation generative model
         training_time = observation_generator.pretrain(save_pretrained_model, model_path)
@@ -371,7 +388,8 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         check_path(train_save_path)
         train_file_str = experiment_id + "_train.txt"
         train_file = open(train_save_path + "/" + train_file_str, 'w+')
-        training_time = 'Time elapsed for pre-training: %s ' % (time_this_step)
+        training_time = 'Time elapsed for pre-training: %s, Time for pre-training generator: %s ' % 
+                        (time_this_step, training_time)
         train_file.write('\n{}'.format(training_time))
         train_file.flush()
 
