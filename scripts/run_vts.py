@@ -347,21 +347,13 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         proposer_loss = []
         # First we'll do train individually for 64 batches
         for batch in range(PRETRAIN):
-            tstep1 = time.time()
-
-            tbatch1 = time.time()
             walls_arr = [0.1, 0.4, 0.6, 0.9, 0,
                          0, 0, 0]  # wall 0 means no wall
             state_batch, obs_batch, par_batch = env.make_batch_multiple_walls(64, walls_arr)
-            tbatch2 = time.time()
-            print("Time to make a batch:", tbatch2-tbatch1)
 
             # Train Z and P using the soft q update function
-            ttrain1 = time.time()
             Z_loss, P_loss = model.soft_q_update_individual(
                 state_batch, obs_batch, par_batch)
-            ttrain2 = time.time()
-            print("Time to do soft q update individual:", ttrain2-ttrain1)
             measure_loss.append(Z_loss.item())
             proposer_loss.append(P_loss.item())
 
@@ -369,9 +361,6 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
             if batch % print_freq == 0:
                 print("Step: ", batch, ", Z loss: ", np.mean(
                     measure_loss[-print_freq:]), ", P loss: ", np.mean(proposer_loss[-print_freq:]))
-
-            tstep2 = time.time()
-            print("Time for a step:", tstep2-tstep1)
 
         # Observation generative model
         training_time = observation_generator.pretrain(save_pretrained_model, model_path)
@@ -383,12 +372,13 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         toc = time.perf_counter()
         time_this_step = toc - tic
         print("Time elapsed for pre-training: ", time_this_step, "seconds.")
+        print("Time elapsed for pre-training generator:", training_time, "seconds.")
 
         train_save_path = CKPT + experiment_id + "/train"
         check_path(train_save_path)
         train_file_str = experiment_id + "_train.txt"
         train_file = open(train_save_path + "/" + train_file_str, 'w+')
-        training_time = 'Time elapsed for pre-training: %s, Time for pre-training generator: %s ' % 
+        training_time = 'Time elapsed for pre-training: %s, Time for pre-training generator: %s ' % \
                         (time_this_step, training_time)
         train_file.write('\n{}'.format(training_time))
         train_file.flush()
@@ -417,7 +407,7 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        # vts_driver(end_to_end=False, save_online_model=False, test=False)
+        #vts_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
         vts_driver(end_to_end=False, save_online_model=False)
