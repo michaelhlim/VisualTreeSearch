@@ -130,16 +130,34 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             # Resampling
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
-                    idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
+                    # For de-localization problem: don't propose so many particles
+                    if PP_DECAY:
+                        # Exponential decay in proposed particles according to decay rate
+                        decayed_num_propose = int(num_par_propose * DECAY_RATE**step)
+                        print("NUM PROPOSE:", decayed_num_propose)
+                        proposal_state = model.pp_net(torch.FloatTensor(
+                            curr_obs).unsqueeze(0).to(device), decayed_num_propose)
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - decayed_num_propose,
                                             replacement=True).detach().cpu().numpy()
-                    resample_state = par_states[idx]
-                    proposal_state = model.pp_net(torch.FloatTensor(
-                        curr_obs).unsqueeze(0).to(device), num_par_propose)
-                    proposal_state[:, 0] = torch.clamp(
-                        proposal_state[:, 0], 0, 2)
-                    proposal_state[:, 1] = torch.clamp(
-                        proposal_state[:, 1], 0, 1)
+                    else:
+                        # Otherwise propose fixed amount of particles
+                        proposal_state = model.pp_net(torch.FloatTensor(
+                            curr_obs).unsqueeze(0).to(device), num_par_propose)
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
+                                            replacement=True).detach().cpu().numpy()
+                    
+                    # Keep proposals within environment bounds
+                    proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
+                    proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
                     proposal_state = proposal_state.detach().cpu().numpy()
+
+                    # Particles not from the proposer - sample with replacement from existing set
+                    resample_state = par_states[idx]
+ 
                     par_states = np.concatenate(
                         (resample_state, proposal_state), 0)
                 else:
@@ -410,12 +428,12 @@ if __name__ == "__main__":
         #vts_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        vts_driver(end_to_end=False, save_online_model=False)
+        # vts_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
         # vts_driver(load_path="test500k",
         #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
-        # vts_driver(load_path="vts12-14-05_42_01", pre_training=False, end_to_end=False, save_online_model=False)
+        vts_driver(load_path="vts02-06-20_44_31", pre_training=False, end_to_end=False, save_online_model=False)
         
 
         # Everything

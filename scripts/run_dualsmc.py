@@ -414,8 +414,8 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
         # Just training
-        dualsmc_driver(load_path=None, end_to_end=True,
-                       save_model=True, test=True)
+        #dualsmc_driver(load_path=None, end_to_end=True,
+        #               save_model=True, test=True)
 
         # Everything
-        # dualsmc_driver()
+        dualsmc_driver()

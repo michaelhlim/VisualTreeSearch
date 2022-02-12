@@ -1,9 +1,9 @@
 # author: @wangyunbo
 
-device = 'cuda:3'
-torch_seed = 4
-random_seed = 4
-np_random_seed = 4
+device = 'cuda:1'
+torch_seed = 1
+random_seed = 1
+np_random_seed = 1
 
 ######################
 # Network
@@ -35,6 +35,8 @@ NUM_PAR_PF = 100
 PP_EXIST = True
 PP_RATIO = 0.3
 PP_LOSS_TYPE = 'adv'  # 'mse', 'adv', 'density'
+PP_DECAY = True
+DECAY_RATE = 0.95
 
 # ######################
 # Planning
