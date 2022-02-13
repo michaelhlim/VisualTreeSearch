@@ -20,7 +20,7 @@ cvae_params = CVAE_Params()
 class ObservationGenerator(nn.Module):
     def __init__(self, enc_out_dim=cvae_params.enc_out_dim, latent_dim=cvae_params.latent_dim):
         super(ObservationGenerator, self).__init__()
-
+        
         dim_hidden = cvae_params.dim_hidden
         leak_rate = cvae_params.leak
 

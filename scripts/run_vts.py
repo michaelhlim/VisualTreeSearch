@@ -134,9 +134,10 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                     if PP_DECAY:
                         # Exponential decay in proposed particles according to decay rate
                         decayed_num_propose = int(num_par_propose * DECAY_RATE**step)
-                        print("NUM PROPOSE:", decayed_num_propose)
+                        if decayed_num_propose <= 0:
+                            decayed_num_propose = 1
                         proposal_state = model.pp_net(torch.FloatTensor(
-                            curr_obs).unsqueeze(0).to(device), decayed_num_propose)
+                                curr_obs).unsqueeze(0).to(device), decayed_num_propose)
 
                         # Particles not from the proposer - sample with replacement from existing set
                         idx = torch.multinomial(normalized_weights, NUM_PAR_PF - decayed_num_propose,
@@ -149,15 +150,15 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                         # Particles not from the proposer - sample with replacement from existing set
                         idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
-                    
+
+                    # Particles not from the proposer - sample with replacement from existing set
+                    resample_state = par_states[idx]
+                     
                     # Keep proposals within environment bounds
                     proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
                     proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
                     proposal_state = proposal_state.detach().cpu().numpy()
 
-                    # Particles not from the proposer - sample with replacement from existing set
-                    resample_state = par_states[idx]
- 
                     par_states = np.concatenate(
                         (resample_state, proposal_state), 0)
                 else:
