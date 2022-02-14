@@ -35,8 +35,11 @@ NUM_PAR_PF = 100
 PP_EXIST = True
 PP_RATIO = 0.3
 PP_LOSS_TYPE = 'adv'  # 'mse', 'adv', 'density'
-PP_DECAY = True
+PP_DECAY = False
 DECAY_RATE = 0.97
+PP_STD = True
+STD_THRES = 0.07
+STD_ALPHA = 150
 
 # ######################
 # Planning

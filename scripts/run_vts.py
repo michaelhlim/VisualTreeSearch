@@ -142,8 +142,24 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                         # Particles not from the proposer - sample with replacement from existing set
                         idx = torch.multinomial(normalized_weights, NUM_PAR_PF - decayed_num_propose,
                                             replacement=True).detach().cpu().numpy()
+                    # For de-localization problem: don't propose so many particles
+                    elif PP_STD:
+                        # Only propose particles if existing particle stdev is above threshold
+                        std_norm = np.linalg.norm(np.std(par_states, axis=0))
+                        if std_norm >= STD_THRES:
+                            # Propose in an amount proportional to the stdev, capped at num_par_propose
+                            std_num_propose = int(min(num_par_propose, STD_ALPHA*std_norm))
+                        else: # Otherwise don't propose particles 
+                            std_num_propose = 1
+                            
+                        proposal_state = model.pp_net(torch.FloatTensor(
+                                curr_obs).unsqueeze(0).to(device), std_num_propose)
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - std_num_propose,
+                                            replacement=True).detach().cpu().numpy() 
+                    # Otherwise propose fixed amount of particles
                     else:
-                        # Otherwise propose fixed amount of particles
                         proposal_state = model.pp_net(torch.FloatTensor(
                             curr_obs).unsqueeze(0).to(device), num_par_propose)
 
@@ -161,7 +177,9 @@ def vts(model, observation_generator, experiment_id, train, model_path):
 
                     par_states = np.concatenate(
                         (resample_state, proposal_state), 0)
-                else:
+                
+                # No proposer
+                else:  
                     idx = torch.multinomial(
                         normalized_weights, NUM_PAR_PF, replacement=True).detach().cpu().numpy()
                     par_states = par_states[idx]
