@@ -135,13 +135,15 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                         # Exponential decay in proposed particles according to decay rate
                         decayed_num_propose = int(num_par_propose * DECAY_RATE**step)
                         if decayed_num_propose <= 0:
-                            decayed_num_propose = 1
-                        proposal_state = model.pp_net(torch.FloatTensor(
+                            proposal_state = None
+                        else:
+                            proposal_state = model.pp_net(torch.FloatTensor(
                                 curr_obs).unsqueeze(0).to(device), decayed_num_propose)
 
                         # Particles not from the proposer - sample with replacement from existing set
                         idx = torch.multinomial(normalized_weights, NUM_PAR_PF - decayed_num_propose,
                                             replacement=True).detach().cpu().numpy()
+                    
                     # For de-localization problem: don't propose so many particles
                     elif PP_STD:
                         # Only propose particles if existing particle stdev is above threshold
@@ -149,15 +151,38 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                         if std_norm >= STD_THRES:
                             # Propose in an amount proportional to the stdev, capped at num_par_propose
                             std_num_propose = int(min(num_par_propose, STD_ALPHA*std_norm))
-                        else: # Otherwise don't propose particles 
-                            std_num_propose = 1
-                            
-                        proposal_state = model.pp_net(torch.FloatTensor(
+                            proposal_state = model.pp_net(torch.FloatTensor(
                                 curr_obs).unsqueeze(0).to(device), std_num_propose)
+                        else: # Otherwise don't propose particles 
+                            proposal_state = None
+                            std_num_propose = 0
 
                         # Particles not from the proposer - sample with replacement from existing set
                         idx = torch.multinomial(normalized_weights, NUM_PAR_PF - std_num_propose,
                                             replacement=True).detach().cpu().numpy() 
+                    
+                    # For de-localization problem: don't propose so many particles
+                    elif PP_EFFECTIVE:
+                        # Only propose particles if the "effective number of particles" is below 
+                        # a threshold
+                        # Formula comes from Gustafsson 2010
+                        effective_num_particles = NUM_PAR_PF/(1 + NUM_PAR_PF**2 * 
+                                                    torch.var(normalized_weights.detach()))
+                        if effective_num_particles < EFFECTIVE_THRES:
+                            # Propose in an amount inversely proportional to the effective num particles, 
+                            # capped at num_par_propose
+                            effective_num_propose = int(min(num_par_propose, 
+                                                    EFFECTIVE_ALPHA / effective_num_particles))
+                            proposal_state = model.pp_net(torch.FloatTensor(
+                                curr_obs).unsqueeze(0).to(device), effective_num_propose)
+                        else: # Otherwise don't propose particles 
+                            proposal_state = None
+                            effective_num_propose = 0
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - effective_num_propose,
+                                        replacement=True).detach().cpu().numpy() 
+
                     # Otherwise propose fixed amount of particles
                     else:
                         proposal_state = model.pp_net(torch.FloatTensor(
@@ -169,14 +194,17 @@ def vts(model, observation_generator, experiment_id, train, model_path):
 
                     # Particles not from the proposer - sample with replacement from existing set
                     resample_state = par_states[idx]
-                     
-                    # Keep proposals within environment bounds
-                    proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
-                    proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
-                    proposal_state = proposal_state.detach().cpu().numpy()
+                    
+                    if proposal_state is not None:
+                        # Keep proposals within environment bounds
+                        proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
+                        proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
+                        proposal_state = proposal_state.detach().cpu().numpy()
 
-                    par_states = np.concatenate(
-                        (resample_state, proposal_state), 0)
+                        par_states = np.concatenate(
+                            (resample_state, proposal_state), 0)
+                    else:
+                        par_states = resample_state
                 
                 # No proposer
                 else:  
@@ -452,7 +480,7 @@ if __name__ == "__main__":
         # Just testing
         # vts_driver(load_path="test500k",
         #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
-        vts_driver(load_path="vts02-06-20_44_31", pre_training=False, end_to_end=False, save_online_model=False)
+        vts_driver(load_path="vts02-07-06_34_36", pre_training=False, end_to_end=False, save_online_model=False)
         
 
         # Everything

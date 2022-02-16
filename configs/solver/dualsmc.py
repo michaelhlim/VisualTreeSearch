@@ -1,9 +1,9 @@
 # author: @wangyunbo
 
-device = 'cuda:3'
-torch_seed = 1
-random_seed = 1
-np_random_seed = 1
+device = 'cuda:0'
+torch_seed = 5
+random_seed = 5
+np_random_seed = 5
 
 ######################
 # Network
@@ -35,11 +35,14 @@ NUM_PAR_PF = 100
 PP_EXIST = True
 PP_RATIO = 0.3
 PP_LOSS_TYPE = 'adv'  # 'mse', 'adv', 'density'
-PP_DECAY = False
-DECAY_RATE = 0.97
-PP_STD = True
+PP_DECAY = True
+DECAY_RATE = 0.9
+PP_STD = False
 STD_THRES = 0.07
 STD_ALPHA = 150
+PP_EFFECTIVE = False
+EFFECTIVE_THRES = int(2/3 * NUM_PAR_PF)
+EFFECTIVE_ALPHA = 1000
 
 # ######################
 # Planning

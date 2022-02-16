@@ -118,9 +118,10 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     x, y = zip(*xy)
     ax.plot(x, y, 'gx')
 
-    xy = pp_state[:, :2]
-    x, y = zip(*xy)
-    ax.plot(x, y, 'bx')
+    if pp_state is not None:
+        xy = pp_state[:, :2]
+        x, y = zip(*xy)
+        ax.plot(x, y, 'bx')
 
     ax.set_aspect('equal')
 
