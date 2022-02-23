@@ -174,21 +174,88 @@ def vts_lightdark(model, experiment_id, train, model_path,
                     state_traj.append(mean_s + action)  # This is wrong
             state_traj = np.array(state_traj)
             #######################################
-            
             # Resampling
             if step % vlp.pf_resample_step == 0:
-                #if False:
                 if vlp.pp_exist:
-                    idx = torch.multinomial(normalized_weights, vlp.num_par_pf - num_par_propose,
+                    # For de-localization problem: don't propose so many particles
+                    if vlp.pp_decay:
+                        # Exponential decay in proposed particles according to decay rate
+                        decayed_num_propose = int(num_par_propose * vlp.decay_rate**step)
+                        if decayed_num_propose <= 0:
+                            proposal_state = None
+                        else:
+                            proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(vlp.device), 
+                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(vlp.device), 
+                                                decayed_num_propose)
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, vlp.num_par_pf - decayed_num_propose,
                                             replacement=True).detach().cpu().numpy()
-                    resample_state = par_states[idx]  # [num_par_pf - num_par_propose, dim_state]
-                    proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(vlp.device), 
+                    
+                    # For de-localization problem: don't propose so many particles
+                    elif vlp.pp_std:
+                        # Only propose particles if existing particle stdev is above threshold
+                        std_norm = np.linalg.norm(np.std(par_states, axis=0))
+                        if std_norm >= vlp.std_thres:
+                            # Propose in an amount proportional to the stdev, capped at num_par_propose
+                            std_num_propose = int(min(num_par_propose, vlp.std_alpha*std_norm))
+                            proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(vlp.device), 
+                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(vlp.device), 
+                                                std_num_propose)
+                        else: # Otherwise don't propose particles 
+                            proposal_state = None
+                            std_num_propose = 0
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, vlp.num_par_pf - std_num_propose,
+                                            replacement=True).detach().cpu().numpy() 
+
+                    # For de-localization problem: don't propose so many particles
+                    elif vlp.pp_effective:
+                        # Only propose particles if the "effective number of particles" is below 
+                        # a threshold
+                        # Formula comes from Gustafsson 2010
+                        effective_num_particles = vlp.num_par_pf/(1 + vlp.num_par_pf**2 * 
+                                                    torch.var(normalized_weights.detach()))
+                        if effective_num_particles < vlp.effective_thres:
+                            # Propose in an amount inversely proportional to the effective num particles, 
+                            # capped at num_par_propose
+                            effective_num_propose = int(min(num_par_propose, 
+                                                    vlp.effective_alpha / effective_num_particles))
+                            proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(vlp.device), 
+                                                torch.FloatTensor([curr_orientation]).unsqueeze(0).to(vlp.device), 
+                                                effective_num_propose)    
+                        else: # Otherwise don't propose particles 
+                            proposal_state = None
+                            effective_num_propose = 0
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, vlp.num_par_pf - effective_num_propose,
+                                        replacement=True).detach().cpu().numpy() 
+                    
+                    # Otherwise propose fixed amount of particles
+                    else:
+                        proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(vlp.device), 
                                                 torch.FloatTensor([curr_orientation]).unsqueeze(0).to(vlp.device), 
                                                 num_par_propose)
-                    proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
-                    proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
-                    proposal_state = proposal_state.detach().cpu().numpy()
-                    par_states = np.concatenate((resample_state, proposal_state), 0)  # [num_par_pf, dim_state]
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, vlp.num_par_pf - num_par_propose,
+                                            replacement=True).detach().cpu().numpy()
+                    # Particles not from the proposer - sample with replacement from existing set
+                    resample_state = par_states[idx]  # [num_par_pf - number of particles proposed, dim_state]
+                    
+                    if proposal_state is not None:
+                        # Keep proposals within environment bounds
+                        proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
+                        proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
+                        proposal_state = proposal_state.detach().cpu().numpy()
+
+                        par_states = np.concatenate(
+                            (resample_state, proposal_state), 0)  # [num_par_pf, dim_state]
+                    else:
+                        par_states = resample_state  # [num_par_pf, dim_state]
+
+                # No proposer
                 else:
                     idx = torch.multinomial(normalized_weights, vlp.num_par_pf, replacement=True).detach().cpu().numpy()
                     par_states = par_states[idx]
@@ -203,6 +270,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
             filter_dist += filter_rmse
 
             toc = time.perf_counter()
+
             #######################################
             if vlp.show_traj and episode % vlp.display_iter == 0:
                 if step < 10:
@@ -735,11 +803,11 @@ if __name__ == "__main__":
         #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        vts_lightdark_driver(end_to_end=False, save_online_model=False)
+        # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        #vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_16_38"], 
-        #            pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark02-07-19_08_16"], 
+                    pre_training=False, end_to_end=False, save_online_model=False)
         # Generalization Experiment 1
         #vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_19_23"], 
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)

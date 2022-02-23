@@ -5,10 +5,10 @@ sep = Stanford_Environment_Params()
 class VTS_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:3'
-        self.torch_seed = 3
-        self.random_seed = 3
-        self.np_random_seed = 3
+        self.device = 'cuda:2'
+        self.torch_seed = 5
+        self.random_seed = 5
+        self.np_random_seed = 5
 
         ######################
         self.model_name = 'vts_lightdark'
@@ -76,6 +76,14 @@ class VTS_LightDark_Params():
         self.pp_exist = True
         self.pp_ratio = 0.3
         self.pp_loss_type = 'adv'  # 'mse', 'adv', 'density'
+        self.pp_decay = True
+        self.decay_rate = 0.9
+        self.pp_std = False 
+        self.std_thres = 0.07
+        self.std_alpha = 100
+        self.pp_effective = False
+        self.effective_thres = int(2/3 * self.num_par_pf)
+        self.effective_alpha = 1000
 
         # ######################
         # PFTDPW    
