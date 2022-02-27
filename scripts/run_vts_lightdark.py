@@ -803,14 +803,14 @@ if __name__ == "__main__":
         #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        # vts_lightdark_driver(end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        vts_lightdark_driver(load_paths=["vts_lightdark02-07-19_08_16"], 
-                    pre_training=False, end_to_end=False, save_online_model=False)
+        #vts_lightdark_driver(load_paths=["vts_lightdark02-07-19_08_16"], 
+        #            pre_training=False, end_to_end=False, save_online_model=False)
         # Generalization Experiment 1
-        #vts_lightdark_driver(load_paths=["vts_lightdark12-09-17_19_23"], 
-        #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
+        vts_lightdark_driver(load_paths=["vts_lightdark02-24-23_40_13"], 
+                    pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
         # Generalization Experiment 2
         #vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 

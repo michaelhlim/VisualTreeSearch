@@ -6,9 +6,9 @@ class VTS_LightDark_Params():
     def __init__(self):
 
         self.device = 'cuda:2'
-        self.torch_seed = 5
-        self.random_seed = 5
-        self.np_random_seed = 5
+        self.torch_seed = 7
+        self.random_seed = 7
+        self.np_random_seed = 7
 
         ######################
         self.model_name = 'vts_lightdark'
