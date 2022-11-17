@@ -1,9 +1,9 @@
 # author: @wangyunbo
 
 device = 'cuda:0'
-torch_seed = 10
-random_seed = 10
-np_random_seed = 10
+torch_seed = 1
+random_seed = 1
+np_random_seed = 1
 
 ######################
 # Network
@@ -23,7 +23,7 @@ FIL_LR = 1e-3 # filtering
 PLA_LR = 1e-3 # planning
 SUMMARY_ITER = 100
 SAVE_ITER = 100
-DISPLAY_ITER = 10
+DISPLAY_ITER = 5 #10
 PRETRAIN = 500000
 SHOW_TRAJ = True
 SHOW_DISTR = False

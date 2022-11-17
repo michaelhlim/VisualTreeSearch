@@ -103,14 +103,6 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     color = (0, 0, 1)
     ax.plot(walls_dotted[:, :, 0].T, walls_dotted[:, :, 1].T, color=color, linewidth=1.0, linestyle='--')
 
-    # planning trajectories
-    if smc_traj is not None:
-        if smc_traj.any():
-            num_par_smc = smc_traj.shape[1]
-            for k in range(num_par_smc):
-                points = smc_traj[:, k, :]
-                ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
-
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')
 
@@ -122,6 +114,19 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
         xy = pp_state[:, :2]
         x, y = zip(*xy)
         ax.plot(x, y, 'bx')
+
+     # planning trajectories
+    if smc_traj is not None:
+        if smc_traj.any():
+            num_par_smc = smc_traj.shape[1]
+            for k in range(num_par_smc):
+                points = smc_traj[:, k, :]
+                ax.plot(*points.T, lw=3, color=(0.5, 0.5, 0.5))  # RGB
+            if len(points) > 1:
+                plt.arrow(points[-2, 0], points[-2, 1], 
+                        points[-1, 0] - points[-2, 0],
+                        points[-1, 1] - points[-2, 1], 
+                        head_width = 0.022, width = 0.013, color=(0.5, 0.5, 0.5))
 
     ax.set_aspect('equal')
 

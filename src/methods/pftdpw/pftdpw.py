@@ -126,11 +126,58 @@ class PFTDPW():
 		ws = b.weights
 		return self.env.rollout(s, ss, ws)
 
-	def solve(self, s, w):
+	def solve_viz(self, s, w):
 		# call plan when given states and weights
 		b = BeliefNode(states=s, weights=w)
 		a_id = self.plan(b)
 		
+		all_a_ids = []
+		iterate_a_id = a_id
+		for _ in range(self.depth - 1):
+			# print(_)
+			# print("A_ID", iterate_a_id)
+			if iterate_a_id == None:
+				break
+			all_a_ids.append(iterate_a_id)
+			# print(self.tree.transitions[iterate_a_id])
+			# Pick a belief node at random
+			# bp_id, r = self.tree.transitions[iterate_a_id][int(np.random.choice(
+			# 	range(len(self.tree.transitions[iterate_a_id])), 1))]
+			
+			# Pick the maximally visited belief node
+			best_visits = -np.inf
+			best_belief = None
+			for (bp_id, r) in self.tree.transitions[iterate_a_id]:
+				if self.tree.n_b_visits[bp_id] > best_visits:
+					best_visits = self.tree.n_b_visits[bp_id]
+					best_belief = bp_id
+			# print("BEST BELIEF", best_belief, best_visits)
+			# print("BP_ID", bp_id)
+			# belief = self.tree.belief_ids[bp_id] 
+			
+			# Find the best action from this belief
+			best_q = -np.inf
+			best_a = None
+			for child in self.tree.child_actions[best_belief]:
+				if self.tree.q[child] > best_q:
+					best_q = self.tree.q[child]
+					best_a = child
+			next_a = best_a
+
+			# print("NEXT A", next_a)
+			iterate_a_id = next_a
+		all_a_ids = [self.tree.action_ids[a_id] for a_id in all_a_ids]
+
+		if a_id == None:
+			return self.env.action_sample(), all_a_ids
+		else:
+			return self.tree.action_ids[a_id], all_a_ids
+	
+	def solve(self, s, w):
+		# call plan when given states and weights
+		b = BeliefNode(states=s, weights=w)
+		a_id = self.plan(b)
+
 		if a_id == None:
 			return self.env.action_sample()
 		else:

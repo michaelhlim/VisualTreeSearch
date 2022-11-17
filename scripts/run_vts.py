@@ -125,7 +125,8 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             #######################################
             # Planning
             states_init = par_states
-            action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
+            # action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
+            action, future_actions = pft_planner.solve_viz(par_states, normalized_weights.detach().cpu().numpy())
 
             # Resampling
             if step % PF_RESAMPLE_STEP == 0:
@@ -233,8 +234,22 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                     file_name = 'im' + str(step)
                 frm_name = traj_dir + '/' + file_name + '_par' + FIG_FORMAT
 
-                if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
-                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, None)
+                # if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
+                #     plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, None)
+                if PP_EXIST:
+                    check_path(img_path + "/traj/")
+                    st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + FIG_FORMAT
+                    plot_maze(figure_name=st, states=np.array(trajectory))
+                    state_iterate = mean_state.reshape((1, 2))
+                    # print("STATE ITERATE", state_iterate)
+                    planned_traj = state_iterate
+                    for action in future_actions:
+                        state_iterate, _, _, _ = env.transition(state_iterate, None, action)
+                        planned_traj = np.vstack([planned_traj, state_iterate])
+                    # print("\nPLANNED TRAJ", planned_traj)
+                    planned_traj = np.array(planned_traj)
+                    planned_traj = planned_traj.reshape((planned_traj.shape[0], 1, planned_traj.shape[1]))
+                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, planned_traj)
 
             #######################################
             # Update the environment
@@ -472,15 +487,15 @@ if __name__ == "__main__":
                 #    gen_load_path="test500k", pre_training=False)
 
         # Just pre-training
-        #vts_driver(end_to_end=False, save_online_model=False, test=False)
+        # vts_driver(end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        vts_driver(end_to_end=False, save_online_model=False)
+        # vts_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
         # vts_driver(load_path="test500k",
         #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
-        # vts_driver(load_path="vts02-07-06_34_36", pre_training=False, end_to_end=False, save_online_model=False)
+        vts_driver(load_path="vts11-15-20_41_33", pre_training=False, end_to_end=False, save_online_model=False)
         
 
         # Everything
