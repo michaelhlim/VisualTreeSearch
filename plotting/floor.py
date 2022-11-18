@@ -59,7 +59,7 @@ def plot_maze(figure_name='default', states=None):
             plt.plot(x[i], y[i], color=viridis(colorvec[i]), marker='o')
 
     ax.set_aspect('equal')
-    plt.savefig(figure_name)
+    plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
     plt.close()
 
 
@@ -126,11 +126,11 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
                 plt.arrow(points[-2, 0], points[-2, 1], 
                         points[-1, 0] - points[-2, 0],
                         points[-1, 1] - points[-2, 1], 
-                        head_width = 0.022, width = 0.013, color=(0.5, 0.5, 0.5))
+                        head_width = 0.037, width = 0.013, color=(0.5, 0.5, 0.6))
 
     ax.set_aspect('equal')
 
-    plt.savefig(figure_name)
+    plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
     plt.close()
 
 
