@@ -59,7 +59,8 @@ def plot_maze(figure_name='default', states=None):
             plt.plot(x[i], y[i], color=viridis(colorvec[i]), marker='o')
 
     ax.set_aspect('equal')
-    plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    # plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    plt.savefig(figure_name, bbox_inches='tight')
     plt.close()
 
 
@@ -130,7 +131,8 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
 
     ax.set_aspect('equal')
 
-    plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    # plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    plt.savefig(figure_name, bbox_inches='tight')
     plt.close()
 
 
