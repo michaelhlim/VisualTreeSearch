@@ -606,7 +606,7 @@ if __name__ == "__main__":
         #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
 
         # Both testing and training
-        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
         # Just testing
         #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
@@ -615,5 +615,5 @@ if __name__ == "__main__":
         #dualsmc_driver(load_path="dualsmc_lightdark02-22-07_07_17", end_to_end=False, 
         #                save_model=False, test=True, test_env_is_diff=True)
         # Generalization Experiment 2
-        dualsmc_driver(load_path="dualsmc_lightdark02-07-19_11_39", end_to_end=False, 
-                        save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
+        # dualsmc_driver(load_path="dualsmc_lightdark02-07-19_11_39", end_to_end=False, 
+        #                save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
