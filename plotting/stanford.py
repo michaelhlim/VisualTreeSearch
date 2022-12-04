@@ -107,17 +107,6 @@ def plot_par(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', tru
     # cir = plt.Circle(goal, 0.07, color='orange')
     # ax.add_artist(cir)
 
-    # planning trajectories
-    if smc_traj is not None:
-        if smc_traj.any():
-            if len(smc_traj.shape) == 2:
-                ax.plot(smc_traj[:, 0], smc_traj[:, 1], lw=1, color=(0.5, 0.5, 1.0))  # RGB
-            else:
-                num_par_smc = smc_traj.shape[1]
-                for k in range(num_par_smc):
-                    points = smc_traj[:, k, :]
-                    ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
-
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')
     #ax.quiver(true_state[0], true_state[1], np.cos(true_state[2]), np.sin(true_state[2]))
@@ -133,6 +122,34 @@ def plot_par(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', tru
         xy = pp_state[:, :2]
         x, y = zip(*xy)
         ax.plot(x, y, 'bx')
+
+    # # planning trajectories
+    # if smc_traj is not None:
+    #     if smc_traj.any():
+    #         num_par_smc = smc_traj.shape[1]
+    #         for k in range(num_par_smc):
+    #             points = smc_traj[:, k, :]
+    #             ax.plot(*points.T, lw=3, color=(0.5, 0.5, 0.5))  # RGB
+    #         if len(points) > 1:
+    #             plt.arrow(points[-2, 0], points[-2, 1], 
+    #                     points[-1, 0] - points[-2, 0],
+    #                     points[-1, 1] - points[-2, 1], 
+    #                     head_width = 0.022, width = 0.013, color=(0.5, 0.5, 0.5))
+    # planning trajectories
+    if smc_traj is not None:
+        if smc_traj.any():
+            if len(smc_traj.shape) == 2:
+                ax.plot(smc_traj[:, 0], smc_traj[:, 1], lw=3, color=(0.5, 0.5, 1.0))  # RGB
+            else:
+                num_par_smc = smc_traj.shape[1]
+                for k in range(num_par_smc):
+                    points = smc_traj[:, k, :]
+                    ax.plot(*points.T, lw=3, color=(0.5, 0.5, 0.5))  # RGB
+                if len(points) > 1:
+                    plt.arrow(points[-2, 0], points[-2, 1], 
+                            points[-1, 0] - points[-2, 0],
+                            points[-1, 1] - points[-2, 1], 
+                            head_width = 0.12, width = 0.013, color=(0.5, 0.5, 0.5))
 
     ax.set_aspect('equal')
 

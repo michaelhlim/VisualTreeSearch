@@ -163,15 +163,16 @@ def vts_lightdark(model, experiment_id, train, model_path,
             #######################################
             # Planning
             states_init = par_states   # Goes into replay buffer
-            action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Action already includes velocity
+            # action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Action already includes velocity
+            action, future_actions = pft_planner.solve_viz(par_states, normalized_weights.detach().cpu().numpy())
             # For visualizing the planned trajectory
             mean_s = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
             # For visualization purposes
             state_traj = [mean_s] 
-            if traj is not None:  
-                for action in traj:
-                    state_traj.append(mean_s + action)  # This is wrong
+            # if traj is not None:  
+            #     for action in traj:
+            #         state_traj.append(mean_s + action)  # This is wrong
             state_traj = np.array(state_traj)
             #######################################
             # Resampling
@@ -281,7 +282,8 @@ def vts_lightdark(model, experiment_id, train, model_path,
                     file_name = 'im' + str(step)
                 frm_name = traj_dir + '/' + file_name + '_par' + sep.fig_format
 
-                if vlp.pp_exist and step % vlp.pf_resample_step == 0:
+                # if vlp.pp_exist and step % vlp.pf_resample_step == 0:
+                if vlp.pp_exist: 
                     xlim = env.xrange
                     ylim = env.yrange
                     goal = [env.target_x[0], env.target_y[0], 
@@ -293,6 +295,18 @@ def vts_lightdark(model, experiment_id, train, model_path,
                     trap2 = [trap2_x[0], env.trap_y[0], 
                             trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
+                    
+                    state_iterate = mean_state.reshape((1, 2))
+                    # print("STATE ITERATE", state_iterate)
+                    planned_traj = state_iterate
+                    for action in future_actions:
+                        state_iterate, _, _, _ = env.transition(state_iterate, None, action)
+                        state_iterate = state_iterate[:, :2]
+                        planned_traj = np.vstack([planned_traj, state_iterate])
+                    # print("\nPLANNED TRAJ", planned_traj)
+                    planned_traj = np.array(planned_traj)
+                    planned_traj = planned_traj.reshape((planned_traj.shape[0], 1, planned_traj.shape[1]))
+                    
                     if not train and test_env_is_diff:
                         test_trap1_x = env.test_trap_x[0]
                         test_trap2_x = env.test_trap_x[1]
@@ -306,13 +320,30 @@ def vts_lightdark(model, experiment_id, train, model_path,
                         # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
                         #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
                         
+                        check_path(img_path + "/traj/")
+                        st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + sep.fig_format
+                        plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
+                          dark, figure_name=st, states=np.array(trajectory))
                         plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
                                  dark, frm_name, curr_state, mean_state, resample_state, 
-                                 normalized_weights.cpu().numpy(), proposal_state, state_traj)
+                                 normalized_weights.detach().cpu().numpy(), proposal_state, planned_traj)
+
+                        # plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
+                        #          dark, frm_name, curr_state, mean_state, resample_state, 
+                        #          normalized_weights.cpu().numpy(), proposal_state, state_traj)
                     else:
+                        # plot_par(xlim, ylim, goal, [trap1, trap2], None, 
+                        #          dark, frm_name, curr_state, mean_state, resample_state, 
+                        #          normalized_weights.cpu().numpy(), proposal_state, state_traj)
+
+                        check_path(img_path + "/traj/")
+                        st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + sep.fig_format
+                        plot_maze(xlim, ylim, goal, [trap1, trap2], None,
+                          dark, figure_name=st, states=np.array(trajectory))
                         plot_par(xlim, ylim, goal, [trap1, trap2], None, 
                                  dark, frm_name, curr_state, mean_state, resample_state, 
-                                 normalized_weights.cpu().numpy(), proposal_state, state_traj)
+                                 normalized_weights.detach().cpu().numpy(), proposal_state, planned_traj)
+
                     # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
                     #         mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, state_traj)
                     #plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
@@ -803,11 +834,11 @@ if __name__ == "__main__":
         #vts_lightdark_driver(shared_enc=True, independent_enc=True, end_to_end=False, save_online_model=False, test=False)
 
         # Pre-training immediately followed by testing
-        vts_lightdark_driver(end_to_end=False, save_online_model=False)
+        # vts_lightdark_driver(end_to_end=False, save_online_model=False)
 
         # Just testing
-        #vts_lightdark_driver(load_paths=["vts_lightdark02-07-19_08_16"], 
-        #            pre_training=False, end_to_end=False, save_online_model=False)
+        vts_lightdark_driver(load_paths=["vts_lightdark11-18-04_01_30"], 
+                    pre_training=False, end_to_end=False, save_online_model=False)
         # Generalization Experiment 1
         # vts_lightdark_driver(load_paths=["vts_lightdark02-24-23_40_13"], 
         #            pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
