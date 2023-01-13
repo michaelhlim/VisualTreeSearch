@@ -1,7 +1,7 @@
 # Compositional Learning-based Planning for Vision POMDPs
 This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456).
 
-## Visual Tree Search (VTS)
+## Visual Tree Search
 ![Visual Tree Search](misc/visual_tree_search_final.png)
 
 ### Summary of VTS
