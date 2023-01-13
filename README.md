@@ -1,4 +1,8 @@
-# Visual Tree Search
+# Compositional Learning-based Planning for Vision POMDPs
+This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456).
+
+![Visual Tree Search](misc/visual_tree_search_final.png)
+
 ## Installing Packages via Conda
 It's most preferred to make your own Conda environment for the project. In order to do so, you can perform the following steps. First, create your own conda environment. The environment I used currently has Python 3.8.8:
 
