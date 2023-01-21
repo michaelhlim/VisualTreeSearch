@@ -1,4 +1,5 @@
 # author: @wangyunbo, @liubo
+import cv2
 import math
 import numpy as np
 import os.path
@@ -87,9 +88,10 @@ def vts_lightdark(model, experiment_id, train, model_path,
         curr_state = env.state
         curr_orientation = env.orientation
         if not train and test_img_is_diff:
-            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+            curr_obs, curr_pre_norm, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
         else:     
-            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
+            curr_obs, curr_pre_norm, _, _, _ = env.get_observation(normalization_data=normalization_data) 
+
         trajectory.append(curr_state)
 
         par_states, par_orientations = env.make_pars(vlp.num_par_pf)   
@@ -105,6 +107,12 @@ def vts_lightdark(model, experiment_id, train, model_path,
             if os.path.exists(traj_dir):
                 shutil.rmtree(traj_dir)
             os.mkdir(traj_dir)
+
+            check_path(img_path + "/obs/")
+            img_dir = img_path + "/obs/" + "/iter-" + str(episode)
+            if os.path.exists(img_dir):
+                shutil.rmtree(img_dir)
+            os.mkdir(img_dir)
         
         if vlp.show_distr and episode % vlp.display_iter == 0:
             check_path(img_path + "/distrs/")
@@ -118,6 +126,18 @@ def vts_lightdark(model, experiment_id, train, model_path,
         num_par_propose = int(vlp.num_par_pf * vlp.pp_ratio)
 
         for step in range(sep.max_steps):
+
+            if vlp.show_traj and episode % vlp.display_iter == 0:
+                if step < 10:
+                    file_name = 'im00' + str(step)
+                elif step < 100:
+                    file_name = 'im0' + str(step)
+                else:
+                    file_name = 'im' + str(step)
+                img_name = img_dir + '/' + file_name + sep.fig_format
+
+                cv2.imwrite(img_name, curr_pre_norm)
+
             # 1. observation model
             # 2. planning
             # 3. re-sample
@@ -355,9 +375,9 @@ def vts_lightdark(model, experiment_id, train, model_path,
             next_state = env.state
             next_orientation = env.orientation
             if not train and test_img_is_diff:
-                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+                next_obs, next_pre_norm, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
             else:  
-                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
+                next_obs, next_pre_norm, _, _, _ = env.get_observation(normalization_data=normalization_data)
             #######################################
             if train:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs_tensor,
@@ -379,6 +399,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
             curr_state = next_state
             curr_orientation = next_orientation
             curr_obs = next_obs
+            curr_pre_norm = next_pre_norm
             trajectory.append(next_state)
             # Recording data
             time_this_step = toc - tic

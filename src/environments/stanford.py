@@ -50,7 +50,7 @@ class StanfordEnvironment(AbstractEnvironment):
         except Exception:
             path = os.getcwd() + '/temp/'
             os.mkdir(path)
-            _, _, traversible, dx_m = self.get_observation(path=path)
+            _, _, _, traversible, dx_m = self.get_observation(path=path)
             pickle.dump(traversible, open("traversible.p", "wb"))
 
 
@@ -232,6 +232,7 @@ class StanfordEnvironment(AbstractEnvironment):
         else:
             out = self.noise_image_plane(image, state_temp)
 
+        pre_norm = out
         out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
         out = np.ascontiguousarray(out)
 
@@ -248,7 +249,7 @@ class StanfordEnvironment(AbstractEnvironment):
         os.remove(img_path)
         os.rmdir(path)
 
-        return out, img_path, traversible, dx_m
+        return out, pre_norm, img_path, traversible, dx_m
     
 
     # Currently not used
