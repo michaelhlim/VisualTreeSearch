@@ -1,4 +1,5 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import cv2
 import numpy as np
 import os
@@ -46,12 +47,6 @@ class StanfordEnvironment(AbstractEnvironment):
         self.done = False
         self.state, self.orientation = self.initial_state()
 
-        # self.state = np.random.rand(sep.dim_state)
-        # self.orientation = np.random.rand()
-        # self.state[0] = self.state[0] * (self.init_strip_x[1] - self.init_strip_x[0]) + self.init_strip_x[0]
-        # self.state[1] = self.state[1] * (self.init_strip_y[1] - self.init_strip_y[0]) + self.init_strip_y[0]
-        # self.orientation = self.orientation * (self.thetas[1] - self.thetas[0]) + self.thetas[0]
-
 
     def initial_state(self):
         orientation = np.random.rand()
@@ -84,11 +79,9 @@ class StanfordEnvironment(AbstractEnvironment):
 
         img_path, traversible, dx_m = generate_observation(state_arr, path)
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
+        image = image[:, :, ::-1]  ## CV2 works in BGR space instead of RGB -- now image is in RGB
         image = np.ascontiguousarray(image)
  
-        # salt = np.max(image)
-        # pepper = np.min(image)
         salt = 255
         pepper = 0
 
@@ -111,15 +104,6 @@ class StanfordEnvironment(AbstractEnvironment):
             out[salt_coords] = salt
             out[pepper_coords] = pepper
 
-            # coords = [np.random.randint(0, i - 1, int(num_salt))
-            #         for i in image.shape]
-            # out[coords] = salt 
-
-            
-            # coords = [np.random.randint(0, i - 1, int(num_pepper))
-            #         for i in image.shape]
-            # out[coords] = pepper 
-
         #cv2.imwrite(img_path, out)
 
         if normalize:
@@ -134,7 +118,7 @@ class StanfordEnvironment(AbstractEnvironment):
     def read_observation(self, img_path, normalize):
         obs = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         #obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now obs is in RGB
+        obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- now obs is in RGB
         # if normalize:
         #     obs = (obs - obs.mean())/obs.std()  # "Normalization" -- TODO
         
@@ -386,13 +370,3 @@ class StanfordEnvironment(AbstractEnvironment):
         reward += gamma * np.dot(cond_all, ws) * EPI_REWARD
 
         return reward
-
-
-# se = StanfordEnvironment()
-# se.state = [4, 0.3]
-# r = se.step([0.5])
-# print("REWARD", r)
-# print(se.done)
-
-# trap = se.in_trap([0.5, 0.24])
-# print("TRAP", trap)

@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -6,7 +8,7 @@ import numpy as np
 from configs.environments.floor import *
 
 
-def plot_maze(figure_name='default', states=None):
+def plot_maze(figure_name='default', states=None, highres=False):
     plt.figure(figure_name)
     ax = plt.axes()
 
@@ -59,13 +61,15 @@ def plot_maze(figure_name='default', states=None):
             plt.plot(x[i], y[i], color=viridis(colorvec[i]), marker='o')
 
     ax.set_aspect('equal')
-    # plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
-    plt.savefig(figure_name, bbox_inches='tight')
+    if highres:
+        plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    else:
+        plt.savefig(figure_name, bbox_inches='tight')
     plt.close()
 
 
 def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=None,
-             pp_state=None, smc_traj=None):
+             pp_state=None, smc_traj=None, highres=False):
     plt.figure(figure_name)
     ax = plt.axes()
     ax.set_xlim([0, 2])
@@ -131,8 +135,10 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
 
     ax.set_aspect('equal')
 
-    # plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
-    plt.savefig(figure_name, bbox_inches='tight')
+    if highres:
+        plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    else:
+        plt.savefig(figure_name, bbox_inches='tight')
     plt.close()
 
 

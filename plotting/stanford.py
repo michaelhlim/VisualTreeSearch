@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import matplotlib
 
 from src.environments.stanford import StanfordEnvironment
@@ -188,20 +190,3 @@ def visualize_learning(figure_name, episode_loss_list, time_list, step_list, rew
     plt.ylabel("Average Reward")
     plt.savefig(path_str)
     plt.close()
-
-
-
-# env = StanfordEnvironment()
-# st = "gaga.png"
-# xlim = env.xrange
-# ylim = env.yrange
-# goal = [env.target_x[0], env.target_y[0], 
-#         env.target_x[1]-env.target_x[0], env.target_y[1]-env.target_y[0]]
-# trap1_x = env.trap_x[0]
-# trap2_x = env.trap_x[1]
-# trap1 = [trap1_x[0], env.trap_y[0], 
-#         trap1_x[1]-trap1_x[0], env.trap_y[1]-env.trap_y[0]]
-# trap2 = [trap2_x[0], env.trap_y[0], 
-#         trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
-# dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
-# plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array([[2.5, 0.4]]))

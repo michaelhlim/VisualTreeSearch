@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

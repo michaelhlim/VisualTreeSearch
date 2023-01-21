@@ -1,4 +1,4 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
 
 class AbstractEnvironment(object):
     def __init__(self):
@@ -12,15 +12,6 @@ class AbstractEnvironment(object):
     def step(self):
         # Takes a step from the current environment state with a supplied action and updates the environment state
         return
-
-    # # New functions to be added
-    # def transition_state(self, s, a):
-    #     # Given a state and an action, return the next step state and reward. All inputs and outputs are in numpy array format.
-    #     return
-
-    # def transition_tensor(self, s, a):
-    #     # Given a state tensor and an action, return the next step state tensor and rewards. All inputs and outputs are in numpy array format.
-    #     return
 
     def is_terminal(self, s):
         # Check if a given state is a terminal state

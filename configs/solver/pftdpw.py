@@ -1,5 +1,5 @@
-######################
-# Planning
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 NUM_QUERY = 100
 UCB_EXPLORATION = 10.0
 K_OBSERVATION = 4.0

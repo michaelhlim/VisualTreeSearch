@@ -1,4 +1,4 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
 
 device = 'cuda:0'
 torch_seed = 1
@@ -44,7 +44,7 @@ PP_EFFECTIVE = False
 EFFECTIVE_THRES = int(2/3 * NUM_PAR_PF)
 EFFECTIVE_ALPHA = 1000
 
-# ######################
+#######################
 # Planning
 NUM_PAR_SMC_INIT = 3
 NUM_PAR_SMC = 30
@@ -53,7 +53,7 @@ SMCP_MODE = 'topk' # 'samp', 'topk'
 SMCP_RESAMPLE = True
 SMCP_RESAMPLE_STEP = 3
 
-# ######################
+#######################
 # SAC
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20

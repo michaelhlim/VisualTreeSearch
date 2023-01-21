@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 class Image_CVAE_Params():
     def __init__(self):
         self.in_channels = 3

@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import os.path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))

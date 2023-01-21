@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import numpy as np
 import os.path
 import torch
@@ -10,7 +12,7 @@ dlp = DualSMC_LightDark_Params()
 sep = Stanford_Environment_Params()
 
 model = DualSMC()
-load_path = "dualsmc07-14-16_52_46/dpf_online" #"dualsmc07-01-23_17_21/dpf_online"
+load_path = "dualsmc07-14-16_52_46/dpf_online" 
 cwd = os.getcwd()
 model.load_model(cwd + "/nets/" + load_path)
 

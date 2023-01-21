@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import os.path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -299,11 +300,6 @@ def dualsmc(model, experiment_id, train, model_path):
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
         
-        # reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
-        # reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
-        # reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
-        # reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
-
         # Take only the statistics for successful episodes
         reach_steps = np.array(step_list)[reach] 
         reach_rewards = np.array(reward_list_episode)[reach]
@@ -320,9 +316,6 @@ def dualsmc(model, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
             
-            # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-            #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-            #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
             if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
             else:
@@ -370,7 +363,6 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
@@ -413,9 +405,10 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        # Just training
-        #dualsmc_driver(load_path=None, end_to_end=True,
-        #               save_model=True, test=True)
-
-        # Everything
-        dualsmc_driver()
+        if len(sys.argv) > 1 and sys.argv[1] == "--train":
+            # Just training
+            dualsmc_driver(load_path=None, end_to_end=True,
+                      save_model=True, test=True)
+        else:
+            # Everything
+            dualsmc_driver()

@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 class Image_CGAN_Params():
     def __init__(self):
         self.state_enc_out_dim = 512 #64

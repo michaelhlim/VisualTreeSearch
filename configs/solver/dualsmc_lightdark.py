@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 class DualSMC_LightDark_Params():
     def __init__(self):
 
@@ -41,7 +43,7 @@ class DualSMC_LightDark_Params():
         self.pp_ratio = 0.3
         self.pp_loss_type = 'adv'  # 'mse', 'adv', 'density'
 
-        # ######################
+        #######################
         # Planning
         self.num_par_smc_init = 3
         self.num_par_smc = 10 #30
@@ -50,7 +52,7 @@ class DualSMC_LightDark_Params():
         self.smcp_resample = True
         self.smcp_resample_step = 1 #3
 
-        # ######################
+        #######################
         # SAC
         self.log_sig_max = 2
         self.log_sig_min = -20

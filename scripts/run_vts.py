@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import os.path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -234,19 +235,15 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                     file_name = 'im' + str(step)
                 frm_name = traj_dir + '/' + file_name + '_par' + FIG_FORMAT
 
-                # if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
-                #     plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, None)
-                if PP_EXIST:
+                if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
                     check_path(img_path + "/traj/")
                     st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + FIG_FORMAT
                     plot_maze(figure_name=st, states=np.array(trajectory))
                     state_iterate = mean_state.reshape((1, 2))
-                    # print("STATE ITERATE", state_iterate)
                     planned_traj = state_iterate
                     for action in future_actions:
                         state_iterate, _, _, _ = env.transition(state_iterate, None, action)
                         planned_traj = np.vstack([planned_traj, state_iterate])
-                    # print("\nPLANNED TRAJ", planned_traj)
                     planned_traj = np.array(planned_traj)
                     planned_traj = planned_traj.reshape((planned_traj.shape[0], 1, planned_traj.shape[1]))
                     plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, planned_traj)
@@ -282,11 +279,6 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
 
-            # # Printing states for debugging
-            # if step % 3 == 0:
-            #     cond = (curr_state[1] <= 0.5)
-            #     target = cond * env.target1 + (1 - cond) * env.target2
-            #     print(step, curr_state, mean_state, target, action)
             if env.done:
                 break
 
@@ -319,11 +311,6 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             model.save_model(model_path + "/dpf_online")
             print("Saving online trained models to %s" % model_path)
 
-        # reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
-        # reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
-        # reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
-        # reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
-
         # Take only the statistics for successful episodes
         reach_steps = np.array(step_list)[reach] 
         reach_rewards = np.array(reward_list_episode)[reach]
@@ -340,10 +327,7 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
 
-            # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-            #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-            #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
-            if len(reach_steps) == 0:  # No episodes were successful - return a null value
+           if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
             else:
                 rs = [np.mean(reach_steps), np.std(reach_steps)]
@@ -379,12 +363,11 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         file1.flush()
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
 
-def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True):
     torch.manual_seed(torch_seed)
     random.seed(random_seed)
@@ -410,9 +393,6 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     if load_path is not None:
         cwd = os.getcwd()
         model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained", observation_generator)
-    # if gen_load_path is not None: 
-    #     observation_generator.load_model(
-    #         cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
 
     # This is where we need to perform individual training (if the user wants).
     # The process for this is to (1) create a observation and state batch.
@@ -482,22 +462,19 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        # Right into online learning & testing
-        # vts_driver(load_path="test500k",
-                #    gen_load_path="test500k", pre_training=False)
-
-        # Just pre-training
-        # vts_driver(end_to_end=False, save_online_model=False, test=False)
-
-        # Pre-training immediately followed by testing
-        # vts_driver(end_to_end=False, save_online_model=False)
-
-        # Just testing
-        # vts_driver(load_path="test500k",
-        #           gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
-        vts_driver(load_path="vts11-15-20_41_33", pre_training=False, end_to_end=False, save_online_model=False)
-        
-
-        # Everything
-        # vts_driver()
+        if len(sys.argv) > 1 and sys.argv[1] == "--pretrain":
+            # Just pre-training
+            vts_driver(end_to_end=False, save_online_model=False, test=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--pretrain-test":
+            # Pre-training immediately followed by testing
+            vts_driver(end_to_end=False, save_online_model=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--test":
+            # Just testing
+            vts_driver(load_path="vts11-15-20_41_33", pre_training=False, end_to_end=False, save_online_model=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--online-train-test":
+            # Right into online learning & testing
+            vts_driver(load_path="test500k", pre_training=False)
+        else:
+            # Everything
+            vts_driver()
 

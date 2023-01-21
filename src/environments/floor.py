@@ -1,4 +1,5 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 from utils.utils import *
 from configs.environments.floor import *
 from src.environments.abstract import AbstractEnvironment

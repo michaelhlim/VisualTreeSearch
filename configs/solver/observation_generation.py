@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 class CVAE_Params():
     def __init__(self):
         self.dim_hidden = 256
