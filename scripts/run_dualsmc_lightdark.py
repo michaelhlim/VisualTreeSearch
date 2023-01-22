@@ -283,7 +283,6 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             action = smc_action[0, n, :]
             #######################################
             if step % dlp.pf_resample_step == 0:
-                #if False:
                 if dlp.pp_exist:
                     idx = torch.multinomial(normalized_weights, dlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()

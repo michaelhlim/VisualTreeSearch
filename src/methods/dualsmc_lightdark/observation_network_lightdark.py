@@ -15,7 +15,7 @@ dlp = DualSMC_LightDark_Params()
 class MeasureNetwork(nn.Module):
     def __init__(self):
         super(MeasureNetwork, self).__init__()
-        self.dim_m = dlp.dim_m #64 #16
+        self.dim_m = dlp.dim_m 
         self.obs_encode_out = dlp.obs_encode_out
         self.dim_first_layer = dlp.dim_first_layer
         self.dim_lstm_hidden = dlp.dim_lstm_hidden
@@ -23,7 +23,6 @@ class MeasureNetwork(nn.Module):
         self.dim_state = sep.dim_state
 
         self.observation_encoder = ObservationEncoder()
-        #self.observation_encoder = ObservationEncoderDeep()
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.obs_encode_out, self.dim_first_layer),
@@ -57,7 +56,6 @@ class MeasureNetwork(nn.Module):
         # orientation [batch_size * num_par, 1]
         
         enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
-        #enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
 
         # Normalizing the output of the observation encoder
         enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
@@ -83,7 +81,6 @@ class ProposerNetwork(nn.Module):
         self.dim_state = sep.dim_state
 
         self.observation_encoder = ObservationEncoder()
-        #self.observation_encoder = ObservationEncoderDeep()
 
         self.first_layer = nn.Sequential(
             nn.Linear(self.obs_encode_out, self.dim_first_layer),
@@ -99,7 +96,6 @@ class ProposerNetwork(nn.Module):
                 nn.ReLU(),
                 #nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, self.dim_state)
-                #nn.Sigmoid()
             )
 
 
@@ -108,7 +104,6 @@ class ProposerNetwork(nn.Module):
         # orientation [batch_size, 1]
 
         enc_obs = self.observation_encoder(obs)  # enc_obs [batch_size, obs_encode_out]
-        #enc_obs = self.observation_encoder.encode(obs)  # [batch_size, obs_enc_out]
 
         # Normalizing the output of the observation encoder
         enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
