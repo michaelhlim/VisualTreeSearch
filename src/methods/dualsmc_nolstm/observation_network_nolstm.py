@@ -6,6 +6,7 @@ from torch.distributions import Normal
 from torch.optim import Adam
 from utils.utils import *
 from configs.solver.dualsmc import *
+from configs.environments.floor import *
 
 
 class MeasureNetwork(nn.Module):
@@ -23,8 +24,6 @@ class MeasureNetwork(nn.Module):
         self.lstm_replace = nn.Sequential(
             nn.Linear(DIM_HIDDEN, DIM_LSTM_HIDDEN),
             nn.ReLU()
-            # nn.Linear(192, 128),
-            # nn.Sigmoid()
         )
         self.lstm_out = nn.Sequential(
             nn.Linear(DIM_LSTM_HIDDEN, self.dim_m),

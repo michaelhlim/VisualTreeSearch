@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import random
 import torch
 import torch.nn as nn
@@ -152,6 +153,7 @@ class DualSMC:
                 true_state_lik = 1. / (2 * np.pi * std ** 2) * (-square_distance / (2 * std ** 2)).exp()
                 pp_nll = -(const + true_state_lik.mean(1)).log().mean()
                 PP_loss += DEN_COEF * pp_nll
+            P_loss = PP_loss.clone().detach()
             PP_loss.backward()
             self.pp_optimizer.step()
 
@@ -171,6 +173,7 @@ class DualSMC:
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
+        Z_loss = OM_loss.clone().detach()
         OM_loss.backward()
         self.measure_optimizer.step()
 
@@ -180,6 +183,7 @@ class DualSMC:
         self.dynamic_optimizer.zero_grad()
         state_predict = self.dynamic_net.t_model(state_batch, action_batch * STEP_RANGE)
         TM_loss = self.MSE_criterion(state_predict, next_state_batch)
+        T_loss = TM_loss.clone().detach()
         TM_loss.backward()
         self.dynamic_optimizer.step()
 
@@ -200,6 +204,8 @@ class DualSMC:
         qf1, qf2 = self.critic(state_batch, action_batch)
         qf1_loss = F.mse_loss(qf1, next_q_value)
         qf2_loss = F.mse_loss(qf2, next_q_value)
+        q1_loss = qf1_loss.clone().detach()
+        q2_loss = qf2_loss.clone().detach()
 
         self.critic_optim.zero_grad()
         qf1_loss.backward()
@@ -226,3 +232,5 @@ class DualSMC:
         self.alpha = self.log_alpha.exp()
 
         soft_update(self.critic_target, self.critic, self.tau)
+
+        return P_loss, T_loss, Z_loss, q1_loss, q2_loss

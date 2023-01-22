@@ -1,11 +1,12 @@
-import random
 import torch
+from torch.distributions import Normal
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal
-from torch.optim import Adam
 from utils.utils import *
-from experiments.configs import *
+
+from configs.solver.dualsmc_lightdark import *
+
+dlp = DualSMC_LightDark_Params()
 
 
 class GaussianPolicy(nn.Module):
@@ -22,7 +23,7 @@ class GaussianPolicy(nn.Module):
         x = F.relu(self.linear2(x))
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
-        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        log_std = torch.clamp(log_std, min=dlp.log_sig_min, max=dlp.log_sig_max)
         return mean, log_std
 
     def sample(self, mean_state, par_states):
@@ -34,7 +35,7 @@ class GaussianPolicy(nn.Module):
         action = torch.tanh(x_t)
         log_prob = normal.log_prob(x_t)
         # Enforcing Action Bound
-        log_prob -= torch.log(1 - action.pow(2) + const)
+        log_prob -= torch.log(1 - action.pow(2) + dlp.const)
         log_prob = log_prob.sum(1, keepdim=True)
         return action, log_prob, torch.tanh(mean)
 

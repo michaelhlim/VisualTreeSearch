@@ -1,11 +1,7 @@
-import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal
-from torch.optim import Adam
 from utils.utils import *
-from experiments.configs import *
 
 
 class QNetwork(nn.Module):

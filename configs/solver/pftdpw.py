@@ -1,0 +1,11 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
+NUM_QUERY = 100
+UCB_EXPLORATION = 10.0
+K_OBSERVATION = 4.0
+ALPHA_OBSERVATION = 0.25
+K_ACTION = 3.0
+ALPHA_ACTION = 0.25
+NUM_PAR = 100
+HORIZON = 10
+DISCOUNT = 0.99

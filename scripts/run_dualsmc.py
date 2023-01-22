@@ -1,47 +1,72 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import os.path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import shutil
 import math
+import time
 from utils.utils import *
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
 
 # DualSMC
 from src.solvers.dualsmc import DualSMC
-from src.environments.env import *
+from src.environments.floor import *
 from plotting.floor import *
 from configs.environments.floor import *
 from configs.solver.dualsmc import *
 
 
-def dualsmc():
-    settings = "dualsmc"
-    foldername = settings + get_datetime()
-    os.mkdir(foldername)
-    model = DualSMC()
+def dualsmc(model, experiment_id, train, model_path):
+    ################################
+    # Create variables necessary for tracking diagnostics
+    ################################
     step_list = []
     dist_list = []
+    time_list_episode = []
+    reward_list_episode = []
+    episode_Z_loss = []
+    episode_P_loss = []
+    episode_T_loss = []
+    episode_q1_loss = []
+    episode_q2_loss = []
     rmse_per_step = np.zeros((MAX_STEPS))
+    tot_time = 0
+    ################################
+    # Create logs for diagnostics
+    ################################
+    if train:
+        print("=========================\nTraining for iterations:", MAX_EPISODES_TRAIN)
+        experiment_str = experiment_id + "/train"
+        num_loops = MAX_EPISODES_TRAIN
+    else:
+        print("=========================\nTesting for iterations:", MAX_EPISODES_TEST)
+        experiment_str = experiment_id + "/test"
+        num_loops = MAX_EPISODES_TEST
 
-    if len(sys.argv) > 1:
-        load_path = sys.argv[1]
-        model.load_model(load_path)
-
-    experiment_id = "dualsmc" + get_datetime()
-    save_path = CKPT + experiment_id
-    img_path = IMG + experiment_id
+    save_path = CKPT + experiment_str
+    img_path = IMG + experiment_str
     check_path(save_path)
     check_path(img_path)
     str123 = experiment_id + ".txt"
-    file1 = open(foldername + "/" + str123, 'w+')
+    str1234 = experiment_id + "every_10_eps" + ".txt"
+    file1 = open(save_path + "/" + str123, 'w+')
+    file2 = open(save_path + "/" + str1234, 'w+')
 
-    for episode in range(MAX_EPISODES):
+    real_display_iter = DISPLAY_ITER
+    if train:
+        training_tic = time.perf_counter()
+        real_display_iter *= 10
+
+    # Begin main dualSMC loop
+    for episode in range(num_loops):
         episode += 1
         env = Environment()
         filter_dist = 0
         trajectory = []
+        time_list_step = []
+        reward_list_step = []
 
         hidden = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
         cell = np.zeros((NUM_LSTM_LAYER, 1, DIM_LSTM_HIDDEN))
@@ -57,7 +82,7 @@ def dualsmc():
         normalized_weights = torch.softmax(par_weight, -1)
         mean_state = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
-        if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
+        if SHOW_TRAJ and episode % real_display_iter == 0:
             traj_dir = img_path + "/iter-" + str(episode)
             if os.path.exists(traj_dir):
                 shutil.rmtree(traj_dir)
@@ -69,7 +94,11 @@ def dualsmc():
             # 2. planning
             # 3. re-sample
             # 4. transition model
-
+            step_Z_loss = []
+            step_P_loss = []
+            step_T_loss = []
+            step_q1_loss = []
+            step_q2_loss = []
             #######################################
             # Observation model
             lik, next_hidden, next_cell = model.measure_net.m_model(
@@ -80,7 +109,7 @@ def dualsmc():
             par_weight += lik.squeeze()  # (NUM_PAR_PF)
             normalized_weights = torch.softmax(par_weight, -1)
 
-            if SHOW_DISTR and episode % DISPLAY_ITER == 0:
+            if SHOW_DISTR and episode % real_display_iter == 0:
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
@@ -97,7 +126,7 @@ def dualsmc():
                 plt.close()
 
             curr_s = par_states.copy()
-
+            tic = time.perf_counter()
             #######################################
             # Planning
             if SMCP_MODE == 'topk':
@@ -161,7 +190,7 @@ def dualsmc():
             else:
                 n = Categorical(normalized_smc_weight).sample().detach().cpu().item()
             action = smc_action[0, n, :]
-
+            
             #######################################
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
@@ -185,8 +214,9 @@ def dualsmc():
             rmse_per_step[step] += filter_rmse
             filter_dist += filter_rmse
 
+            toc = time.perf_counter()
             #######################################
-            if SHOW_TRAJ and episode % DISPLAY_ITER == 0:
+            if SHOW_TRAJ and episode % real_display_iter == 0:
                 if step < 10:
                     file_name = 'im00' + str(step)
                 elif step < 100:
@@ -203,14 +233,18 @@ def dualsmc():
             reward = env.step(action * STEP_RANGE)
             next_state = env.state
             next_obs = env.get_observation()
-
             #######################################
-            if TRAIN:
+            if train:
                 model.replay_buffer.push(curr_state, action, reward, next_state, env.done, curr_obs,
                                          curr_s, mean_state, hidden, cell, states_init)
                 if len(model.replay_buffer) > BATCH_SIZE:
-                    model.soft_q_update()
+                    p_loss, t_loss, z_loss, q1_loss, q2_loss = model.soft_q_update()
 
+                    step_P_loss.append(p_loss.item())
+                    step_T_loss.append(t_loss.item())
+                    step_Z_loss.append(z_loss.item())
+                    step_q1_loss.append(q1_loss.item())
+                    step_q2_loss.append(q2_loss.item())
             #######################################
             # Transition Model
             par_states = model.dynamic_net.t_model(torch.FloatTensor(par_states).to(device),
@@ -225,47 +259,152 @@ def dualsmc():
             hidden = next_hidden.detach().cpu().numpy()
             cell = next_cell.detach().cpu().numpy()
             trajectory.append(next_state)
+            # Recording data
+            time_this_step = toc - tic
+            time_list_step.append(time_this_step)
+            reward_list_step.append(reward)
+            
             if env.done:
                 break
+
+        # Get the average loss of each model for this episode if we are training
+        if train:
+            if len(model.replay_buffer) > BATCH_SIZE:
+                episode_P_loss.append(np.mean(step_P_loss))
+                episode_T_loss.append(np.mean(step_T_loss))
+                episode_Z_loss.append(np.mean(step_Z_loss))
+                episode_q1_loss.append(np.mean(step_q1_loss))
+                episode_q2_loss.append(np.mean(step_q2_loss))
+
+        # Get the sum of the episode time
+        tot_time = sum(time_list_step)
+        # Get the running average of the time
+        avg_time_this_episode = tot_time / len(time_list_step)
+        time_list_episode.append(avg_time_this_episode)
+
+        # Get the total reward this episode
+        tot_reward = sum(reward_list_step)
+        reward_list_episode.append(tot_reward)
 
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
         step_list.append(step)
+        
+        reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
 
-        if episode >= SUMMARY_ITER:
-            step_list.pop(0)
-            dist_list.pop(0)
+        if episode % SAVE_ITER == 0 and train:
+            model.save_model(model_path + "/dpf_online")
+            print("Saving online trained models to %s" % model_path)
+        
+        # Take only the statistics for successful episodes
+        reach_steps = np.array(step_list)[reach] 
+        reach_rewards = np.array(reward_list_episode)[reach]
+        reach_times = np.array(time_list_episode)[reach]
+        reach_dists = np.array(dist_list)[reach]
+        
 
-        if episode % SAVE_ITER == 0:
-            model_path = save_path + '_' + str(episode)
-            model.save_model(model_path)
-            print("save model to %s" % model_path)
+        if episode % real_display_iter == 0:
+            episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
+            st2 = img_path + "/"
+            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
+            if train:
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
+            else:
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
+            
+            if len(reach_steps) == 0:  # No episodes were successful - return a null value
+                rs = [-1, -1]
+            else:
+                rs = [np.mean(reach_steps), np.std(reach_steps)]
+            if len(reach_rewards) == 0:  # No episodes were successful - return a null value
+                rr = [-1, -1]
+            else:
+                rr = [np.mean(reach_rewards), np.std(reach_rewards)]
+            if len(reach_times) == 0:  # No episodes were successful - return a null value
+                rt = [-1, -1]
+            else:
+                rt = [np.mean(reach_times), np.std(reach_times)]
+            if len(reach_dists) == 0:  # No episodes were successful - return a null value
+                rd = [-1, -1]
+            else:
+                rd = [np.mean(reach_dists), np.std(reach_dists)]
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
+                rt[0], rt[1], rd[0], rd[1])
+            print('\r{}'.format(interaction))
+            file2.write('\n{}'.format(interaction))
+            file2.flush()
 
-        if episode % DISPLAY_ITER == 0:
-            st = img_path + "/" + str(episode) + "-trj" + FIG_FORMAT
-            print("plotting ... save to %s" % st)
+        if (train and episode % DISPLAY_ITER == 0) or (not train):
+            check_path(img_path + "/traj/")
+            st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
             plot_maze(figure_name=st, states=np.array(trajectory))
 
-            if episode >= SUMMARY_ITER:
-                total_iter = SUMMARY_ITER
-            else:
-                total_iter = episode
-            reach = np.array(step_list) < (MAX_STEPS - 1)
-            num_reach = sum(reach)
-            step_reach = step_list * reach
+        # Repeat the above code block for writing to the text file every episode instead of every 10
+        
+        interaction = 'Episode %s: cumulative success rate = %s, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
+            episode, np.mean(reach), step, tot_reward, avg_time_this_episode, filter_dist)
+        print('\r{}'.format(interaction))
+        file1.write('\n{}'.format(interaction))
+        file1.flush()
+
+    if train:
+        training_toc = time.perf_counter()
+        training_time = training_toc - training_tic
+        training_time_str = 'Time elapsed for online training:  %s seconds.' % (
+            training_time)
+        print('\r{}'.format(training_time_str))
+        file1.write('\n{}'.format(training_time_str))
+        file1.flush()
 
 
-            interaction = 'Episode %s: steps = %s, success = %s, avg_steps = %s, avg_dist = %s' % (
-                episode, step, num_reach / total_iter, sum(step_reach) / (num_reach + const), sum(dist_list) / total_iter)
-            print('\r{}'.format(interaction))
-            file1.write('\n{}'.format(interaction))
-            file1.flush()
-
-    rmse_per_step = rmse_per_step / MAX_EPISODES
-    print(rmse_per_step)
+    rmse_per_step = rmse_per_step / num_loops
     file1.close()
+    file2.close()
+
+
+def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
+    torch.manual_seed(torch_seed)
+    random.seed(random_seed)
+    np.random.seed(np_random_seed)
+
+    # This block of code creates the folders for plots
+    experiment_id = "dualsmc" + get_datetime()
+    model_path = "nets/" + experiment_id
+    check_path(model_path)
+
+    check_path("data")
+    check_path("nets")
+
+    # Create a model object
+    model = DualSMC()
+
+    # Let the user load in a previous model
+    if load_path is not None:
+        cwd = os.getcwd()
+        model.load_model(cwd + "/nets/" + load_path)
+
+    if end_to_end:
+        train = True
+        # After pretraining move into the end to end training
+        dualsmc(model, experiment_id, train, model_path)
+
+    if save_model:
+        # Save the model
+        model.save_model(model_path + "/dpf_online")
+        print("Saving online trained models to %s" % model_path)
+
+    if test:
+        train = False
+        dualsmc(model, experiment_id, train, model_path)
 
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        dualsmc()
+        if len(sys.argv) > 1 and sys.argv[1] == "--train":
+            # Just training
+            dualsmc_driver(load_path=None, end_to_end=True,
+                      save_model=True, test=True)
+        else:
+            # Everything -- training and testing
+            dualsmc_driver()

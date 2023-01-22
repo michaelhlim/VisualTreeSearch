@@ -1,12 +1,12 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import numpy as np
 import datetime
 import torch
 import torch.nn as nn
 import os
-from configs.environments.floor import *
-from configs.solver.dualsmc import *
 
+CONST = 1e-6
 
 def check_path(path):
     if not os.path.exists(path):
@@ -16,10 +16,10 @@ def check_path(path):
 
 def get_datetime():
     currentDT = datetime.datetime.now()
-    return currentDT.strftime("%m%d%H%M")
+    return currentDT.strftime("%m-%d-%H_%M_%S")
 
 
-def detect_collison(curr_state, next_state):
+def detect_collision(curr_state, next_state):
     if len(curr_state.shape) == 1:
         cx = curr_state[0]
         cy = curr_state[1]
@@ -46,11 +46,15 @@ def detect_collison(curr_state, next_state):
 
 def l2_distance(state, goal):
     if len(state.shape) == 1:
-        dist = np.power((state[0] - goal[0]), 2) + np.power((state[1] - goal[1]), 2) + const
+        dist = np.power((state[0] - goal[0]), 2) + np.power((state[1] - goal[1]), 2) + CONST
     elif len(state.shape) == 2:
-        dist = (state[:, 0] - goal[:, 0]).pow(2) + (state[:, 1] - goal[:, 1]).pow(2) + const
+        dist = (state[:, 0] - goal[:, 0]).pow(2) + (state[:, 1] - goal[:, 1]).pow(2) + CONST
     elif len(state.shape) == 3:
-        dist = (state[:, :, 0] - goal[:, :, 0]).pow(2) + (state[:, :, 1] - goal[:, :, 1]).pow(2) + const
+        dist = (state[:, :, 0] - goal[:, :, 0]).pow(2) + (state[:, :, 1] - goal[:, :, 1]).pow(2) + CONST
+    return dist
+
+def l2_distance_np(states, goals):
+    dist = np.sum(np.power((states - goals), 2), axis=1) + CONST
     return dist
 
 

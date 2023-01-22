@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import random
 import torch
 import torch.nn as nn
@@ -14,58 +15,36 @@ from configs.solver.dualsmc import *
 # Methods for no LSTM dual smc
 from src.methods.dualsmc_nolstm.replay_memory import *
 from src.methods.dualsmc.q_network import *
-from src.methods.dualsmc.dynamic_network import *
-from src.methods.dualsmc_nolstm.observation_network import *
+from src.methods.dualsmc_nolstm.observation_network_nolstm import *
 from src.methods.dualsmc.gaussian_policy import *
 
 
 #########################
 # Training Process
-class DualSMC:
+class VTS:
     def __init__(self):
         self.replay_buffer = ReplayMemory(replay_buffer_size)
-        self.gamma = gamma
-        self.tau = tau
-        self.alpha = alpha
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
         # Filtering
-        self.dynamic_net = DynamicNetwork().to(device)
         self.measure_net = MeasureNetwork().to(device)
         self.pp_net = ProposerNetwork().to(device)
-        self.dynamic_optimizer = Adam(self.dynamic_net.parameters(), lr=FIL_LR)
         self.measure_optimizer = Adam(self.measure_net.parameters(), lr=FIL_LR)
         self.pp_optimizer = Adam(self.pp_net.parameters(), lr=FIL_LR)
-        # Planning
-        self.critic = QNetwork(DIM_STATE, DIM_ACTION, DIM_HIDDEN).to(device=device)
-        self.critic_optim = Adam(self.critic.parameters(), lr=PLA_LR)
-        self.critic_target = QNetwork(DIM_STATE, DIM_ACTION, DIM_HIDDEN).to(device)
-        hard_update(self.critic_target, self.critic)
-        self.target_entropy = -torch.prod(torch.Tensor(DIM_ACTION).to(device)).item()
-        self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
-        self.alpha_optim = Adam([self.log_alpha], lr=PLA_LR)
-        self.policy = GaussianPolicy(DIM_STATE * (NUM_PAR_SMC_INIT + 1), DIM_ACTION, DIM_HIDDEN).to(device)
-        self.policy_optim = Adam(self.policy.parameters(), lr=PLA_LR)
 
-    def save_model(self, path):
+    def save_model(self, path, g):
         stats = {}
-        stats['p_net'] = self.policy.state_dict()
-        stats['c_net'] = self.critic.state_dict()
-        stats['d_net'] = self.dynamic_net.state_dict()
         stats['m_net'] = self.measure_net.state_dict()
         stats['pp_net'] = self.pp_net.state_dict()
+        stats['generator'] = g.state_dict()
         torch.save(stats, path)
 
-    def load_model(self, path):
+    def load_model(self, path, g):
         stats = torch.load(path)
         # Filtering
-        self.dynamic_net.load_state_dict(stats['d_net'])
         self.measure_net.load_state_dict(stats['m_net'])
         self.pp_net.load_state_dict(stats['pp_net'])
-        # Planning
-        self.policy.load_state_dict(stats['p_net'])
-        self.critic.load_state_dict(stats['c_net'])
-        self.dynamic_net.load_state_dict(stats['d_net'])
+        g.load_state_dict(stats['generator'])
 
     def get_mean_state(self, state, weight):
         if len(state.shape) == 2:
@@ -107,12 +86,7 @@ class DualSMC:
         x = (par_states - mean_state).pow(2).sum(-1)  # [B, K]
         return x.mean(-1)  # [B]
 
-    def get_q(self, state, action):
-        qf1, qf2 = self.critic(state, action)
-        q = torch.min(qf1, qf2)
-        return q
-
-    def soft_q_update(self):
+    def soft_q_update(self, observation_generator):
         state_batch, action_batch, reward_batch, next_state_batch, done_batch, \
         obs, curr_par, mean_state, pf_sample = self.replay_buffer.sample(BATCH_SIZE)
         state_batch = torch.FloatTensor(state_batch).to(device)
@@ -126,6 +100,11 @@ class DualSMC:
         curr_par_sample = torch.FloatTensor(pf_sample).to(device) # (B, M, 2)
         hidden = curr_obs
         cell = curr_obs
+
+        # Observation generative model
+        obs_gen_loss = observation_generator.online_training(state_batch, curr_obs)
+
+
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
@@ -133,12 +112,15 @@ class DualSMC:
             self.pp_optimizer.zero_grad()
             state_propose = self.pp_net(curr_obs, NUM_PAR_PF)
             PP_loss = 0
+            P_loss = PP_loss.clone().detach()
             if 'mse' in PP_LOSS_TYPE:
                 PP_loss += self.MSE_criterion(state_batch.repeat(NUM_PAR_PF, 1), state_propose)
+                P_loss = PP_loss.clone().detach()
             if 'adv' in PP_LOSS_TYPE:
                 fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
+                P_loss = PP_loss.clone().detach()
             if 'density' in PP_LOSS_TYPE:
                 std = 0.1
                 DEN_COEF = 1
@@ -149,14 +131,15 @@ class DualSMC:
                 true_state_lik = 1. / (2 * np.pi * std ** 2) * (-square_distance / (2 * std ** 2)).exp()
                 pp_nll = -(const + true_state_lik.mean(1)).log().mean()
                 PP_loss += DEN_COEF * pp_nll
+                P_loss = PP_loss.clone().detach()
             PP_loss.backward()
             self.pp_optimizer.step()
         # ------------------------
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, DIM_STATE),
-                                                                      curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+        temp = curr_par.view(-1, DIM_STATE)
+        fake_logit, _, _ = self.measure_net.m_model(temp, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
         if PP_EXIST:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
                                                            curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
@@ -167,57 +150,57 @@ class DualSMC:
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
+        Z_loss = OM_loss.clone().detach()
         OM_loss.backward()
         self.measure_optimizer.step()
-        # ------------------------
-        #  Train Transition Model
-        # ------------------------
-        self.dynamic_optimizer.zero_grad()
-        state_predict = self.dynamic_net.t_model(state_batch, action_batch * STEP_RANGE)
-        TM_loss = self.MSE_criterion(state_predict, next_state_batch)
-        TM_loss.backward()
-        self.dynamic_optimizer.step()
+
+        return P_loss, Z_loss, obs_gen_loss
+
+    def soft_q_update_individual(self, state_batch, obs, curr_par):
+        state_batch = torch.FloatTensor(state_batch).to(device)
+        curr_par = torch.FloatTensor(curr_par).to(device)
+        curr_obs = torch.FloatTensor(obs).to(device)
+        hidden = curr_obs
+        cell = curr_obs
+
+        import time
 
         # ------------------------
-        #  Train SAC
+        #  Train Particle Proposer
         # ------------------------
-        next_mean_state = self.dynamic_net.t_model(mean_state, action_batch * STEP_RANGE)
-        next_par_sample = self.dynamic_net.t_model(
-            curr_par_sample.view(-1, DIM_STATE),
-            action_batch.repeat(NUM_PAR_SMC_INIT, 1) * STEP_RANGE)
-        with torch.no_grad():
-            next_state_action, next_state_log_pi, _ = self.policy.sample(
-                next_mean_state, next_par_sample.view(BATCH_SIZE, -1))
-            qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action)
-            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
-            next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
+        if PP_EXIST:
+            self.pp_optimizer.zero_grad()
+            state_propose = self.pp_net(curr_obs, NUM_PAR_PF)
+            PP_loss = 0
+            fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+            real_target = torch.ones_like(fake_logit)
+            PP_loss += self.BCE_criterion(fake_logit, real_target)
+            P_loss = PP_loss.clone().detach()
+            PP_loss.backward()
+            self.pp_optimizer.step()
 
-        qf1, qf2 = self.critic(state_batch, action_batch)
-        qf1_loss = F.mse_loss(qf1, next_q_value)
-        qf2_loss = F.mse_loss(qf2, next_q_value)
+        # ------------------------
+        #  Train Observation Model
+        # ------------------------
+        self.measure_optimizer.zero_grad()
+        temp = curr_par.view(-1, DIM_STATE)
+        fake_logit, _, _ = self.measure_net.m_model(temp,
+                                                    curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+        if PP_EXIST:
+            fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
+                                                           curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+            fake_logit = torch.cat((fake_logit, fake_logit_pp), -1)  # (B, 2K)
+        fake_target = torch.zeros_like(fake_logit)
+        fake_loss = self.BCE_criterion(fake_logit, fake_target)
+        real_logit, _, _ = self.measure_net.m_model(state_batch, curr_obs, hidden, cell, 1)  # (batch, num_pars)
+        real_target = torch.ones_like(real_logit)
+        real_loss = self.BCE_criterion(real_logit, real_target)
+        OM_loss = real_loss + fake_loss
+        Z_loss = OM_loss.clone().detach()
+        OM_loss.backward()
+        self.measure_optimizer.step()
 
-        self.critic_optim.zero_grad()
-        qf1_loss.backward()
-        self.critic_optim.step()
+        return Z_loss, P_loss
 
-        self.critic_optim.zero_grad()
-        qf2_loss.backward()
-        self.critic_optim.step()
 
-        pi, log_pi, _ = self.policy.sample(mean_state, curr_par_sample.view(BATCH_SIZE, -1))
-        qf1_pi, qf2_pi = self.critic(state_batch, pi)
-        min_qf_pi = torch.min(qf1_pi, qf2_pi)
-        policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
-        self.policy_optim.zero_grad()
-        policy_loss.backward()
-        self.policy_optim.step()
-
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
-
-        self.alpha_optim.zero_grad()
-        alpha_loss.backward()
-        self.alpha_optim.step()
-        self.alpha = self.log_alpha.exp()
-
-        soft_update(self.critic_target, self.critic, self.tau)
