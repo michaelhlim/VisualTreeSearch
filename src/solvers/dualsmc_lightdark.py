@@ -25,9 +25,9 @@ sep = Stanford_Environment_Params()
 class DualSMC:
     def __init__(self):
         self.replay_buffer = ReplayMemory(dlp.replay_buffer_size)
-        self.gamma = dlp.gamma
-        self.tau = dlp.tau
-        self.alpha = dlp.alpha
+        self.gamma = dlp.gamma  # Discount factor
+        self.tau = dlp.tau  # Q-network update "inertia" factor
+        self.alpha = dlp.alpha  # Soft actor-critic parameter
         self.MSE_criterion = nn.MSELoss()
         self.BCE_criterion = nn.BCELoss()
         # Filtering
@@ -66,7 +66,6 @@ class DualSMC:
         # Planning
         self.policy.load_state_dict(stats['p_net'])
         self.critic.load_state_dict(stats['c_net'])
-        self.dynamic_net.load_state_dict(stats['d_net'])
 
     def get_mean_state(self, state, weight):
         if len(state.shape) == 2:
@@ -122,14 +121,14 @@ class DualSMC:
         reward_batch = torch.FloatTensor(reward_batch).unsqueeze(1).to(dlp.device)  # [batch_size, 1]
         mask_batch = torch.FloatTensor(np.float32(1 - done_batch)).unsqueeze(1).to(dlp.device)  # [batch_size, 1]
         curr_obs = torch.FloatTensor(obs).to(dlp.device)  # [batch_size, in_channels, img_size, img_size]
-        curr_par = torch.FloatTensor(curr_par).to(dlp.device)  # [batch_size, num_par_pf, dim_state]
+        curr_par = torch.FloatTensor(curr_par).to(dlp.device)  # [batch_size, num_par_pf, dim_state]  # Particles
         mean_state = torch.FloatTensor(mean_state).to(dlp.device) # [batch_size, dim_state]
-        curr_par_sample = torch.FloatTensor(pf_sample).to(dlp.device) # [batch_size, num_par_smc_init, dim_state] 
+        curr_par_sample = torch.FloatTensor(pf_sample).to(dlp.device) # [batch_size, num_par_smc_init, dim_state]  # SMCP states_init
         hidden = torch.FloatTensor(hidden).to(dlp.device)  # [batch_size, num_lstm_layer, 1, dim_lstm_hidden]
         hidden = torch.transpose(torch.squeeze(hidden), 0, 1).contiguous()  # [num_lstm_layer, batch_size, dim_lstm_hidden]
         cell = torch.FloatTensor(cell).to(dlp.device)  # [batch_size, num_lstm_layer, 1, dim_lstm_hidden]
         cell = torch.transpose(torch.squeeze(cell), 0, 1).contiguous()  # [num_lstm_layer, batch_size, dim_lstm_hidden]
-        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(dlp.device)
+        curr_orientation = torch.FloatTensor(curr_orientation).unsqueeze(1).to(dlp.device)  # [batch_size, 1]
 
         # ------------------------
         #  Train Particle Proposer
@@ -163,8 +162,11 @@ class DualSMC:
         #  Train Observation Model
         # ------------------------
         self.measure_optimizer.zero_grad()
-        fake_logit, next_hidden, next_cell = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), curr_orientation.repeat(dlp.num_par_pf, 1),
-                                                                      curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
+        fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
+                                                    torch.repeat_interleave(curr_orientation, dlp.num_par_pf, dim=0),
+                                                    curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
+        # fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), curr_orientation.repeat(dlp.num_par_pf, 1),
+        #                                                               curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
         if dlp.pp_exist:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(dlp.num_par_pf, 1),
                                                            curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
@@ -193,9 +195,12 @@ class DualSMC:
         #  Train SAC
         # ------------------------
         next_mean_state = self.dynamic_net.t_model(mean_state, action_batch * sep.step_range)  # [batch_size, dim_state]
+        # next_par_sample = self.dynamic_net.t_model(
+        #     curr_par_sample.view(-1, sep.dim_state),
+        #     action_batch.repeat(dlp.num_par_smc_init, 1) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]
         next_par_sample = self.dynamic_net.t_model(
             curr_par_sample.view(-1, sep.dim_state),
-            action_batch.repeat(dlp.num_par_smc_init, 1) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]
+            torch.repeat_interleave(action_batch, dlp.num_par_smc_init, dim=0) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(
                 next_mean_state, next_par_sample.view(dlp.batch_size, -1))  # [batch_size, dim_action]  [batch_size, 1]
