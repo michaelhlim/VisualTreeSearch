@@ -429,7 +429,6 @@ class StanfordEnvironment(AbstractEnvironment):
     def transition(self, s, w, a):
         '''
         transition each state in state tensor s with actions in action/action tensor a
-
         s: [num_par, dim_state]
         a: [dim_state]  (It's a vector)
         w: [num_par]
@@ -831,6 +830,3 @@ class StanfordEnvironment(AbstractEnvironment):
 
         
         return np.array(states), np.array(orientations), np.array(images), np.array(blurred_images)  
-    
-
-   
