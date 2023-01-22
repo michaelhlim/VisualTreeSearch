@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import cv2
 import glob
 import matplotlib.pyplot as plt
@@ -41,7 +43,6 @@ class VAETrain:
                 'calibration': self.calibration, 'device': self.device}
         self.model = ConditionalVAE(args)
 
-        #self.num_training_steps = image_cvae_params.num_training_steps
         self.num_epochs = image_cvae_params.num_epochs
         self.num_training_data = image_cvae_params.num_training_data
         self.batch_size = image_cvae_params.batch_size
@@ -87,21 +88,12 @@ class VAETrain:
         
         return rmean, gmean, bmean, rstd, gstd, bstd
 
-        #     src = src/len(self.data_files)
-        #     if i == 0:
-        #         mean_image = src
-        #     else:
-        #         mean_image = src + mean_image
-        
-        # return mean_image
-
 
     def get_training_batch(self, batch_size):
         states = []
         images = []
         remove = 4
         indices = np.random.choice(range(len(self.data_files)), batch_size, replace=False)
-        #indices = np.random.randint(0, len(self.data_files), batch_size)
         for index in indices:
             img_path = self.data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -116,7 +108,7 @@ class VAETrain:
 
                 images.append(img)
             else:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to RGB
                 src = (src - src.mean())/src.std()
                 images.append(src)
 
@@ -151,7 +143,7 @@ class VAETrain:
 
                 images.append(img)
             else:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to RGB
                 src = (src - src.mean())/src.std()
                 images.append(src)
 
@@ -166,9 +158,7 @@ class VAETrain:
         states = []
         images = []
         remove = 4
-        #indices = list(range(len(self.testing_data_files)))
         indices = np.random.choice(range(len(self.testing_data_files)), batch_size, replace=False)
-        #indices = np.random.randint(0, len(self.testing_data_files), batch_size)
         for index in indices:
             img_path = self.testing_data_files[index]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -200,7 +190,6 @@ class VAETrain:
         self.training_losses = []
 
         t0 = time.time()
-        #for step in range(self.num_training_steps):
         for epoch in range(self.num_epochs):
             print("Epoch:", epoch)
             data_files_indices = list(range(len(self.data_files)))
@@ -253,8 +242,7 @@ class VAETrain:
 
         output = self.model.sample(num_tests, states[0])  # [1, in_channels, 32, 32]
         output = output.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
-        output = output.detach().cpu().numpy()        
-        #output = (output + 68./100) * 100.
+        output = output.detach().cpu().numpy()  
         if self.normalization:
             output[:, :, 0] = (output[:, :, 0] * self.rstd + self.rmean)
             output[:, :, 1] = (output[:, :, 1] * self.gstd + self.gmean)
@@ -274,9 +262,8 @@ class VAETrain:
         print("STATE", states[0])
         state = states[0]
 
-        output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
-        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
-        #state_str = '_' + str(state[0][0]) + '_' + str(state[0][1]) + '_' + str(state[0][2]) + ".png"
+        output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to BGR
+        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB
         state_str = ".png"
         cv2.imwrite(self.test_output_path + state_str, output)
         cv2.imwrite(self.test_true_path + state_str, original)
@@ -319,9 +306,8 @@ class VAETrain:
             print("STATE", states[0])
             state = states[0]
 
-            output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
-            original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
-            #state_str = '_' + str(state[0][0]) + '_' + str(state[0][1]) + '_' + str(state[0][2]) + ".png"
+            output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to BGR
+            original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB
             state_str = str(i) + ".png"
             cv2.imwrite(self.test_output_path + state_str, output)
             cv2.imwrite(self.test_true_path + state_str, original)
@@ -351,9 +337,6 @@ class VAETrain:
         output = self.model.sample(num_tests, states.squeeze(1))  # [num_tests, in_channels, 32, 32]  
 
         states = states.squeeze(1).cpu().numpy()
-        # (unique, counts) = np.unique(states, axis=0, return_counts=True)
-        # frequencies = np.asarray((unique, counts)).T
-        # print(frequencies)
 
         e = 0.0
         ne = np.pi/4

@@ -1,11 +1,10 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import numpy as np
 import datetime
 import torch
 import torch.nn as nn
 import os
-#from configs.environments.floor import *
-#from configs.solver.dualsmc import *
 
 CONST = 1e-6
 

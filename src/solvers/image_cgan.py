@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +15,7 @@ class ObsPredictorNetwork(nn.Module):
         self.dim_state = args['dim_state']
         self.device = args['device']
 
-        hunits = 1024 #128
+        hunits = 1024 
 
         self.state_encode = nn.Sequential(nn.Linear(self.dim_state, hunits),
                                           nn.ReLU(),

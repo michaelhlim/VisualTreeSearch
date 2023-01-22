@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import torch
 import numpy as np
 from numpy import random
@@ -134,15 +136,13 @@ class PFTDPW():
 		all_a_ids = []
 		iterate_a_id = a_id
 		for _ in range(self.depth - 1):
-			# print(_)
-			# print("A_ID", iterate_a_id)
 			if iterate_a_id == None:
 				break
 			all_a_ids.append(iterate_a_id)
-			# print(self.tree.transitions[iterate_a_id])
 			# Pick a belief node at random
 			# bp_id, r = self.tree.transitions[iterate_a_id][int(np.random.choice(
 			# 	range(len(self.tree.transitions[iterate_a_id])), 1))]
+			# belief = self.tree.belief_ids[bp_id] 
 			
 			# Pick the maximally visited belief node
 			best_visits = -np.inf
@@ -151,9 +151,6 @@ class PFTDPW():
 				if self.tree.n_b_visits[bp_id] > best_visits:
 					best_visits = self.tree.n_b_visits[bp_id]
 					best_belief = bp_id
-			# print("BEST BELIEF", best_belief, best_visits)
-			# print("BP_ID", bp_id)
-			# belief = self.tree.belief_ids[bp_id] 
 			
 			# Find the best action from this belief
 			best_q = -np.inf
@@ -164,7 +161,6 @@ class PFTDPW():
 					best_a = child
 			next_a = best_a
 
-			# print("NEXT A", next_a)
 			iterate_a_id = next_a
 		all_a_ids = [self.tree.action_ids[a_id] for a_id in all_a_ids]
 

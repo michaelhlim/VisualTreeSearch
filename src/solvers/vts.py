@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import random
 import torch
 import torch.nn as nn
@@ -111,15 +112,15 @@ class VTS:
             self.pp_optimizer.zero_grad()
             state_propose = self.pp_net(curr_obs, NUM_PAR_PF)
             PP_loss = 0
-            P_loss = PP_loss
+            P_loss = PP_loss.clone().detach()
             if 'mse' in PP_LOSS_TYPE:
                 PP_loss += self.MSE_criterion(state_batch.repeat(NUM_PAR_PF, 1), state_propose)
-                P_loss = PP_loss
+                P_loss = PP_loss.clone().detach()
             if 'adv' in PP_LOSS_TYPE:
                 fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
                 real_target = torch.ones_like(fake_logit)
                 PP_loss += self.BCE_criterion(fake_logit, real_target)
-                P_loss = PP_loss
+                P_loss = PP_loss.clone().detach()
             if 'density' in PP_LOSS_TYPE:
                 std = 0.1
                 DEN_COEF = 1
@@ -130,7 +131,7 @@ class VTS:
                 true_state_lik = 1. / (2 * np.pi * std ** 2) * (-square_distance / (2 * std ** 2)).exp()
                 pp_nll = -(const + true_state_lik.mean(1)).log().mean()
                 PP_loss += DEN_COEF * pp_nll
-                P_loss = PP_loss
+                P_loss = PP_loss.clone().detach()
             PP_loss.backward()
             self.pp_optimizer.step()
         # ------------------------
@@ -138,8 +139,7 @@ class VTS:
         # ------------------------
         self.measure_optimizer.zero_grad()
         temp = curr_par.view(-1, DIM_STATE)
-        fake_logit, _, _ = self.measure_net.m_model(temp,
-                                                                      curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+        fake_logit, _, _ = self.measure_net.m_model(temp, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
         if PP_EXIST:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
                                                            curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
@@ -150,7 +150,7 @@ class VTS:
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
-        Z_loss = OM_loss
+        Z_loss = OM_loss.clone().detach()
         OM_loss.backward()
         self.measure_optimizer.step()
 
@@ -175,7 +175,7 @@ class VTS:
             fake_logit, _, _ = self.measure_net.m_model(state_propose, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
             real_target = torch.ones_like(fake_logit)
             PP_loss += self.BCE_criterion(fake_logit, real_target)
-            P_loss = PP_loss
+            P_loss = PP_loss.clone().detach()
             PP_loss.backward()
             self.pp_optimizer.step()
 
@@ -196,7 +196,7 @@ class VTS:
         real_target = torch.ones_like(real_logit)
         real_loss = self.BCE_criterion(real_logit, real_target)
         OM_loss = real_loss + fake_loss
-        Z_loss = OM_loss
+        Z_loss = OM_loss.clone().detach()
         OM_loss.backward()
         self.measure_optimizer.step()
 

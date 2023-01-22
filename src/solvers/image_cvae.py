@@ -1,10 +1,10 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 # From https://github.com/AntixK/PyTorch-VAE/blob/master/models/cvae.py
 
 import torch
 from torch import nn
 from torch.nn import functional as F
-#from .types_ import *
-
 
 
 class ConditionalVAE(nn.Module):
@@ -83,16 +83,8 @@ class ConditionalVAE(nn.Module):
         self.fc_mu = nn.Linear(mlp_hunits, latent_dim).to(self.device)
         self.fc_var = nn.Linear(mlp_hunits, latent_dim).to(self.device)
 
-        # self.fc_mu = nn.Linear(hidden_dims[-1], latent_dim).to(self.device)
-        # self.fc_var = nn.Linear(hidden_dims[-1], latent_dim).to(self.device)
-
-        #self.fc_mu = nn.Linear(hidden_dims[-1]*4, latent_dim)
-        #self.fc_var = nn.Linear(hidden_dims[-1]*4, latent_dim)
-
-
 
         # Build Decoder
-        #self.decoder_input = nn.Linear(latent_dim + dim_conditional_var, hidden_dims[-1] * 4).to(self.device)
 
         modules = []
         modules.append(
@@ -174,7 +166,6 @@ class ConditionalVAE(nn.Module):
         :param z: (Tensor) [B x D]
         :return: (Tensor) [B x C x H x W]
         """
-        #result = self.decoder_input(z)  # z [batch_size, latent_dim + dim_conditional_var] result [batch_size, 2048]
         result = self.decoder_mlp(z)  # z [batch_size, latent_dim + dim_conditional_var] result [batch_size, 2048]
         result = result.view(-1, self.hidden_dims[-1], 2, 2)  # [batch_size, 512, 2, 2]
         result = self.decoder(result)  # [batch_size, 32, 32, 32]
@@ -235,8 +226,6 @@ class ConditionalVAE(nn.Module):
         log_var = args[3]
 
         recons_loss = self.gaussian_likelihood(recons, self.log_scale, input).mean() 
-        #recons_loss = -F.mse_loss(recons, input)
-
         if self.calibration:
             log_sigma = ((input - recons) ** 2).mean().sqrt().log()
 

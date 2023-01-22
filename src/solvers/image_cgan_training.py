@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import cv2
 import glob
 import matplotlib.pyplot as plt
@@ -70,7 +72,7 @@ class GANTrain():
         for i in range(len(self.data_files)):
             img_path = self.data_files[i]
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
-            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- now src is in RGB
             
             rmean += src[:, :, 0].mean()/len(self.data_files)
             gmean += src[:, :, 1].mean()/len(self.data_files)
@@ -101,7 +103,7 @@ class GANTrain():
 
                 images.append(img)
             else:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to RGB
                 src = (src - src.mean())/src.std()
                 images.append(src)
 
@@ -123,7 +125,7 @@ class GANTrain():
             src = cv2.imread(img_path, cv2.IMREAD_COLOR)
             
             if self.normalization:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to RGB
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to RGB
                 img_rslice = (src[:, :, 0] - self.rmean)/self.rstd
                 img_gslice = (src[:, :, 1] - self.gmean)/self.gstd
                 img_bslice = (src[:, :, 2] - self.bmean)/self.bstd
@@ -132,7 +134,7 @@ class GANTrain():
 
                 images.append(img)
             else:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB
                 src = (src - src.mean())/src.std()
                 images.append(src)
             
@@ -232,8 +234,7 @@ class GANTrain():
 
         output = self.op_model(states[0])  # [1, in_channels, 32, 32]
         output = output.permute(0, 2, 3, 1).squeeze(0)  # [32, 32, in_channels]
-        output = output.detach().cpu().numpy()        
-        #output = (output + 68./100) * 100.
+        output = output.detach().cpu().numpy()      
         if self.normalization:
             output[:, :, 0] = (output[:, :, 0] * self.rstd + self.rmean)
             output[:, :, 1] = (output[:, :, 1] * self.gstd + self.gmean)
@@ -253,9 +254,8 @@ class GANTrain():
         print("STATE", states[0])
         state = states[0]
 
-        output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! -- converts to BGR
-        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
-        #state_str = '_' + str(state[0][0]) + '_' + str(state[0][1]) + '_' + str(state[0][2]) + ".png"
+        output = output[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- converts to BGR
+        original = original[:,:,::-1]   ## CV2 works in BGR space instead of RGB
         state_str = ".png"
         cv2.imwrite(self.test_output_path + state_str, output)
         cv2.imwrite(self.test_true_path + state_str, original)
