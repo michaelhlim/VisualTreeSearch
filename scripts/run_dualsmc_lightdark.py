@@ -137,7 +137,6 @@ def dualsmc(model, experiment_id, train, model_path):
                     file_name = 'im0' + str(step)
                 else:
                     file_name = 'im' + str(step)
-                #frm_name = traj_dir + '/' + file_name + '_distr' + sep.fig_format
                 frm_name = img_path + "/distrs/" + file_name + '_distr' + sep.fig_format  
                 weights = normalized_weights.detach().cpu().numpy()
                 fig1, ax1 = plt.subplots()
@@ -179,7 +178,6 @@ def dualsmc(model, experiment_id, train, model_path):
                     action_tile * sep.step_range)  # [num_par_smc * num_par_smc_init, dim_state]
                 next_smc_state[:, 0] = torch.clamp(next_smc_state[:, 0], env.xrange[0], env.xrange[1])
                 next_smc_state[:, 1] = torch.clamp(next_smc_state[:, 1], env.yrange[0], env.yrange[1])
-                #next_smc_state[:, 2] = torch.clamp(next_smc_state[:, 2], env.thetas[0], env.thetas[1])
                 next_smc_state = next_smc_state.view(dlp.num_par_smc_init, dlp.num_par_smc, sep.dim_state)
 
                 mean_par = model.dynamic_net.t_model(
@@ -216,19 +214,15 @@ def dualsmc(model, experiment_id, train, model_path):
             action = smc_action[0, n, :]
             #######################################
             if step % dlp.pf_resample_step == 0:
-                if False:
-                #if dlp.pp_exist:
+                if dlp.pp_exist:
                     idx = torch.multinomial(normalized_weights, dlp.num_par_pf - num_par_propose,
                                             replacement=True).detach().cpu().numpy()
                     resample_state = par_states[idx]  # [num_par_pf - num_par_propose, dim_state]
                     proposal_state = model.pp_net(curr_obs_tensor.unsqueeze(0).to(dlp.device), 
                                                 torch.FloatTensor([curr_orientation]).unsqueeze(0).to(dlp.device), 
                                                 num_par_propose)
-                    # proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
-                    # proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
                     proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], env.xrange[0], env.xrange[1])
                     proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], env.yrange[0], env.yrange[1])
-                    #proposal_state[:, 2] = torch.clamp(proposal_state[:, 2], env.thetas[0], env.thetas[1])
                     proposal_state = proposal_state.detach().cpu().numpy()
                     par_states = np.concatenate((resample_state, proposal_state), 0)  # [num_par_pf, dim_state]
                 else:
@@ -244,7 +238,6 @@ def dualsmc(model, experiment_id, train, model_path):
             filter_dist += filter_rmse
 
             toc = time.perf_counter()
-            #print("TIME TO PLAN", toc-tic)
             #######################################
             
             if dlp.show_traj and episode % real_display_iter == 0:
@@ -298,7 +291,6 @@ def dualsmc(model, experiment_id, train, model_path):
                                                    torch.FloatTensor(action * sep.step_range).to(dlp.device))
             par_states[:, 0] = torch.clamp(par_states[:, 0], env.xrange[0], env.xrange[1])
             par_states[:, 1] = torch.clamp(par_states[:, 1], env.yrange[0], env.yrange[1])
-            #par_states[:, 2] = torch.clamp(par_states[:, 2], env.thetas[0], env.thetas[1])
             par_states = par_states.detach().cpu().numpy()
 
             #######################################
@@ -402,7 +394,6 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 

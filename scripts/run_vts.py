@@ -327,7 +327,7 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
 
-           if len(reach_steps) == 0:  # No episodes were successful - return a null value
+            if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
             else:
                 rs = [np.mean(reach_steps), np.std(reach_steps)]

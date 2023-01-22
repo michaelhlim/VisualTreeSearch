@@ -3,7 +3,7 @@
 class DualSMC_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:2'
+        self.device = 'cuda:0'
 
         ######################
         # Network

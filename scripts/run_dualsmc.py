@@ -289,10 +289,6 @@ def dualsmc(model, experiment_id, train, model_path):
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
         step_list.append(step)
-
-        #if episode >= SUMMARY_ITER:
-            #step_list.pop(0)
-            #dist_list.pop(0)
         
         reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
 
@@ -410,5 +406,5 @@ if __name__ == "__main__":
             dualsmc_driver(load_path=None, end_to_end=True,
                       save_model=True, test=True)
         else:
-            # Everything
+            # Everything -- training and testing
             dualsmc_driver()

@@ -131,11 +131,6 @@ class Environment(AbstractEnvironment):
 
         action = STEP_RANGE * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
 
-        # # just generate completely random
-        # action_x = STEP_RANGE * (2 * random.random() - 1)
-        # action_y = STEP_RANGE * (2 * random.random() - 1)
-        # action = np.array([action_x, action_y])
-
         return action
 
     def transition(self, s, w, a):
