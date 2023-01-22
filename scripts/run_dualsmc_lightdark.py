@@ -145,7 +145,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             curr_obs_tensor = torch.FloatTensor(curr_obs).permute(2, 0, 1)  # [in_channels, img_size, img_size]
             #tm = time.time()
             if step == 0:
-                lik, next_hidden, next_cell = model.measure_net.m_model(   ######### TODO!!! #########
+                lik, next_hidden, next_cell = model.measure_net.m_model(   
                     torch.FloatTensor(par_states).to(dlp.device),
                     torch.FloatTensor(par_orientations).to(dlp.device),
                     curr_obs_tensor.unsqueeze(0).to(dlp.device),

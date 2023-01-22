@@ -829,4 +829,4 @@ class StanfordEnvironment(AbstractEnvironment):
                 blurred_images.append(blurred)
 
         
-        return np.array(states), np.array(orientations), np.array(images), np.array(blurred_images) 
+        return np.array(states), np.array(orientations), np.array(images), np.array(blurred_images)  
