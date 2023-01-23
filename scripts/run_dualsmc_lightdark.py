@@ -99,9 +99,9 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
         curr_orientation = env.orientation
         #tg = time.time()
         if not train and test_img_is_diff:
-            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+            curr_obs, _, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
         else:     
-            curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
+            curr_obs, _, _, _, _ = env.get_observation(normalization_data=normalization_data) 
         #tf = time.time()
         #print("TIME BEFORE STEP GET_OBS", tf-tg)
 
@@ -374,9 +374,9 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             next_orientation = env.orientation
             #ts = time.time()
             if not train and test_img_is_diff:
-                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
+                next_obs, _, _, _, _ = env.get_observation(normalization_data=normalization_data, occlusion=True)
             else:  
-                next_obs, _, _, _ = env.get_observation(normalization_data=normalization_data)
+                next_obs, _, _, _, _ = env.get_observation(normalization_data=normalization_data)
             #tt = time.time()
             #print("TIME DURING STEP GET_OBS", tt-ts)
             #######################################
@@ -592,7 +592,7 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/dpf_online")
+        model.load_model(cwd + "/nets/" + load_path + "/dpf_lightdark_online")
 
     if end_to_end:
         train = True
@@ -601,7 +601,7 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
 
     if save_model:
         # Save the model
-        model.save_model(model_path + "/dpf_online")
+        model.save_model(model_path + "/dpf_lightdark_online")
         print("Saving online trained models to %s" % model_path)
 
     if test:
@@ -611,19 +611,33 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True,
 
 if __name__ == "__main__":
     if dlp.model_name == 'dualsmc_lightdark':
-        # Just training
-        #dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
+        if len(sys.argv) > 1 and sys.argv[1] == "--train":
+            # Just training
+            dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--train-test":
+            # Both testing and training
+            dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--test":
+            # Just testing
+            dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
+                           save_model=False, test=True)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--test-traps":
+             # Generalization Experiment 1
+            dualsmc_driver(load_path="dualsmc_lightdark02-22-07_07_17", end_to_end=False, 
+                           save_model=False, test=True, test_env_is_diff=True)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--occlusions":
+            # Generalization Experiment 2
+            dualsmc_driver(load_path="dualsmc_lightdark02-07-19_11_39", end_to_end=False, 
+                           save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
+        elif len(sys.argv) > 1:
+            print("Unknown argument!")
+        else:
+            # Default, both testing and training
+            dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
 
-        # Both testing and training
-        dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True)
+        
 
-        # Just testing
-        #dualsmc_driver(load_path="dualsmc_lightdark11-09-19_46_19", end_to_end=False, 
-        #                save_model=False, test=True)
-        # Generalization Experiment 1
-        #dualsmc_driver(load_path="dualsmc_lightdark02-22-07_07_17", end_to_end=False, 
-        #                save_model=False, test=True, test_env_is_diff=True)
-        # Generalization Experiment 2
-        # dualsmc_driver(load_path="dualsmc_lightdark02-07-19_11_39", end_to_end=False, 
-        #                save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
+        
+       
+        
 

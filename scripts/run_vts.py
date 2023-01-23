@@ -474,6 +474,8 @@ if __name__ == "__main__":
         elif len(sys.argv) > 1 and sys.argv[1] == "--online-train-test":
             # Right into online learning & testing
             vts_driver(load_path="test500k", pre_training=False)
+        elif len(sys.argv) > 1:
+            print("Unknown argument!")
         else:
             # Everything
             vts_driver()

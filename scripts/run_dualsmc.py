@@ -427,8 +427,13 @@ if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
         if len(sys.argv) > 1 and sys.argv[1] == "--train":
             # Just training
-            dualsmc_driver(load_path=None, end_to_end=True,
-                      save_model=True, test=True)
+            dualsmc_driver(end_to_end=True, save_model=True, test=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--test":
+            # Just testing
+            dualsmc_driver(load_path="", end_to_end=False, 
+                save_model=False, test=True)
+        elif len(sys.argv) > 1:
+            print("Unknown argument!")
         else:
             # Everything -- training and testing
             dualsmc_driver()

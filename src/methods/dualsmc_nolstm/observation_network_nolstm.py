@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.optim import Adam
 from utils.utils import *
+from configs.environments.floor import *
 from configs.solver.dualsmc import *
 
 class MeasureNetwork(nn.Module):
