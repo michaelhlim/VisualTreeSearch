@@ -285,7 +285,6 @@ class Environment(AbstractEnvironment):
 
             index = np.random.randint(len(walls_arr))
             wall = walls_arr[index]
- 
             if wall == 0.1:
                 state[1] = state[1] * 0.1
             elif wall == 0.4:

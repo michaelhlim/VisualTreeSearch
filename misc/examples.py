@@ -1,3 +1,5 @@
+# Under HumANavRelease/examples
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -310,8 +312,8 @@ def example1():
     plot_top_view(traversible, dx_m, camera_pos_13, HUMANAV_PATH + 'top_downs/' + filename_topdown)
     plot_rgb(rgb_image_1mk3, HUMANAV_PATH + 'rgbs/' + filename_rgb)
 
-    #plot_images(rgb_image_1mk3, depth_image_1mk1, traversible, dx_m,
-    #            camera_pos_13, human_pos_3, 'example1_15.png')
+    plot_images(rgb_image_1mk3, depth_image_1mk1, traversible, dx_m,
+                camera_pos_13, human_pos_3, 'example1_15.png')
 
 
 def get_known_human_identity(r):

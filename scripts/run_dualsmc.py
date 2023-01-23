@@ -340,6 +340,33 @@ def dualsmc(model, experiment_id, train, model_path):
             st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
             plot_maze(figure_name=st, states=np.array(trajectory))
 
+        reach = np.array(step_list) < (MAX_STEPS - 1)
+
+        if episode % SAVE_ITER == 0 and train:
+            model.save_model(model_path + "/dpf_online")
+            print("Saving online trained models to %s" % model_path)
+
+        if episode % real_display_iter == 0:
+            episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
+            st2 = img_path + "/"
+            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
+            if train:
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
+            else:
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
+            
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
+                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+            print('\r{}'.format(interaction))
+            file2.write('\n{}'.format(interaction))
+            file2.flush()
+
+        if (train and episode % DISPLAY_ITER == 0) or (not train):
+            check_path(img_path + "/traj/")
+            st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
+            plot_maze(figure_name=st, states=np.array(trajectory))
+
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
         interaction = 'Episode %s: cumulative success rate = %s, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
@@ -359,15 +386,12 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
     rmse_per_step = rmse_per_step / num_loops
+    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
 
 def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
-    torch.manual_seed(torch_seed)
-    random.seed(random_seed)
-    np.random.seed(np_random_seed)
-
     # This block of code creates the folders for plots
     experiment_id = "dualsmc" + get_datetime()
     model_path = "nets/" + experiment_id

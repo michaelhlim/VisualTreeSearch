@@ -22,7 +22,7 @@ cvae_params = CVAE_Params()
 class ObservationGenerator(nn.Module):
     def __init__(self, enc_out_dim=cvae_params.enc_out_dim, latent_dim=cvae_params.latent_dim):
         super(ObservationGenerator, self).__init__()
-        
+
         dim_hidden = cvae_params.dim_hidden
         leak_rate = cvae_params.leak
 
@@ -153,9 +153,12 @@ class ObservationGenerator(nn.Module):
             if step >= wall_step:
                 index = np.random.randint(len(walls_arr2))
                 state_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr2[index])
+                #state_batch, obs_batch = self.env.make_batch_multiple_walls(batch_size, walls_arr)
             else:
                 index = np.random.randint(len(walls_arr1))
                 state_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr1[index])
+            
+            #state_batch, obs_batch, _ = self.env.make_batch(batch_size)
             
             state_batch = torch.from_numpy(state_batch).float()
             obs_batch = torch.from_numpy(obs_batch).float()
@@ -170,6 +173,8 @@ class ObservationGenerator(nn.Module):
             printing_recon.append(recon.item())
 
             if step % print_freq == 0:
+                # print(step, loss.item(), kl.item(), recon.item())
+
                 print("Step: ", step, ", G loss: ", np.mean(
                     printing_losses), ", KL: ", np.mean(
                     printing_kl), ", recon: ", np.mean(
@@ -194,6 +199,11 @@ class ObservationGenerator(nn.Module):
                 self.testing_errors.append(testing_error)
 
         t1 = time.time()
+
+        if cvae_params.save_model:
+            torch.save(self.state_dict(), cvae_params.save_path + "/gen_pre_trained")
+            print("Saving pre-trained generative model to %s" %
+                  (cvae_params.save_path + "/gen_pre_trained"))
 
         print("Done pretraining")
 
@@ -241,6 +251,7 @@ class ObservationGenerator(nn.Module):
         eventfiles = glob.glob(checkpoint_path + '*')
         eventfiles.sort(key=os.path.getmtime)
         path = eventfiles[-1]
+        # self.load_state_dict(torch.load(path))
 
         pretrained_dict = torch.load(path)
         model_dict = self.state_dict()
@@ -262,6 +273,18 @@ class ObservationGenerator(nn.Module):
 
     def test(self):
         batch_size = cvae_params.batch_size
+
+        # walls_arr = [0.1, 0.4, 0.6, 0.9] 
+        # index = np.random.randint(len(walls_arr))
+        # states_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr[index])
+        # state = np.array([states_batch[0]])
+        # states_batch = torch.from_numpy(states_batch).float()
+
+        # walls_arr = [-1, -1] 
+        # index = np.random.randint(len(walls_arr))
+        # states_batch, obs_batch = self.env.make_batch_wall(batch_size, walls_arr[index])
+        # state = np.array([states_batch[0]])
+        # states_batch = torch.from_numpy(states_batch).float()
 
         state, obs_batch = self.env.make_batch_single_state(batch_size)
         state = torch.from_numpy(state).reshape((1, DIM_STATE))
@@ -356,12 +379,11 @@ class ObservationGenerator(nn.Module):
                 plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='b')
                 plt.scatter([obs[2] for obs in obs_hat.detach().cpu().numpy()],
                             [obs[3] for obs in obs_hat.detach().cpu().numpy()], color='m')
-            plt.savefig("cvae_test" + str(j))                
+
+            plt.savefig("cvae_test" + str(j))      
 
         print("OBS_MEAN_DIFF\n", mean_diff)
         print("OBS_STD_DIFF\n", std_diff)
         if DIM_OBS == 4:
             print("REST_MEAN_DIFF\n", mean_rest_diff)
             print("REST_STD_DIFF\n", std_rest_diff)
-
-

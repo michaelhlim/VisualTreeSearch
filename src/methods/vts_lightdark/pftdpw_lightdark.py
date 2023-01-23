@@ -1,12 +1,12 @@
-# author: @sdeglurkar, @jatucker4, @michaelhlim
-
-import torch
 import numpy as np
 from numpy import random
 from dataclasses import dataclass
+import torch
 from utils.utils import *
-from configs.solver.pftdpw import *
 
+from configs.solver.vts_lightdark import *
+
+vlp = VTS_LightDark_Params()
 
 @dataclass
 class BeliefNode:
@@ -28,7 +28,7 @@ class PFTTree:
 
 
 class PFTDPW():
-	def __init__(self, environment, obs_density_module, obs_generator_module):
+	def __init__(self, environment, obs_density_module, obs_generator_module, shared_enc=False):
 		# Initialize tree
 		self.initialize_tree()
 
@@ -38,15 +38,18 @@ class PFTDPW():
 		self.G = obs_generator_module
 
 		# Set up parameters
-		self.n_query = NUM_QUERY
-		self.n_par = NUM_PAR
-		self.depth = HORIZON
-		self.c_ucb = UCB_EXPLORATION
-		self.k_obs = K_OBSERVATION
-		self.alpha_obs = ALPHA_OBSERVATION
-		self.k_act = K_ACTION
-		self.alpha_act = ALPHA_ACTION
-		self.discount = DISCOUNT
+		self.n_query = vlp.num_query 
+		self.n_par = vlp.num_par_pftdpw 
+		self.depth = vlp.horizon 
+		self.c_ucb = vlp.ucb_exploration 
+		self.k_obs = vlp.k_observation 
+		self.alpha_obs = vlp.alpha_observation 
+		self.k_act = vlp.k_action 
+		self.alpha_act = vlp.alpha_action 
+		self.discount = vlp.discount 
+
+		self.shared_enc = shared_enc
+
 
 	def initialize_tree(self):
 		self.tree = PFTTree(child_actions={}, n_b_visits=[], belief_ids=[], n_act_visits=[], q=[], action_ids=[], transitions={})
@@ -95,6 +98,7 @@ class PFTDPW():
 
 	def particle_filter_step(self, b, a):
 		# Generate b' from T(b,a) and also insert it into the tree
+		# NOTE this sp includes orientation! This is because the NN modules need that info
 		sp, new_weights, reward, is_terminal = self.transition_step(b, a)
 
 		if is_terminal:
@@ -103,11 +107,24 @@ class PFTDPW():
 		else:
 			# Generate an observation from a random state
 			s_idx = np.random.choice(len(new_weights), 1, p = new_weights)
-			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(device))
-
+			o = self.G.sample(1, torch.FloatTensor(sp[s_idx]).to(vlp.device))  # [1, obs_encode_out]
+			
 			# Generate particle belief set
-			lik, _, _ = self.Z.m_model(torch.FloatTensor(sp).to(device), 
-					o, 0, 0, self.n_par)
+			if self.shared_enc:
+				# If we are planning with the image encodings, do not run the decoder to get the image
+				# Also, do not run the encoder inside m_model because the obs is already encoded
+				lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
+											torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
+											o.detach(), self.n_par, obs_is_encoded=True)  # [1, num_par]
+			else:
+				# If we are not planning with the image encodings, run the decoder (convolutional layers) 
+				# to get the image
+				# m_model should run the encoder because the obs is an image
+				o = self.G.conv.decode(o.detach())  # [1, 3, 32, 32]
+				lik = self.Z.m_model(torch.FloatTensor(sp[:, :2]).to(vlp.device), 
+											torch.FloatTensor(sp[:, 2]).unsqueeze(1).to(vlp.device), 
+											o.detach(), self.n_par)  # [1, num_par]
+
 			new_weights = np.multiply(new_weights, lik.detach().cpu().numpy()).flatten()
 			
 			# Resample states (naive resampling)
@@ -122,27 +139,45 @@ class PFTDPW():
 
 	def rollout(self, b):
 		# Rollout simulation starting from belief b
-		s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
+		#s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
+		index = np.argmax(b.weights)
+		s = b.states[index]
 		ss = b.states
 		ws = b.weights
-		return self.env.rollout(s, ss, ws)
+		return self.env.rollout(s, ss, ws, self.discount, "deterministic")
+	
 
+	def solve(self, s, w):
+		# call plan when given states and weights
+		b = BeliefNode(states=s, weights=w)
+		a_id = self.plan(b)
+
+		#traj = self.trajectory(a_id)
+		traj = None
+		
+		if a_id == None:
+			return self.env.action_sample(), traj
+		else:
+			return self.tree.action_ids[a_id], traj
+	
 	def solve_viz(self, s, w):
 		# call plan when given states and weights
 		b = BeliefNode(states=s, weights=w)
 		a_id = self.plan(b)
-		
+
 		all_a_ids = []
 		iterate_a_id = a_id
 		for _ in range(self.depth - 1):
+			# print(_)
+			# print("A_ID", iterate_a_id)
 			if iterate_a_id == None:
 				break
 			all_a_ids.append(iterate_a_id)
+			# print(self.tree.transitions[iterate_a_id])
 			# Pick a belief node at random
 			# bp_id, r = self.tree.transitions[iterate_a_id][int(np.random.choice(
 			# 	range(len(self.tree.transitions[iterate_a_id])), 1))]
-			# belief = self.tree.belief_ids[bp_id] 
-			
+
 			# Pick the maximally visited belief node
 			best_visits = -np.inf
 			best_belief = None
@@ -150,7 +185,10 @@ class PFTDPW():
 				if self.tree.n_b_visits[bp_id] > best_visits:
 					best_visits = self.tree.n_b_visits[bp_id]
 					best_belief = bp_id
-			
+			# print("BEST BELIEF", best_belief, best_visits)
+			# print("BP_ID", bp_id)
+			# belief = self.tree.belief_ids[bp_id] 
+
 			# Find the best action from this belief
 			best_q = -np.inf
 			best_a = None
@@ -160,6 +198,7 @@ class PFTDPW():
 					best_a = child
 			next_a = best_a
 
+			# print("NEXT A", next_a)
 			iterate_a_id = next_a
 		all_a_ids = [self.tree.action_ids[a_id] for a_id in all_a_ids]
 
@@ -167,16 +206,45 @@ class PFTDPW():
 			return self.env.action_sample(), all_a_ids
 		else:
 			return self.tree.action_ids[a_id], all_a_ids
-	
-	def solve(self, s, w):
-		# call plan when given states and weights
-		b = BeliefNode(states=s, weights=w)
-		a_id = self.plan(b)
 
-		if a_id == None:
-			return self.env.action_sample()
+	def trajectory(self, a_id):
+		# For visualization purposes: give the whole trajectory outputted by the planner
+		# of length (self.depth)
+
+		best_a = a_id
+		if best_a == None:
+			action_list = [self.env.action_sample()]
 		else:
-			return self.tree.action_ids[a_id]
+			action_list = [self.tree.action_ids[best_a]]
+
+		i = 0
+		while best_a is not None and i < self.depth:
+			# Pick a belief node at random
+			bp_id, r = self.tree.transitions[best_a][int(np.random.choice(range(len(self.tree.transitions[best_a])), 1))]
+			# Find the best action from the new belief node
+			if len(self.tree.child_actions[bp_id]) > 0:
+				index = np.argmax(np.array([self.tree.q[child] for child in self.tree.child_actions[bp_id]])) 
+				best_a = self.tree.child_actions[bp_id][index]
+			else:
+				best_a = None
+
+			# best_q = -np.inf
+			# best_a = None
+			# for child in self.tree.child_actions[bp_id]:
+			# 	if self.tree.q[child] > best_q:
+			# 		best_q = self.tree.q[child]
+			# 		best_a = child
+			
+			# Add the best action to the trajectory
+			if best_a == None:
+				action_list.append(self.env.action_sample()) 
+			else:
+				action_list.append(self.tree.action_ids[best_a])
+			
+			i += 1
+		
+		return action_list
+
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action
@@ -192,7 +260,7 @@ class PFTDPW():
 
 		# Find the best action from the root node
 		best_q = -np.inf
-		best_a = None
+		best_a = None 
 		for child in self.tree.child_actions[b_init]:
 			if self.tree.q[child] > best_q:
 				best_q = self.tree.q[child]

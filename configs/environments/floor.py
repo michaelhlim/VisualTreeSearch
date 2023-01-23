@@ -17,5 +17,3 @@ CKPT = 'data/ckpt/'
 
 
 
-
-

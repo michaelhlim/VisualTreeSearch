@@ -139,6 +139,7 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
         plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
     else:
         plt.savefig(figure_name, bbox_inches='tight')
+
     plt.close()
 
 

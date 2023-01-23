@@ -4,6 +4,7 @@ import torch.nn as nn
 from configs.environments.stanford import *
 from configs.solver.dualsmc_lightdark import *
 from src.methods.dualsmc_lightdark.observation_encoder_lightdark import *
+from src.methods.dualsmc_lightdark.observation_encoder_deep_lightdark import *
 from utils.utils import *
 
 sep = Stanford_Environment_Params()
@@ -14,7 +15,7 @@ dlp = DualSMC_LightDark_Params()
 class MeasureNetwork(nn.Module):
     def __init__(self):
         super(MeasureNetwork, self).__init__()
-        self.dim_m = 64 
+        self.dim_m = dlp.dim_m 
         self.obs_encode_out = dlp.obs_encode_out
         self.dim_first_layer = dlp.dim_first_layer
         self.dim_lstm_hidden = dlp.dim_lstm_hidden
@@ -37,11 +38,14 @@ class MeasureNetwork(nn.Module):
         mlp_hunits = dlp.mlp_hunits
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_m + self.dim_state + 1, mlp_hunits),
-                nn.LeakyReLU(),
+                nn.ReLU(),
+                #nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
-                nn.LeakyReLU(),
+                nn.ReLU(),
+                #nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
-                nn.LeakyReLU(),
+                nn.ReLU(),
+                #nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, 1),
                 nn.Sigmoid()
             )
@@ -50,7 +54,12 @@ class MeasureNetwork(nn.Module):
         # state [batch_size * num_par, dim_state]
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size * num_par, 1]
+        
         enc_obs = self.observation_encoder(obs)  # [batch_size, obs_enc_out]
+
+        # Normalizing the output of the observation encoder
+        enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+
         result = self.first_layer(enc_obs) # [batch_size, dim_first_layer]
         x = result.unsqueeze(0)  # [1, batch_size, dim_first_layer]
         x, (h, c) = self.lstm(x, (hidden, cell))  # x: [1, batch_size, dim_lstm_hidden]  # h and c same size as hidden, cell
@@ -80,18 +89,24 @@ class ProposerNetwork(nn.Module):
         mlp_hunits = dlp.mlp_hunits
         self.mlp = nn.Sequential(
                 nn.Linear(self.dim_first_layer * 2 + 1, mlp_hunits),
-                nn.LeakyReLU(),
+                nn.ReLU(),
+                #nn.LeakyReLU(),
                 nn.Linear(mlp_hunits, mlp_hunits),
-                nn.LeakyReLU(),
-                nn.Linear(mlp_hunits, self.dim_state),
-                nn.Sigmoid()
+                nn.ReLU(),
+                #nn.LeakyReLU(),
+                nn.Linear(mlp_hunits, self.dim_state)
             )
 
 
     def forward(self, obs, orientation, num_par=dlp.num_par_pf):
         # obs [batch_size, in_channels, img_size, img_size]
         # orientation [batch_size, 1]
+
         enc_obs = self.observation_encoder(obs)  # enc_obs [batch_size, obs_encode_out]
+
+        # Normalizing the output of the observation encoder
+        enc_obs = (enc_obs - torch.mean(enc_obs, -1, True))/torch.std(enc_obs, -1, keepdim=True)
+        
         result = self.first_layer(enc_obs)  # [batch_size, dim_first_layer]
         result = result.repeat(num_par, 1)  # [batch_size * num_par, dim_first_layer]
         orientation = orientation.repeat(num_par, 1)  # [batch_size * num_par, 1]

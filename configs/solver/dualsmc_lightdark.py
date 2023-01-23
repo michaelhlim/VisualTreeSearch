@@ -4,33 +4,43 @@ class DualSMC_LightDark_Params():
     def __init__(self):
 
         self.device = 'cuda:0'
+        self.torch_seed = 1
+        self.random_seed = 1
+        self.np_random_seed = 1
 
         ######################
         # Network
-        self.model_name = 'dualsmc'
+        self.model_name = 'dualsmc_lightdark'
+        self.dim_m = 64
         self.dim_first_layer = 64 
         self.dim_lstm_hidden = 64 
         self.num_lstm_layer = 2
         self.dim_encode = 64
 
         self.in_channels = 3
-        self.obs_encode_out = 64
+        self.obs_encode_out = 64 
         self.mlp_hunits = 128
-        self.calibration = False
+        #self.calibration = False
         self.normalization = False
+
+        ## (Deep) Encoder, if used
+        self.mlp_hunits_enc1 = 1024
+        self.mlp_hunits_enc2 = 512
+        self.mlp_hunits_enc3 = 256
+        self.obs_encode_out_conv = 2048
 
         ######################
         # Training
         self.train = True
         self.num_pretraining_steps = 50
-        self.max_episodes_train = 2000 #5000
-        self.max_episodes_test = 500 #1000
-        self.batch_size = 128 #64
-        self.fil_lr = 3e-4 #1e-3 # filtering
-        self.pla_lr = 3e-4 #1e-3 # planning
+        self.max_episodes_train = 2000 
+        self.max_episodes_test = 500 
+        self.batch_size = 128 
+        self.fil_lr = 3e-4  # filtering
+        self.pla_lr = 3e-4  # planning
         self.summary_iter = 100
-        self.save_iter = 40 #100
-        self.display_iter = 4 #10
+        self.save_iter = 40 
+        self.display_iter = 4 
         self.pretrain = 500e3
         self.show_traj = True
         self.show_distr = False
@@ -46,11 +56,11 @@ class DualSMC_LightDark_Params():
         #######################
         # Planning
         self.num_par_smc_init = 3
-        self.num_par_smc = 10 #30
+        self.num_par_smc = 10 
         self.horizon = 10
         self.smcp_mode = 'topk' # 'samp', 'topk'
         self.smcp_resample = True
-        self.smcp_resample_step = 1 #3
+        self.smcp_resample_step = 1 
 
         #######################
         # SAC
@@ -61,5 +71,5 @@ class DualSMC_LightDark_Params():
         self.gamma = 0.95
         self.tau = 0.005
         self.const = 1e-6
-        self.critic_update = 1 #50
+        self.critic_update = 1 
 

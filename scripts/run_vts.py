@@ -304,7 +304,6 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
-
         reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
 
         if episode % SAVE_ITER == 0 and train:
@@ -316,7 +315,6 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         reach_rewards = np.array(reward_list_episode)[reach]
         reach_times = np.array(time_list_episode)[reach]
         reach_dists = np.array(dist_list)[reach]
-        
 
         if episode % DISPLAY_ITER == 0:
             st2 = img_path + "/"
@@ -326,6 +324,7 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                 visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
+
 
             if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
@@ -346,6 +345,7 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
                 rt[0], rt[1], rd[0], rd[1])
+
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()

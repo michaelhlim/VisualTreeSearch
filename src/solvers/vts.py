@@ -139,7 +139,9 @@ class VTS:
         # ------------------------
         self.measure_optimizer.zero_grad()
         temp = curr_par.view(-1, DIM_STATE)
+
         fake_logit, _, _ = self.measure_net.m_model(temp, curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
+
         if PP_EXIST:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(),
                                                            curr_obs, hidden, cell, NUM_PAR_PF)  # (B, K)
@@ -164,7 +166,7 @@ class VTS:
         cell = curr_obs
 
         import time
-
+        
         # ------------------------
         #  Train Particle Proposer
         # ------------------------
