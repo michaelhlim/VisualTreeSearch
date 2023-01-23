@@ -1,5 +1,5 @@
 # Compositional Learning-based Planning for Vision POMDPs
-This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456). It is adapted from the [codebase] (https://github.com/Cranial-XIX/DualSMC) for the [DualSMC] (https://www.ijcai.org/Proceedings/2020/0579.pdf) baseline method.
+This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456). It is adapted from the [codebase](https://github.com/Cranial-XIX/DualSMC) for the [DualSMC](https://www.ijcai.org/Proceedings/2020/0579.pdf) baseline method.
 
 ## Visual Tree Search
 ![Visual Tree Search](misc/visual_tree_search_final.png)
@@ -14,7 +14,7 @@ search, we must have access to a conditional generative model that can generate 
 o from a given state s according to the likelihood density Z(o|s).
 
 # Setup
-The setup and requirements for the project conda environment is similar to that in this HuMAnav-Release [codebase] (https://github.com/vtolani95/HumANav-Release). The codebase also provides instructions for how to download the Stanford Large Scale 3D Indoor Spaces Dataset, which is necessary to run our 3D Light-Dark experiments but not our Floor Positioning experiments. You may skip the "Download SMPL data & Render human meshes" section. Otherwise, follow all instructions on the HumANav-Release README. You may also change the name of the desired conda environment by modifying the "name" field of the HumANav-Release codebase's `environment.yml` file. 
+The setup and requirements for the project conda environment is similar to that in this HuMAnav-Release [codebase](https://github.com/vtolani95/HumANav-Release). The codebase also provides instructions for how to download the Stanford Large Scale 3D Indoor Spaces Dataset, which is necessary to run our 3D Light-Dark experiments but not our Floor Positioning experiments. You may skip the "Download SMPL data & Render human meshes" section. Otherwise, follow all instructions on the HumANav-Release README. You may also change the name of the desired conda environment by modifying the "name" field of the HumANav-Release codebase's `environment.yml` file. 
 
 Inside the newly created conda environment, additionally run
 
