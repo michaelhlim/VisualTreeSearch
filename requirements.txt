@@ -24,3 +24,5 @@ Code is highly adapted from DualSMC codebase
 configs, stanford.py: Update training and testing data paths
 configs, observation_generation: Update save path for CVAE
 Data path and humanav path in misc/examples, same for renderer_params
+
+Copyright stuff from BAIR commons

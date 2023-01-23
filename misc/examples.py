@@ -379,4 +379,4 @@ if __name__ == '__main__':
     # example1() 
     # example2() 
 
-    generate_training_data_hallway(1000, 'training_hallway')
+    generate_training_data_hallway(16000, 'training_hallway')

@@ -470,7 +470,8 @@ if __name__ == "__main__":
             vts_driver(end_to_end=False, save_online_model=False)
         elif len(sys.argv) > 1 and sys.argv[1] == "--test":
             # Just testing
-            vts_driver(load_path="vts11-15-20_41_33", pre_training=False, end_to_end=False, save_online_model=False)
+            load_path = sys.argv[2]
+            vts_driver(load_path=load_path, pre_training=False, end_to_end=False, save_online_model=False)
         elif len(sys.argv) > 1 and sys.argv[1] == "--online-train-test":
             # Right into online learning & testing
             vts_driver(load_path="test500k", pre_training=False)

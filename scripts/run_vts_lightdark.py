@@ -776,18 +776,21 @@ if __name__ == "__main__":
             vts_lightdark_driver(end_to_end=False, save_online_model=False)
         elif len(sys.argv) > 1 and sys.argv[1] == "--test":
             # Just testing
-            vts_lightdark_driver(load_paths=["vts_lightdark11-18-04_01_30"], 
+            load_path = sys.argv[2]
+            vts_lightdark_driver(load_paths=[load_path], 
                 pre_training=False, end_to_end=False, save_online_model=False)
         elif len(sys.argv) > 1 and sys.argv[1] == "--online-train-test":
             # Right into online learning & testing
             vts_lightdark_driver(load_paths="test500k", pre_training=False)
         elif len(sys.argv) > 1 and sys.argv[1] == "--test-traps":
             # Generalization Experiment 1
-            vts_lightdark_driver(load_paths=["vts_lightdark02-24-23_40_13"], 
+            load_path = sys.argv[2]
+            vts_lightdark_driver(load_paths=[load_path], 
                        pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=True)
         elif len(sys.argv) > 1 and sys.argv[1] == "--occlusions":
             # Generalization Experiment 2
-            vts_lightdark_driver(load_paths=["vts_lightdark11-11-19_49_57", "vts_lightdark11-12-18_21_51"], 
+            load_path = sys.argv[2]
+            vts_lightdark_driver(load_paths=[load_path], 
                        pre_training=False, end_to_end=False, save_online_model=False, test_env_is_diff=False, 
                        test_img_is_diff=True)
         elif len(sys.argv) > 1:

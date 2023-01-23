@@ -1,5 +1,5 @@
 # Compositional Learning-based Planning for Vision POMDPs
-This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456).
+This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456). It is adapted from the [codebase] (https://github.com/Cranial-XIX/DualSMC) for the [DualSMC] (https://www.ijcai.org/Proceedings/2020/0579.pdf) baseline method.
 
 ## Visual Tree Search
 ![Visual Tree Search](misc/visual_tree_search_final.png)
@@ -14,223 +14,99 @@ search, we must have access to a conditional generative model that can generate 
 o from a given state s according to the likelihood density Z(o|s).
 
 # Setup
-## Installing Packages via Conda
-It's most preferred to make your own Conda environment for the project. In order to do so, you can perform the following steps. First, create your own conda environment. The environment I used currently has Python 3.8.8:
+The setup and requirements for the project conda environment is similar to that in this HuMAnav-Release [codebase] (https://github.com/vtolani95/HumANav-Release). The codebase also provides instructions for how to download the Stanford Large Scale 3D Indoor Spaces Dataset, which is necessary to run our 3D Light-Dark experiments but not our Floor Positioning experiments. You may skip the "Download SMPL data & Render human meshes" section. Otherwise, follow all instructions on the HumANav-Release README. You may also change the name of the desired conda environment by modifying the "name" field of the HumANav-Release codebase's `environment.yml` file. 
+
+Inside the newly created conda environment, additionally run
 
 ```
-conda create -name vts python=3.8
-source activate vts
-```
-
-Next, add the relevant packages. I did a `<pip freeze>` in the current repository to get the new up-to-date `<requirements.txt>`. First, try to see if this works.
-
-```
-conda install --file requirements.txt
-```
-
-If this works, great! If not, here is the way I went about it. Try to remove the environment and start fresh. First, I installed the older PyTorch:
-
-```
-# For Linux/Windows
 conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=9.2 -c pytorch
-
-# For MacOS
-conda install pytorch==1.4.0 torchvision==0.5.0 -c pytorch
+pip install scikit-learn
 ```
 
-Then, I installed the rest of the packages frozen by Johnathan:
+Copy the file `misc/examples.py` in this codebase into the HumANav-Release codebase's file `examples/examples.py`. At the top of the file, change the field `HUMANAV_PATH` to your absolute path to the HumANav-Release codebase. For the 3D Light-Dark experiment, the `examples.py` file can also be run in the command line to generate the pre-training dataset. Change the field `DATA_PATH` at the top of the file to point to the desired location for the dataset. 
+
+Finally, within this codebase change the line `self.training_data_path = ...` inside `configs/environments/stanford.py` to point to the location of the training data. Additionally, within `configs/solver/observation_generation.py` change the line `self.save_path` to indicate where the observation conditional generator network should be saved after pretraining. 
+
+Whenever subsequently running the code in this codebase, make sure to first run the following inside the conda environment:
 
 ```
-conda install --file misc/requirements.txt
-```
+export PYTHONPATH=$PYTHONPATH:/PATH/TO/VisualTreeSearch
+export PYTHONPATH=$PYTHONPATH:/PATH/TO/HumANavRelease
+export PYOPENGL_PLATFORM=egl
+``` 
 
+# Running Experiments
 
-## Running Experiments
-In order to run the experiments, run the following command:
-
-```
-conda activate vts
-python scripts/[experiment name].py
-```
-
-
-## Installing and Using Deepmind Lab
-
-Create a conda environment with numpy:
-```
-conda create --name deepmind
-conda activate deepmind
-conda install numpy
-```
-
-Download the Deepmind Lab repo:
+## Floor Positioning 
+Our method involves a pretraining stage in which all neural network modules are learned offline, followed by an online testing stage. To only perform pretraining, run
 
 ```
-git clone https://github.com/deepmind/lab.git
-cd lab
+python scripts/run_vts.py --pretrain
 ```
 
-### Installing and Building Bazel
-
-Make sure you install g++, unzip, and zip if you don't have it already:
+Or to only perform testing, run
 
 ```
-sudo apt install g++ unzip zip
+python scripts/run_vts.py --test path/to/saved/models
 ```
 
-It's best to download the latest version of Bazel, which is 4.0.0:
+Both pretraining and testing can be performed in sequence via
 
 ```
-wget https://github.com/bazelbuild/bazel/releases/download/4.0.0/bazel-4.0.0-installer-linux-x86_64.sh
+python scripts/run_vts.py --pretrain-test
 ```
 
-Then install it with
+The DualSMC baseline can additionally be run using
 
 ```
-chmod +x bazel-4.0.0-installer-linux-x86_64.sh
-./bazel-4.0.0-installer-linux-x86_64.sh --user
+python scripts/run_dualsmc.py 
 ```
 
-Add the following to your `~/.bashrc`:
+for both training and testing and with similar flags for just training or just testing; see the `run_dualsmc.py` file for more details.
+
+
+## 3D Light-Dark
+As mentioned above, first generate the training dataset by running the `examples.py` file in the command line. 
+
+To only perform pretraining, run
 
 ```
-export PATH="$PATH:$HOME/bin"
+python scripts/run_vts_lightdark.py --pretrain
 ```
 
-Now look at the file called `WORKSPACE` inside `lab`. At the bottom you might see something like this:
+Or to only perform testing, run
 
 ```
-new_local_repository(
-    name = "python_system",
-    build_file = "@//bazel:python.BUILD",
-    path = "/usr/",
-)
+python scripts/run_vts_lightdark.py --test path/to/saved/models
 ```
 
-This is fine as is if you want to use the version of python installed systemwide. However, if you want to use the version of python in your virtual environment, change the `path` line to, for example,
+Both pretraining and testing can be performed in sequence via
 
 ```
-path = "/home/sampada_deglurkar/anaconda3/envs/deepmind/"
+python scripts/run_vts_lightdark.py --pretrain-test
 ```
 
-Now go to the file called `bazel/python.BUILD` in `lab`. Assuming you are using some version of python3, you want to change the corresponding `PY3` lines in the first `cc_library` chunk in the file to point to where your python and numpy are installed. So for example my `bazel/python.BUILD` file looks like this:
+The test traps and occlusions experiments mentioned in the paper can also be run via
 
 ```
-# Description:
-#   Build rule for Python and Numpy.
-#   This rule works for Debian and Ubuntu, and for MacOS. Other platforms might
-#   keep the headers in different places.
-
-cc_library(
-    name = "python_headers_linux",
-    hdrs = select(
-        {            
-            "@bazel_tools//tools/python:PY2": glob(["include/python2.7/*.h", "local/lib/python2.7/dist-packages/numpy/core/include/**/*.h"]),                       
-            "@bazel_tools//tools/python:PY3": glob(["include/python3.6m/*.h", "lib/python3.6/site-packages/numpy/core/include/**/*.h"]),
-        },
-        no_match_error = "Internal error, Python version should be one of PY2 or PY3",
-    ),
-    includes = select(
-        {
-            "@bazel_tools//tools/python:PY2": ["include/python2.7", "local/lib/python2.7/dist-packages/numpy/core/include"],
-            "@bazel_tools//tools/python:PY3": ["include/python3.6m", "lib/python3.6/site-packages/numpy/core/include"]
-        },
-        no_match_error = "Internal error, Python version should be one of PY2 or PY3",
-    ),
-)
-
-cc_library(
-    name = "python_headers_macos",
-    hdrs = select(
-        {
-            "@bazel_tools//tools/python:PY2": glob(["Library/Frameworks/Python.framework/Versions/2.7/Headers/*.h"]),
-            "@bazel_tools//tools/python:PY3": glob(["Library/Frameworks/Python.framework/Versions/3.9/Headers/**/*.h"]),
-        },
-        no_match_error = "Internal error, Python version should be one of PY2 or PY3",
-    ),
-    includes = select(
-        {
-            "@bazel_tools//tools/python:PY2": ["Library/Frameworks/Python.framework/Versions/2.7/Headers"],
-            "@bazel_tools//tools/python:PY3": ["Library/Frameworks/Python.framework/Versions/3.9/Headers"],
-        },
-        no_match_error = "Internal error, Python version should be one of PY2 or PY3",
-    ),
-)
-
-alias(
-    name = "python_headers",
-    actual = select(
-        {
-            "@//:is_linux": ":python_headers_linux",
-            "@//:is_macos": ":python_headers_macos",
-        },
-        no_match_error = "Unsupported platform; only Linux and MacOS are supported.",
-    ),
-    visibility = ["//visibility:public"],
-)
-
-alias(
-    name = "python",
-    actual = ":python_headers",
-    visibility = ["//visibility:public"],
-)
+python scripts/run_vts_lightdark.py --test-traps path/to/saved/models
+python scripts/run_vts_lightdark.py --occlusions path/to/saved/models
 ```
 
-Paths in the build rules in this file are relative to the root path specified in the `WORKSPACE` file. So for me `"include/python3.6m/*.h"` means `/home/sampada_deglurkar/anaconda3/envs/deepmind/include/python3.6m/*.h`. The `"lib/python3.6/site-packages/numpy/core/include/"` part I got by running `import numpy as np` and then `np.get_include()`, which gave me `/home/sampada_deglurkar/anaconda3/envs/deepmind/lib/python3.6/site-packages/numpy/core/include`. 
-
-Now you should be able to build Bazel:
+The DualSMC baseline can additionally be run with similar arguments as above:
 
 ```
-bazel build -c opt //:deepmind_lab.so
+python scripts/run_dualsmc_lightdark.py 
 ```
 
-Now run the following inside `lab`:
+See the `run_vts_lightdark.py` and `run_dualsmc_lightdark.py` files for more details on command line options.
 
+
+During the above, you may see command line outputs like this, which is normal:
 ```
-bazel build -c opt //python/pip_package:build_pip_package
-./bazel-bin/python/pip_package/build_pip_package /tmp/dmlab_pkg
+ERROR:root:Loading building from obj file: /home/sampada/LB_WayPtNav_Data/stanford_building_parser_dataset/mesh/area5a/42795abd0bf841a098ea084d326f95af.obj
+ERROR:root:#Meshes: 160
+WARNING:OpenGL.arrays.numpymodule:Unable to load numpy_formathandler accelerator from OpenGL_accelerate
+/home/sampada/HumANavRelease/humanav/humanav_renderer.py:223: RuntimeWarning: divide by zero encountered in true_divide
+  depth_imgs_meters = 100. / disparity_imgs_cm[..., 0]
 ```
-
-The second command above creates a `.whl` file in `/tmp/dmlab_pkg`. Install it using:
-
-```
-pip install /tmp/dmlab_pkg/deepmind_lab-1.0-py3-none-any.whl
-```
-(That’s the file that was in my `/tmp/dmlab_pkg`.)
-
-
-Then you might also need to run
-
-```
-pip install /tmp/dmlab_pkg/deepmind_lab-1.0-py3-none-any.whl[dmenv_module]
-```
-
-
-### Testing the Installation
-
-Create a file `agent.py` with the following code:
-
-```
-import deepmind_lab
-import numpy as np
-
-# Create a new environment object.
-lab = deepmind_lab.Lab("demos/extra_entities", ['RGB_INTERLEAVED'],
-                       {'fps': '30', 'width': '80', 'height': '60'})
-lab.reset(seed=1)
-
-# Execute 100 walk-forward steps and sum the returned rewards from each step.
-print(sum(
-    [lab.step(np.array([0,0,0,1,0,0,0], dtype=np.intc)) for i in range(0, 100)]))
-```
-
-Then run it with `python agent.py`. It should print out a reward of 4.0.
-
-
-I used this helpful link as a main reference: https://github.com/deepmind/lab/tree/master/python/pip_package
-
-
-
-
-
-

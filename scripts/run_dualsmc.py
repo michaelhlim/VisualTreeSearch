@@ -428,7 +428,8 @@ if __name__ == "__main__":
             dualsmc_driver(end_to_end=True, save_model=True, test=False)
         elif len(sys.argv) > 1 and sys.argv[1] == "--test":
             # Just testing
-            dualsmc_driver(load_path="", end_to_end=False, 
+            load_path = sys.argv[2]
+            dualsmc_driver(load_path=load_path, end_to_end=False, 
                 save_model=False, test=True)
         elif len(sys.argv) > 1:
             print("Unknown argument!")
