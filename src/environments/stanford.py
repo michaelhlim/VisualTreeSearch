@@ -35,8 +35,8 @@ class StanfordEnvironment(AbstractEnvironment):
         # During test time - have an additional trap region (optional)
         self.test_trap = False
         self.test_trap_is_random = False
-        self.test_trap_x = [[3, 3.5], [5, 5.5]] #[[1.5, 2], [6.5, 7]] #[3.5, 5]
-        self.test_trap_y = [[0.5, 1], [0.5, 1]] #[0.5, 1] #[0.75, 1.25]
+        self.test_trap_x = [[3, 3.5], [5, 5.5]] 
+        self.test_trap_y = [[0.5, 1], [0.5, 1]] 
 
         self.init_strip_x = self.xrange 
         self.init_strip_y = [0.25, 0.5]
@@ -118,7 +118,6 @@ class StanfordEnvironment(AbstractEnvironment):
         out = image
 
         if state[1] <= self.dark_line: # Dark observation - add salt & pepper noise
-        #if True:
             s_vs_p = sep.salt_vs_pepper
             amount = noise_amount  
             out = np.copy(image)
@@ -159,8 +158,6 @@ class StanfordEnvironment(AbstractEnvironment):
             
             salt_indices = noise_indices[:int(num_salt)]
             pepper_indices = noise_indices[int(num_salt):]
-            #salt_coords = np.unravel_index(salt_indices, image_plane_shape)
-            #pepper_coords = np.unravel_index(pepper_indices, image_plane_shape)
             salt_coords = (np.array([int(elem) for elem in salt_indices/image_plane_shape[1]]), 
                             salt_indices%image_plane_shape[1])
             pepper_coords = (np.array([int(elem) for elem in pepper_indices/image_plane_shape[1]]), 
@@ -168,18 +165,8 @@ class StanfordEnvironment(AbstractEnvironment):
             
             if num_salt != 0:
                 out[salt_coords[0], salt_coords[1], :] = salt
-            # for i in range(len(salt_coords[0])):  # salt_coords[0] is row indices, salt_coords[1] is col indices
-            #     row = salt_coords[0][i]
-            #     col = salt_coords[1][i]
-            #     for j in range(3):
-            #         out[row, col, j] = salt
             if num_pepper != 0:
                 out[pepper_coords[0], pepper_coords[1], :] = pepper
-            # for i in range(len(pepper_coords[0])):  # pepper_coords[0] is row indices, pepper_coords[1] is col indices
-            #     row = pepper_coords[0][i]
-            #     col = pepper_coords[1][i]
-            #     for j in range(3):
-            #         out[row, col, j] = pepper
         
         #cv2.imwrite("out_debug1.png", out)
 
@@ -220,7 +207,6 @@ class StanfordEnvironment(AbstractEnvironment):
             state_arr = np.array([state])
 
         path = os.getcwd() + '/images1/' 
-        #os.mkdir(path)
         check_path(path)
 
         img_path, traversible, dx_m = generate_observation(state_arr, path)
@@ -232,7 +218,7 @@ class StanfordEnvironment(AbstractEnvironment):
             out = self.noise_image_plane(image, state_temp)
 
         pre_norm = out
-        out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB!! So dumb! --- now image is in RGB
+        out = out[:, :, ::-1]  ## CV2 works in BGR space instead of RGB -- now image is in RGB
         out = np.ascontiguousarray(out)
 
         if normalize:
@@ -243,31 +229,10 @@ class StanfordEnvironment(AbstractEnvironment):
 
             out = np.stack([img_rslice, img_gslice, img_bslice], axis=-1)
 
-            #out = (out - out.mean())/out.std()  # "Normalization" -- TODO
-
         os.remove(img_path)
         os.rmdir(path)
 
         return out, pre_norm, img_path, traversible, dx_m
-    
-
-    # Currently not used
-    def read_observation(self, img_path, normalize):
-        obs = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
-        #obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now obs is in RGB
-
-        # if normalize:
-        #     obs = (obs - obs.mean())/obs.std()  # "Normalization" -- TODO
-        
-        # obs = obs * 100 + (255./2)
-        # obs = obs[:, :, ::-1]
-        # cv2.imwrite(img_path[:-4] + str, obs)
-
-        os.remove(img_path)
-
-        return obs
-        
     
     def point_to_map(self, pos_2, cast_to_int=True):
         """
@@ -291,9 +256,6 @@ class StanfordEnvironment(AbstractEnvironment):
             return True
 
         # Check if state y-value is the same as trap/goal but it's not in the trap or goal - that's a wall
-        # if self.in_trap([self.trap_x[0][0], state[1]]) and \
-        #     not self.in_trap(state) and not self.in_goal(state):
-        #     return True
         if (state[1] >= self.trap_y[0] and state[1] <= self.trap_y[1]) and \
             not self.in_trap(state) and not self.in_goal(state):
             return True
@@ -320,7 +282,6 @@ class StanfordEnvironment(AbstractEnvironment):
             first_test_trap_x = (state[0] >= first_test_trap[0] and state[0] <= first_test_trap[1])
             second_test_trap = self.test_trap_x[1]
             second_test_trap_x = (state[0] >= second_test_trap[0] and state[0] <= second_test_trap[1])
-            #test_trap_x = first_test_trap_x or second_test_trap_x
 
             first_test_trap = self.test_trap_y[0]
             first_test_trap_y = (state[1] >= first_test_trap[0] and state[1] <= first_test_trap[1])
@@ -330,7 +291,6 @@ class StanfordEnvironment(AbstractEnvironment):
             test_trap = (first_test_trap_x and first_test_trap_y) or \
                         (second_test_trap_x and second_test_trap_y)
 
-            # test_trap = test_trap_x and (state[1] >= self.test_trap_y[0] and state[1] <= self.test_trap_y[1])
             
             return (trap or test_trap) and not self.in_goal(state)
         
@@ -404,24 +364,12 @@ class StanfordEnvironment(AbstractEnvironment):
 
         action = sep.velocity * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
 
-        # # just generate completely random
-        # action_x = STEP_RANGE * (2 * random.random() - 1)
-        # action_y = STEP_RANGE * (2 * random.random() - 1)
-        # action = np.array([action_x, action_y])
-
         return action
 
     def is_terminal(self, s):
         # Check if a given state tensor is a terminal state
         terminal = [self.in_goal(state) for state in s]
         return all(terminal)
-
-        # s = s[:, :2]
-        # targets = np.tile(self.target, (s.shape[0], 1))
-
-        # true_dist = l2_distance_np(s, targets)
-
-        # return all(true_dist <= sep.end_range)
 
 
     def transition(self, s, w, a):
@@ -525,16 +473,16 @@ class StanfordEnvironment(AbstractEnvironment):
 
         if type == None:
             reward, vec = self.rollout_default(s, ss, ws, discount)
-            return reward#, vec
+            return reward
         elif type == "optimistic":
             reward, vec = self.rollout_optimistic(s, ss, ws, discount)
-            return reward#, vec
+            return reward
         elif type == "pessimistic":
             reward, vec = self.rollout_pessimistic(s, ss, ws, discount)
-            return reward#, vec
+            return reward
         elif type == "deterministic":
             reward, vec = self.rollout_deterministic(s, ss, ws, discount)
-            return reward#, vec
+            return reward
         else:
             raise Exception("ERROR: Need to specify a proper rollout type!")
             
@@ -573,15 +521,6 @@ class StanfordEnvironment(AbstractEnvironment):
         goal_reached = [self.in_goal(state) for state in ss_copy]
         trap_reached = [self.in_trap(state) for state in ss_copy]
 
-        # import matplotlib.pyplot as plt
-        # for i in range(len(ss_copy)):
-        #     if self.in_goal(ss_copy[i]):
-        #         plt.plot(ss[i][0], ss[i][1], 'bx')
-        #     else:
-        #         plt.plot(ss[i][0], ss[i][1], 'rx')
-        # plt.savefig('made_it')
-        # plt.close()
-
         alpha = 0. #5.
         # Only return reward coming from the state with highest weight, ignore all other states
         # Optionally - penalize the standard deviation of the particle distribution
@@ -612,7 +551,6 @@ class StanfordEnvironment(AbstractEnvironment):
         #Select the particles out of those that have the highest weights
         not_goal_reached_sorted = not_goal_reached[sorted_weight_indices]
         top_k = 15
-        #optimism = np.dot(not_goal_reached, ws) * sep.epi_reward
         optimism = np.dot(not_goal_reached_sorted[:top_k], sorted_weights[:top_k]) * sep.epi_reward
 
         r = np.dot(goal_reached, ws) * sep.epi_reward + np.dot(trap_reached, ws) * -sep.epi_reward + optimism
@@ -740,7 +678,7 @@ class StanfordEnvironment(AbstractEnvironment):
                 blurred = cv2.GaussianBlur(src,(blur_kernel,blur_kernel),cv2.BORDER_DEFAULT)
                 src = blurred[:,:,::-1]
             else:
-                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+                src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- now src is in RGB
 
             if self.normalization:
                 img_rslice = (src[:, :, 0] - rmean)/rstd
@@ -799,7 +737,7 @@ class StanfordEnvironment(AbstractEnvironment):
             src = self.noise_image_plane(src, state)
 
             blurred = cv2.GaussianBlur(src,(5,5),cv2.BORDER_DEFAULT)
-            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now src is in RGB
+            src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB -- now src is in RGB
             blurred = blurred[:,:,::-1]
 
             if self.normalization:

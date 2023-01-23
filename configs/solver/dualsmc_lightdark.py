@@ -3,7 +3,7 @@
 class DualSMC_LightDark_Params():
     def __init__(self):
 
-        self.device = 'cuda:0'
+        self.device = 'cuda:1'
         self.torch_seed = 1
         self.random_seed = 1
         self.np_random_seed = 1
@@ -20,7 +20,7 @@ class DualSMC_LightDark_Params():
         self.in_channels = 3
         self.obs_encode_out = 64 
         self.mlp_hunits = 128
-        #self.calibration = False
+        self.calibration = False
         self.normalization = False
 
         ## (Deep) Encoder, if used

@@ -19,11 +19,6 @@ class Stanford_Environment_Params():
         self.fig_format = '.png'
         self.img = 'data/img/'
         self.ckpt = 'data/ckpt/'
-
-        #self.training_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/training_hallway/rgbs/*"
-        #self.testing_data_path = "/home/ext_drive/sampada_deglurkar/vae_stanford/testing_hallway/rgbs/*"
-        # self.training_data_path = "/home/sampada/training_hallway/rgbs/*"
-        # self.testing_data_path = "/home/sampada/testing_hallway/rgbs/*"
         self.training_data_path = "/home/sampada/vae_stanford/training_hallway/rgbs/*"
         self.testing_data_path = "/home/sampada/vae_stanford/testing_hallway/rgbs/*"
         self.normalization = True

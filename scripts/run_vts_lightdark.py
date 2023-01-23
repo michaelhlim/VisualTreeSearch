@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import cv2
 import math
 import numpy as np
@@ -122,7 +123,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
             os.mkdir(distr_dir)
                 
 
-
         num_par_propose = int(vlp.num_par_pf * vlp.pp_ratio)
 
         for step in range(sep.max_steps):
@@ -183,17 +183,11 @@ def vts_lightdark(model, experiment_id, train, model_path,
             #######################################
             # Planning
             states_init = par_states   # Goes into replay buffer
-            # action, traj = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Action already includes velocity
+            # action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy()) # Action already includes velocity
             action, future_actions = pft_planner.solve_viz(par_states, normalized_weights.detach().cpu().numpy())
             # For visualizing the planned trajectory
             mean_s = model.get_mean_state(par_states, normalized_weights).detach().cpu().numpy()
 
-            # For visualization purposes
-            state_traj = [mean_s] 
-            # if traj is not None:  
-            #     for action in traj:
-            #         state_traj.append(mean_s + action)  # This is wrong
-            state_traj = np.array(state_traj)
             #######################################
             # Resampling
             if step % vlp.pf_resample_step == 0:
@@ -317,13 +311,11 @@ def vts_lightdark(model, experiment_id, train, model_path,
                     dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
                     
                     state_iterate = mean_state.reshape((1, 2))
-                    # print("STATE ITERATE", state_iterate)
                     planned_traj = state_iterate
                     for action in future_actions:
                         state_iterate, _, _, _ = env.transition(state_iterate, None, action)
                         state_iterate = state_iterate[:, :2]
                         planned_traj = np.vstack([planned_traj, state_iterate])
-                    # print("\nPLANNED TRAJ", planned_traj)
                     planned_traj = np.array(planned_traj)
                     planned_traj = planned_traj.reshape((planned_traj.shape[0], 1, planned_traj.shape[1]))
                     
@@ -337,9 +329,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
                         test_trap2 = [test_trap2_x[0], test_trap2_y[0], 
                             test_trap2_x[1]-test_trap2_x[0], test_trap2_y[1]-test_trap2_y[0]]
                         test_trap_plot_params = [test_trap1, test_trap2]
-                        # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
-                        #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-                        
+                    
                         check_path(img_path + "/traj/")
                         st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + sep.fig_format
                         plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
@@ -347,15 +337,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
                         plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
                                  dark, frm_name, curr_state, mean_state, resample_state, 
                                  normalized_weights.detach().cpu().numpy(), proposal_state, planned_traj)
-
-                        # plot_par(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params, 
-                        #          dark, frm_name, curr_state, mean_state, resample_state, 
-                        #          normalized_weights.cpu().numpy(), proposal_state, state_traj)
                     else:
-                        # plot_par(xlim, ylim, goal, [trap1, trap2], None, 
-                        #          dark, frm_name, curr_state, mean_state, resample_state, 
-                        #          normalized_weights.cpu().numpy(), proposal_state, state_traj)
-
                         check_path(img_path + "/traj/")
                         st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + sep.fig_format
                         plot_maze(xlim, ylim, goal, [trap1, trap2], None,
@@ -363,11 +345,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
                         plot_par(xlim, ylim, goal, [trap1, trap2], None, 
                                  dark, frm_name, curr_state, mean_state, resample_state, 
                                  normalized_weights.detach().cpu().numpy(), proposal_state, planned_traj)
-
-                    # plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                    #         mean_state, resample_state, normalized_weights.cpu().numpy(), proposal_state, state_traj)
-                    #plot_par(xlim, ylim, goal, [trap1, trap2], dark, frm_name, curr_state, 
-                    #        mean_state, par_states, normalized_weights.cpu().numpy(), None, None)
 
             #######################################
             # Update the environment
@@ -392,7 +369,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
 
             #######################################
             # Transition Model
-            ## MAYBE THIS SHOULD NOT TRANSITION A STATE IF IT'S IN COLLISION? ## ---- DONE
             next_par_states, _, _, _ = env.transition(par_states, normalized_weights.detach().cpu().numpy(), action)
             par_states = next_par_states[:, :sep.dim_state]    
             #######################################            
@@ -437,11 +413,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
         
         reach = np.array(step_list) < (sep.max_steps - 1)
         
-        # reach_steps = [step_list[i] for i in range(len(step_list)) if reach[i]] #step_list[reach]
-        # reach_rewards = [reward_list_episode[i] for i in range(len(reward_list_episode)) if reach[i]] #reward_list_episode[reach]
-        # reach_times = [time_list_episode[i] for i in range(len(time_list_episode)) if reach[i]] #time_list_episode[reach]
-        # reach_dists = [dist_list[i] for i in range(len(dist_list)) if reach[i]] #dist_list[reach]
-        
         # Take only the statistics for successful episodes
         reach_steps = np.array(step_list)[reach] 
         reach_rewards = np.array(reward_list_episode)[reach]
@@ -462,9 +433,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
 
-            # interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-            #     episode, np.mean(reach), np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-            #     np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
             if len(reach_steps) == 0:  # No episodes were successful - return a null value
                 rs = [-1, -1]
             else:
@@ -489,7 +457,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
             file2.flush()
 
             
-        
         # Plot every trajectory
         check_path(img_path + "/traj/")
         st = img_path + "/traj/" + str(episode) + "-trj" + sep.fig_format
@@ -505,8 +472,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
                 trap2_x[1]-trap2_x[0], env.trap_y[1]-env.trap_y[0]]
         dark = [env.xrange[0], env.yrange[0], env.xrange[1]-env.xrange[0], env.dark_line-env.yrange[0]]
 
-        #plot_maze(xlim, ylim, goal, [trap1, trap2], dark, figure_name=st, states=np.array(trajectory))
-
         if not train and test_env_is_diff:
             test_trap1_x = env.test_trap_x[0]
             test_trap2_x = env.test_trap_x[1]
@@ -517,9 +482,7 @@ def vts_lightdark(model, experiment_id, train, model_path,
             test_trap2 = [test_trap2_x[0], test_trap2_y[0], 
                 test_trap2_x[1]-test_trap2_x[0], test_trap2_y[1]-test_trap2_y[0]]
             test_trap_plot_params = [test_trap1, test_trap2]
-            # test_trap_plot_params = [env.test_trap_x[0], env.test_trap_y[0], 
-            #              env.test_trap_x[1]-env.test_trap_x[0], env.test_trap_y[1]-env.test_trap_y[0]]
-            
+          
             plot_maze(xlim, ylim, goal, [trap1, trap2], test_trap_plot_params,
                           dark, figure_name=st, states=np.array(trajectory))
         else:
@@ -535,7 +498,6 @@ def vts_lightdark(model, experiment_id, train, model_path,
         file1.flush()
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
@@ -615,16 +577,6 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
 
         steps = []
         for epoch in range(vlp.num_epochs_e):
-            # noise_amount = 0
-            # if epoch >= vlp.num_epochs_g/4:
-            #     noise_amount = 0.1
-            # if epoch >= vlp.num_epochs_g/2:
-            #     noise_amount = 0.25
-            # if epoch >= 3*vlp.num_epochs_g/4:
-            #     noise_amount = 0.4
-
-            #noise_amount = 0.25 
-
             data_files_indices = env.shuffle_dataset()
 
             for step in range(steps_per_epoch):
@@ -669,22 +621,6 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
 
         steps = [] 
         for epoch in range(vlp.num_epochs_zp):
-            percent_blur = 0
-            # if epoch >= vlp.num_epochs_zp/4:
-            #     percent_blur = 0.05
-            # if epoch >= vlp.num_epochs_zp/2:
-            #     percent_blur = 0.15
-            # if epoch >= 3*vlp.num_epochs_zp/4:
-            #     percent_blur = 0.25
-
-            # noise_amount = 0
-            # if epoch >= vlp.num_epochs_zp/4:
-            #     noise_amount = 0.1
-            # if epoch >= vlp.num_epochs_zp/2:
-            #     noise_amount = 0.25
-            # if epoch >= 3*vlp.num_epochs_zp/4:
-            #     noise_amount = 0.4
-
             noise_amount = 0
             if epoch >= vlp.num_epochs_zp/4:
                 noise_amount = sep.noise_amount/4
@@ -699,14 +635,12 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
 
                 states, orientations, images, par_batch = env.get_training_batch(vlp.batch_size, data_files_indices, 
                                                                                 step, normalization_data, vlp.num_par_pf,
-                                                                                noise_amount=noise_amount,
-                                                                                percent_blur=percent_blur)
+                                                                                noise_amount=noise_amount)
                 states = torch.from_numpy(states).float()
                 images = torch.from_numpy(images).float()
                 images = images.permute(0, 3, 1, 2)  # [batch_size, in_channels, 32, 32]
                 state_batch = states
                 obs_batch = images  
-                #par_batch = env.get_par_batch(states)
 
                 Z_loss, P_loss = model.pretraining_zp(
                     state_batch, orientations, obs_batch, par_batch)
@@ -767,16 +701,6 @@ def vts_lightdark_driver(shared_enc=False, independent_enc=False, load_paths=Non
 
         steps = []
         for epoch in range(vlp.num_epochs_g):
-            # noise_amount = 0
-            # if epoch >= vlp.num_epochs_g/4:
-            #     noise_amount = 0.1
-            # if epoch >= vlp.num_epochs_g/2:
-            #     noise_amount = 0.25
-            # if epoch >= 3*vlp.num_epochs_g/4:
-            #     noise_amount = 0.4
-
-            #noise_amount = 0.25 
-
             data_files_indices = env.shuffle_dataset()
 
             for step in range(steps_per_epoch):

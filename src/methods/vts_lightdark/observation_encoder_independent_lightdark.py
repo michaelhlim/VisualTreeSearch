@@ -16,7 +16,6 @@ class ObservationEncoderIndependent(nn.Module):
         self.in_channels = vlp.in_channels
         self.leak_rate = vlp.leak_rate_enc
 
-        #self.embed_cond_var = nn.Linear(dim_conditional_var, img_size * img_size)
         self.embed_obs = nn.Conv2d(self.in_channels, self.in_channels, kernel_size=1)
 
         ## Encoder Convolutional Layers
@@ -70,13 +69,6 @@ class ObservationEncoderIndependent(nn.Module):
             ind = i + 1
             mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc[ind-1], vlp.mlp_hunits_enc[ind]))
             mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        
-        # mlp_modules.append(nn.Linear(vlp.obs_encode_out_conv, vlp.mlp_hunits_enc1))
-        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.mlp_hunits_enc2))
-        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc3)) # mlp_hunits_enc3 = obs_encode_out
-        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
 
         self.encoder_mlp = nn.Sequential(*mlp_modules)
 
@@ -94,13 +86,6 @@ class ObservationEncoderIndependent(nn.Module):
         ind -= 1
         mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc[ind], vlp.obs_encode_out_conv))
         mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-
-        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc3, vlp.mlp_hunits_enc2))
-        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc2, vlp.mlp_hunits_enc1))
-        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
-        # mlp_modules.append(nn.Linear(vlp.mlp_hunits_enc1, vlp.obs_encode_out_conv))
-        # mlp_modules.append(nn.LeakyReLU(self.leak_rate))
 
         self.decoder_mlp = nn.Sequential(*mlp_modules)
 

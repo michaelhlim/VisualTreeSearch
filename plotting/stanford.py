@@ -42,7 +42,6 @@ def plot_maze(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', st
     
     if test_trap is not None:
          # trap i: [start_x, start_y, width, height]
-         # ax.add_patch(Rectangle((test_trap[0], test_trap[1]), test_trap[2], test_trap[3], facecolor='orange'))
          test_trap1 = test_trap[0]
          test_trap2 = test_trap[1]
          ax.add_patch(Rectangle((test_trap1[0], test_trap1[1]), test_trap1[2], test_trap1[3], facecolor='orange'))
@@ -98,7 +97,6 @@ def plot_par(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', tru
     
     if test_trap is not None:
          # trap i: [start_x, start_y, width, height]
-         # ax.add_patch(Rectangle((test_trap[0], test_trap[1]), test_trap[2], test_trap[3], facecolor='orange'))
          test_trap1 = test_trap[0]
          test_trap2 = test_trap[1]
          ax.add_patch(Rectangle((test_trap1[0], test_trap1[1]), test_trap1[2], test_trap1[3], facecolor='orange'))
@@ -300,45 +298,8 @@ def vts_pretraining_analysis_old(xlim, ylim, goal, trap, dark, figure_name='pret
     heuristic_alpha_mult = 1
     for j in range(len(x)):
         ax.plot(x[j], y[j], 'gx', alpha=min(likelihoods[j]*heuristic_alpha_mult, 1.0))
-    #ax.plot(x, y, 'gx')
 
-    if pp_state is not None:
-        xy = pp_state[:, :2]
-        x, y = zip(*xy)
-        ax.plot(x, y, 'bx')
-
-    # # planning trajectories
-    # if smc_traj is not None:
-    #     if smc_traj.any():
-    #         num_par_smc = smc_traj.shape[1]
-    #         for k in range(num_par_smc):
-    #             points = smc_traj[:, k, :]
-    #             ax.plot(*points.T, lw=3, color=(0.5, 0.5, 0.5))  # RGB
-    #         if len(points) > 1:
-    #             plt.arrow(points[-2, 0], points[-2, 1], 
-    #                     points[-1, 0] - points[-2, 0],
-    #                     points[-1, 1] - points[-2, 1], 
-    #                     head_width = 0.022, width = 0.013, color=(0.5, 0.5, 0.5))
-    # planning trajectories
-    if smc_traj is not None:
-        if smc_traj.any():
-            if len(smc_traj.shape) == 2:
-                ax.plot(smc_traj[:, 0], smc_traj[:, 1], lw=3, color=(0.5, 0.5, 1.0))  # RGB
-            else:
-                num_par_smc = smc_traj.shape[1]
-                for k in range(num_par_smc):
-                    points = smc_traj[:, k, :]
-                    ax.plot(*points.T, lw=3, color=(0.5, 0.5, 0.5))  # RGB
-                if len(points) > 1:
-                    plt.arrow(points[-2, 0], points[-2, 1], 
-                            points[-1, 0] - points[-2, 0],
-                            points[-1, 1] - points[-2, 1], 
-                            head_width = 0.12, width = 0.013, color=(0.5, 0.5, 0.5))
-
-    ax.set_aspect('equal')
-
-    plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
-    # plt.savefig(figure_name, bbox_inches='tight')
+    plt.savefig(figure_name)
     plt.close()
 
 
@@ -359,7 +320,6 @@ def plot_crosses_with_alphas(data, color, alphas, ax):
 
 def vts_pretraining_analysis(xlim, ylim, goal, trap, dark, figure_names, 
             true_state, true_orientation, random_states, likelihoods_list,
-            #likelihoods, likelihoods_blur, likelihoods_gen,
             proposed_states):
     '''
     Plot on the environment the state and proposed states for when the input is the true image
@@ -500,7 +460,6 @@ def vts_pretraining_analysis_old(xlim, ylim, goal, trap, dark, figure_name='pret
     heuristic_alpha_mult = 1
     for j in range(len(x)):
         ax.plot(x[j], y[j], 'gx', alpha=min(likelihoods[j]*heuristic_alpha_mult, 1.0))
-    #ax.plot(x, y, 'gx')
 
     # Plot the proposed states with alpha value based on their likelihoods (given by Z)
     # These are proposed states and likelihoods for the generated image as input
@@ -509,7 +468,6 @@ def vts_pretraining_analysis_old(xlim, ylim, goal, trap, dark, figure_name='pret
     heuristic_alpha_mult = 1
     for j in range(len(x)):
         ax.plot(x[j], y[j], 'bx', alpha=min(likelihoods_gen[j]*heuristic_alpha_mult, 1.0))
-    #ax.plot(x, y, 'gx')
 
     ax.set_aspect('equal')
 

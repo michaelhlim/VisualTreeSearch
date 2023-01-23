@@ -17,3 +17,10 @@ six @ file:///tmp/build/80754af9/six_1605205327372/work
 torch==1.4.0
 torchvision==0.5.0
 tornado @ file:///tmp/build/80754af9/tornado_1606942300299/work
+
+
+Code is highly adapted from DualSMC codebase 
+
+configs, stanford.py: Update training and testing data paths
+configs, observation_generation: Update save path for CVAE
+Data path and humanav path in misc/examples, same for renderer_params

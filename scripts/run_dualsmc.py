@@ -368,7 +368,6 @@ def dualsmc(model, experiment_id, train, model_path):
             plot_maze(figure_name=st, states=np.array(trajectory))
 
         # Repeat the above code block for writing to the text file every episode instead of every 10
-        
         interaction = 'Episode %s: cumulative success rate = %s, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
             episode, np.mean(reach), step, tot_reward, avg_time_this_episode, filter_dist)
         print('\r{}'.format(interaction))
@@ -386,7 +385,6 @@ def dualsmc(model, experiment_id, train, model_path):
 
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 

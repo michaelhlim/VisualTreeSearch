@@ -166,9 +166,7 @@ class DualSMC:
         fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), 
                                                     torch.repeat_interleave(curr_orientation, dlp.num_par_pf, dim=0),
                                                     curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
-        # fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), curr_orientation.repeat(dlp.num_par_pf, 1),
-        #                                                               curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
-
+       
         if dlp.pp_exist:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(dlp.num_par_pf, 1),
                                                            curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
@@ -197,9 +195,6 @@ class DualSMC:
         #  Train SAC
         # ------------------------
         next_mean_state = self.dynamic_net.t_model(mean_state, action_batch * sep.step_range)  # [batch_size, dim_state]
-        # next_par_sample = self.dynamic_net.t_model(
-        #     curr_par_sample.view(-1, sep.dim_state),
-        #     action_batch.repeat(dlp.num_par_smc_init, 1) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]
         next_par_sample = self.dynamic_net.t_model(
             curr_par_sample.view(-1, sep.dim_state),
             torch.repeat_interleave(action_batch, dlp.num_par_smc_init, dim=0) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]

@@ -139,7 +139,6 @@ class PFTDPW():
 
 	def rollout(self, b):
 		# Rollout simulation starting from belief b
-		#s = b.states[np.random.choice(len(b.weights), 1, p = b.weights)].flatten()
 		index = np.argmax(b.weights)
 		s = b.states[index]
 		ss = b.states
@@ -151,14 +150,11 @@ class PFTDPW():
 		# call plan when given states and weights
 		b = BeliefNode(states=s, weights=w)
 		a_id = self.plan(b)
-
-		#traj = self.trajectory(a_id)
-		traj = None
 		
 		if a_id == None:
-			return self.env.action_sample(), traj
+			return self.env.action_sample()
 		else:
-			return self.tree.action_ids[a_id], traj
+			return self.tree.action_ids[a_id]
 	
 	def solve_viz(self, s, w):
 		# call plan when given states and weights
@@ -168,12 +164,9 @@ class PFTDPW():
 		all_a_ids = []
 		iterate_a_id = a_id
 		for _ in range(self.depth - 1):
-			# print(_)
-			# print("A_ID", iterate_a_id)
 			if iterate_a_id == None:
 				break
 			all_a_ids.append(iterate_a_id)
-			# print(self.tree.transitions[iterate_a_id])
 			# Pick a belief node at random
 			# bp_id, r = self.tree.transitions[iterate_a_id][int(np.random.choice(
 			# 	range(len(self.tree.transitions[iterate_a_id])), 1))]
@@ -185,9 +178,6 @@ class PFTDPW():
 				if self.tree.n_b_visits[bp_id] > best_visits:
 					best_visits = self.tree.n_b_visits[bp_id]
 					best_belief = bp_id
-			# print("BEST BELIEF", best_belief, best_visits)
-			# print("BP_ID", bp_id)
-			# belief = self.tree.belief_ids[bp_id] 
 
 			# Find the best action from this belief
 			best_q = -np.inf
@@ -198,7 +188,6 @@ class PFTDPW():
 					best_a = child
 			next_a = best_a
 
-			# print("NEXT A", next_a)
 			iterate_a_id = next_a
 		all_a_ids = [self.tree.action_ids[a_id] for a_id in all_a_ids]
 
@@ -206,45 +195,6 @@ class PFTDPW():
 			return self.env.action_sample(), all_a_ids
 		else:
 			return self.tree.action_ids[a_id], all_a_ids
-
-	def trajectory(self, a_id):
-		# For visualization purposes: give the whole trajectory outputted by the planner
-		# of length (self.depth)
-
-		best_a = a_id
-		if best_a == None:
-			action_list = [self.env.action_sample()]
-		else:
-			action_list = [self.tree.action_ids[best_a]]
-
-		i = 0
-		while best_a is not None and i < self.depth:
-			# Pick a belief node at random
-			bp_id, r = self.tree.transitions[best_a][int(np.random.choice(range(len(self.tree.transitions[best_a])), 1))]
-			# Find the best action from the new belief node
-			if len(self.tree.child_actions[bp_id]) > 0:
-				index = np.argmax(np.array([self.tree.q[child] for child in self.tree.child_actions[bp_id]])) 
-				best_a = self.tree.child_actions[bp_id][index]
-			else:
-				best_a = None
-
-			# best_q = -np.inf
-			# best_a = None
-			# for child in self.tree.child_actions[bp_id]:
-			# 	if self.tree.q[child] > best_q:
-			# 		best_q = self.tree.q[child]
-			# 		best_a = child
-			
-			# Add the best action to the trajectory
-			if best_a == None:
-				action_list.append(self.env.action_sample()) 
-			else:
-				action_list.append(self.tree.action_ids[best_a])
-			
-			i += 1
-		
-		return action_list
-
 
 	def plan(self, b):
 		# Builds a DPW tree and returns the best next action

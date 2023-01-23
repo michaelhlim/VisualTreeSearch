@@ -27,8 +27,6 @@ class ObservationGenerator(nn.Module):
         self.calibration = vlp.calibration
         self.beta = vlp.beta 
 
-        #self.observation_encoder = ObservationEncoder()
-        #self.conv = ObservationGeneratorConv()
         self.conv = observation_encoder
 
         encoder_modules = []
@@ -113,13 +111,11 @@ class ObservationGenerator(nn.Module):
             intermediate = (intermediate - torch.mean(intermediate, -1, True))/torch.std(intermediate, -1, keepdim=True) 
 
         mu, log_var = self.encode(conditional_input, intermediate)  # [batch_size, latent_dim]
-        #mu, log_var = self.encode(conditional_input, enc_obs_batch)  # [batch_size, latent_dim]
         z = self.reparameterize(mu, log_var)  # [batch_size, latent_dim]
 
         recons = self.decode(conditional_input, z)  # [batch_size, obs_encode_out]
         recons = self.conv.decode(recons)  # [batch_size, in_channels, img_size, img_size]
 
-        #return [self.decode(conditional_input, z), enc_obs_batch, mu, log_var]
         return [recons, obs_batch, mu, log_var]
 
 
@@ -148,7 +144,6 @@ class ObservationGenerator(nn.Module):
         log_var = args[3]  # log variance of latent variable Gaussian
 
         recons_loss = self.gaussian_likelihood(recons, self.log_scale, obs).mean() 
-        #recons_loss = -F.mse_loss(recons, input) 
 
         if self.calibration:
             log_sigma = ((obs - recons) ** 2).mean().sqrt().log()
@@ -200,16 +195,6 @@ class ObservationGenerator(nn.Module):
         
         return samples_arr, z_start, z_direction
 
-
-
-    # def generate(self, state, enc_obs):
-    #     """
-    #     Given an input image x, returns the reconstructed image
-    #     :param x: (Tensor) [B x C x H x W]
-    #     :return: (Tensor) [B x C x H x W]
-    #     """
-
-    #     return self.forward(state, enc_obs)[0]
 
 
 
