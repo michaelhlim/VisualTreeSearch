@@ -1,7 +1,6 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
 
-######################
-# Environment
+NUM_PAR_PF = 100
 EPI_REWARD = 100
 STEP_REWARD = -1
 DIM_ACTION = 2
@@ -15,6 +14,6 @@ DISCOUNT = 0.99
 FIG_FORMAT = '.png'
 IMG = 'data/img/'
 CKPT = 'data/ckpt/'
-device = 'cuda'
+
 
 

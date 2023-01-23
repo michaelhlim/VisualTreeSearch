@@ -7,7 +7,6 @@ from torch.optim import Adam
 from utils.utils import *
 from configs.solver.dualsmc import *
 
-
 class MeasureNetwork(nn.Module):
     def __init__(self):
         super(MeasureNetwork, self).__init__()

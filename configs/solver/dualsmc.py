@@ -1,4 +1,9 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
+device = 'cuda:0'
+torch_seed = 1
+random_seed = 1
+np_random_seed = 1
 
 ######################
 # Network
@@ -30,8 +35,16 @@ NUM_PAR_PF = 100
 PP_EXIST = True
 PP_RATIO = 0.3
 PP_LOSS_TYPE = 'adv'  # 'mse', 'adv', 'density'
+PP_DECAY = True
+DECAY_RATE = 0.9
+PP_STD = False
+STD_THRES = 0.07
+STD_ALPHA = 150
+PP_EFFECTIVE = False
+EFFECTIVE_THRES = int(2/3 * NUM_PAR_PF)
+EFFECTIVE_ALPHA = 1000
 
-# ######################
+#######################
 # Planning
 NUM_PAR_SMC_INIT = 3
 NUM_PAR_SMC = 30
@@ -40,7 +53,7 @@ SMCP_MODE = 'topk' # 'samp', 'topk'
 SMCP_RESAMPLE = True
 SMCP_RESAMPLE_STEP = 3
 
-# ######################
+#######################
 # SAC
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20

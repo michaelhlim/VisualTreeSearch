@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import os.path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -125,24 +126,90 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             #######################################
             # Planning
             states_init = par_states
-            action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
+            # action = pft_planner.solve(par_states, normalized_weights.detach().cpu().numpy())
+            action, future_actions = pft_planner.solve_viz(par_states, normalized_weights.detach().cpu().numpy())
 
             # Resampling
             if step % PF_RESAMPLE_STEP == 0:
                 if PP_EXIST:
-                    idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
+                    # For de-localization problem: don't propose so many particles
+                    if PP_DECAY:
+                        # Exponential decay in proposed particles according to decay rate
+                        decayed_num_propose = int(num_par_propose * DECAY_RATE**step)
+                        if decayed_num_propose <= 0:
+                            proposal_state = None
+                        else:
+                            proposal_state = model.pp_net(torch.FloatTensor(
+                                curr_obs).unsqueeze(0).to(device), decayed_num_propose)
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - decayed_num_propose,
                                             replacement=True).detach().cpu().numpy()
+                    
+                    # For de-localization problem: don't propose so many particles
+                    elif PP_STD:
+                        # Only propose particles if existing particle stdev is above threshold
+                        std_norm = np.linalg.norm(np.std(par_states, axis=0))
+                        if std_norm >= STD_THRES:
+                            # Propose in an amount proportional to the stdev, capped at num_par_propose
+                            std_num_propose = int(min(num_par_propose, STD_ALPHA*std_norm))
+                            proposal_state = model.pp_net(torch.FloatTensor(
+                                curr_obs).unsqueeze(0).to(device), std_num_propose)
+                        else: # Otherwise don't propose particles 
+                            proposal_state = None
+                            std_num_propose = 0
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - std_num_propose,
+                                            replacement=True).detach().cpu().numpy() 
+                    
+                    # For de-localization problem: don't propose so many particles
+                    elif PP_EFFECTIVE:
+                        # Only propose particles if the "effective number of particles" is below 
+                        # a threshold
+                        # Formula comes from Gustafsson 2010
+                        effective_num_particles = NUM_PAR_PF/(1 + NUM_PAR_PF**2 * 
+                                                    torch.var(normalized_weights.detach()))
+                        if effective_num_particles < EFFECTIVE_THRES:
+                            # Propose in an amount inversely proportional to the effective num particles, 
+                            # capped at num_par_propose
+                            effective_num_propose = int(min(num_par_propose, 
+                                                    EFFECTIVE_ALPHA / effective_num_particles))
+                            proposal_state = model.pp_net(torch.FloatTensor(
+                                curr_obs).unsqueeze(0).to(device), effective_num_propose)
+                        else: # Otherwise don't propose particles 
+                            proposal_state = None
+                            effective_num_propose = 0
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - effective_num_propose,
+                                        replacement=True).detach().cpu().numpy() 
+
+                    # Otherwise propose fixed amount of particles
+                    else:
+                        proposal_state = model.pp_net(torch.FloatTensor(
+                            curr_obs).unsqueeze(0).to(device), num_par_propose)
+
+                        # Particles not from the proposer - sample with replacement from existing set
+                        idx = torch.multinomial(normalized_weights, NUM_PAR_PF - num_par_propose,
+                                            replacement=True).detach().cpu().numpy()
+
+                    # Particles not from the proposer - sample with replacement from existing set
                     resample_state = par_states[idx]
-                    proposal_state = model.pp_net(torch.FloatTensor(
-                        curr_obs).unsqueeze(0).to(device), num_par_propose)
-                    proposal_state[:, 0] = torch.clamp(
-                        proposal_state[:, 0], 0, 2)
-                    proposal_state[:, 1] = torch.clamp(
-                        proposal_state[:, 1], 0, 1)
-                    proposal_state = proposal_state.detach().cpu().numpy()
-                    par_states = np.concatenate(
-                        (resample_state, proposal_state), 0)
-                else:
+                    
+                    if proposal_state is not None:
+                        # Keep proposals within environment bounds
+                        proposal_state[:, 0] = torch.clamp(proposal_state[:, 0], 0, 2)
+                        proposal_state[:, 1] = torch.clamp(proposal_state[:, 1], 0, 1)
+                        proposal_state = proposal_state.detach().cpu().numpy()
+
+                        par_states = np.concatenate(
+                            (resample_state, proposal_state), 0)
+                    else:
+                        par_states = resample_state
+                
+                # No proposer
+                else:  
                     idx = torch.multinomial(
                         normalized_weights, NUM_PAR_PF, replacement=True).detach().cpu().numpy()
                     par_states = par_states[idx]
@@ -169,7 +236,17 @@ def vts(model, observation_generator, experiment_id, train, model_path):
                 frm_name = traj_dir + '/' + file_name + '_par' + FIG_FORMAT
 
                 if PP_EXIST and step % PF_RESAMPLE_STEP == 0:
-                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, None)
+                    check_path(img_path + "/traj/")
+                    st = img_path + "/traj/" + str(episode) + "-" + file_name + "-trj" + FIG_FORMAT
+                    plot_maze(figure_name=st, states=np.array(trajectory))
+                    state_iterate = mean_state.reshape((1, 2))
+                    planned_traj = state_iterate
+                    for action in future_actions:
+                        state_iterate, _, _, _ = env.transition(state_iterate, None, action)
+                        planned_traj = np.vstack([planned_traj, state_iterate])
+                    planned_traj = np.array(planned_traj)
+                    planned_traj = planned_traj.reshape((planned_traj.shape[0], 1, planned_traj.shape[1]))
+                    plot_par(frm_name, curr_state, mean_state, resample_state, proposal_state, planned_traj)
 
             #######################################
             # Update the environment
@@ -202,11 +279,6 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             time_list_step.append(time_this_step)
             reward_list_step.append(reward)
 
-            # # Printing states for debugging
-            # if step % 3 == 0:
-            #     cond = (curr_state[1] <= 0.5)
-            #     target = cond * env.target1 + (1 - cond) * env.target2
-            #     print(step, curr_state, mean_state, target, action)
             if env.done:
                 break
 
@@ -232,9 +304,17 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         dist_list.append(filter_dist)
         step_list.append(step)
 
+        reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
+
         if episode % SAVE_ITER == 0 and train:
-            model.save_model(model_path + "/dualsmc_online")
-            print("save model to %s" % model_path)
+            model.save_model(model_path + "/dpf_online")
+            print("Saving online trained models to %s" % model_path)
+
+        # Take only the statistics for successful episodes
+        reach_steps = np.array(step_list)[reach] 
+        reach_rewards = np.array(reward_list_episode)[reach]
+        reach_times = np.array(time_list_episode)[reach]
+        reach_dists = np.array(dist_list)[reach]
 
         if episode % DISPLAY_ITER == 0:
             st2 = img_path + "/"
@@ -245,9 +325,27 @@ def vts(model, observation_generator, experiment_id, train, model_path):
             else:
                 visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
 
-            interaction = 'Episode %s: mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
-                episode, np.mean(step_list), np.std(step_list), np.mean(reward_list_episode), np.std(reward_list_episode),
-                np.mean(time_list_episode), np.std(time_list_episode), np.mean(dist_list), np.std(dist_list))
+
+            if len(reach_steps) == 0:  # No episodes were successful - return a null value
+                rs = [-1, -1]
+            else:
+                rs = [np.mean(reach_steps), np.std(reach_steps)]
+            if len(reach_rewards) == 0:  # No episodes were successful - return a null value
+                rr = [-1, -1]
+            else:
+                rr = [np.mean(reach_rewards), np.std(reach_rewards)]
+            if len(reach_times) == 0:  # No episodes were successful - return a null value
+                rt = [-1, -1]
+            else:
+                rt = [np.mean(reach_times), np.std(reach_times)]
+            if len(reach_dists) == 0:  # No episodes were successful - return a null value
+                rd = [-1, -1]
+            else:
+                rd = [np.mean(reach_dists), np.std(reach_dists)]
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
+                rt[0], rt[1], rd[0], rd[1])
+
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
@@ -265,13 +363,16 @@ def vts(model, observation_generator, experiment_id, train, model_path):
         file1.flush()
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
 
-def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretrained_model=True,
+def vts_driver(load_path=None, pre_training=True, save_pretrained_model=True,
                    end_to_end=True, save_online_model=True, test=True):
+    torch.manual_seed(torch_seed)
+    random.seed(random_seed)
+    np.random.seed(np_random_seed)
+
     # This block of code creates the folders for plots
     experiment_id = "vts" + get_datetime()
     foldername = "data/" + experiment_id
@@ -291,9 +392,7 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
     # Let the user load in a previous model
     if load_path is not None:
         cwd = os.getcwd()
-        model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained")
-        observation_generator.load_model(
-            cwd + "/nets/" + gen_load_path + "/gen_pre_trained")
+        model.load_model(cwd + "/nets/" + load_path + "/dpf_pre_trained", observation_generator)
 
     # This is where we need to perform individual training (if the user wants).
     # The process for this is to (1) create a observation and state batch.
@@ -327,12 +426,22 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
         training_time = observation_generator.pretrain(save_pretrained_model, model_path)
 
         if save_pretrained_model:
-            model.save_model(model_path + "/dpf_pre_trained")
+            model.save_model(model_path + "/dpf_pre_trained", observation_generator)
             print("Saving pre-trained Z, P models to %s" % model_path)
         
         toc = time.perf_counter()
         time_this_step = toc - tic
         print("Time elapsed for pre-training: ", time_this_step, "seconds.")
+        print("Time elapsed for pre-training generator:", training_time, "seconds.")
+
+        train_save_path = CKPT + experiment_id + "/train"
+        check_path(train_save_path)
+        train_file_str = experiment_id + "_train.txt"
+        train_file = open(train_save_path + "/" + train_file_str, 'w+')
+        training_time = 'Time elapsed for pre-training: %s, Time for pre-training generator: %s ' % \
+                        (time_this_step, training_time)
+        train_file.write('\n{}'.format(training_time))
+        train_file.flush()
 
     if end_to_end:
         train = True
@@ -353,20 +462,19 @@ def vts_driver(load_path=None, gen_load_path=None, pre_training=True, save_pretr
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        # Right into online learning & testing
-        # vts_driver(load_path="test500k",
-                #    gen_load_path="test500k", pre_training=False)
-
-        # Just pre-training
-        # vts_driver(end_to_end=False, save_online_model=False, test=False)
-
-        # Pre-training immediately followed by testing
-        # vts_driver(end_to_end=False, save_online_model=False)
-
-        # Just testing
-        vts_driver(load_path="test500k",
-                   gen_load_path="test500k", pre_training=False, end_to_end=False, save_online_model=False)
-
-        # Everything
-        # vts_driver()
+        if len(sys.argv) > 1 and sys.argv[1] == "--pretrain":
+            # Just pre-training
+            vts_driver(end_to_end=False, save_online_model=False, test=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--pretrain-test":
+            # Pre-training immediately followed by testing
+            vts_driver(end_to_end=False, save_online_model=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--test":
+            # Just testing
+            vts_driver(load_path="vts11-15-20_41_33", pre_training=False, end_to_end=False, save_online_model=False)
+        elif len(sys.argv) > 1 and sys.argv[1] == "--online-train-test":
+            # Right into online learning & testing
+            vts_driver(load_path="test500k", pre_training=False)
+        else:
+            # Everything
+            vts_driver()
 

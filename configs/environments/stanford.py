@@ -1,7 +1,9 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 class Stanford_Environment_Params():
     def __init__(self):
-        self.epi_reward = 100 
-        self.step_reward = -1 
+        self.epi_reward = 100
+        self.step_reward = -1
         self.dim_action = 1
         self.velocity = 0.2 
         self.dim_state = 2

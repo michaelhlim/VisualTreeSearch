@@ -1,4 +1,5 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import cv2
 import glob
 import numpy as np
@@ -53,7 +54,6 @@ class StanfordEnvironment(AbstractEnvironment):
             _, _, _, traversible, dx_m = self.get_observation(path=path)
             pickle.dump(traversible, open("traversible.p", "wb"))
 
-
         self.traversible = traversible
         self.dx = dx_m
         self.map_origin = [0, 0]
@@ -69,7 +69,6 @@ class StanfordEnvironment(AbstractEnvironment):
     def set_test_trap(self, test_trap_is_random=False):
         self.test_trap = True
         self.test_trap_is_random = test_trap_is_random
-
 
     def reset_environment(self):
         self.done = False
@@ -257,6 +256,7 @@ class StanfordEnvironment(AbstractEnvironment):
         obs = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         #obs = cv2.imread(img_path, cv2.IMREAD_COLOR)
         obs = obs[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb! --- now obs is in RGB
+
         # if normalize:
         #     obs = (obs - obs.mean())/obs.std()  # "Normalization" -- TODO
         
@@ -336,7 +336,6 @@ class StanfordEnvironment(AbstractEnvironment):
         
         return trap and not self.in_goal(state)
     
-    
     def in_goal(self, state):
         # Returns true if in goal
         goal = (state[0] >= self.target_x[0] and state[0] <= self.target_x[1]) and \
@@ -411,7 +410,6 @@ class StanfordEnvironment(AbstractEnvironment):
         # action = np.array([action_x, action_y])
 
         return action
-    
 
     def is_terminal(self, s):
         # Check if a given state tensor is a terminal state
@@ -436,7 +434,6 @@ class StanfordEnvironment(AbstractEnvironment):
         current orientation is not given
         TODO: Should probably fix that
         '''
-
         if w is not None:
             weights = np.copy(w)
             next_weights = np.copy(w)
@@ -444,6 +441,7 @@ class StanfordEnvironment(AbstractEnvironment):
             # Dummy weight
             weights = np.ones(np.shape(s)[0])
             next_weights = np.ones(np.shape(s)[0])
+
         sp = s[:, :sep.dim_state] + a
         action_angle = np.arctan2(a[1], a[0])
         if action_angle < 0:  # Arctan stuff
@@ -481,7 +479,6 @@ class StanfordEnvironment(AbstractEnvironment):
             next_weights = next_weights / np.sum(next_weights)
                 
         return next_state, next_weights, reward, is_terminal
-
 
     def distance_to_goal(self, state):
         '''

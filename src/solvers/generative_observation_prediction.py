@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import glob
 import matplotlib.pyplot as plt
 import numpy as np
@@ -172,6 +174,7 @@ class ObservationGenerator(nn.Module):
 
             if step % print_freq == 0:
                 # print(step, loss.item(), kl.item(), recon.item())
+
                 print("Step: ", step, ", G loss: ", np.mean(
                     printing_losses), ", KL: ", np.mean(
                     printing_kl), ", recon: ", np.mean(
@@ -201,7 +204,6 @@ class ObservationGenerator(nn.Module):
             torch.save(self.state_dict(), cvae_params.save_path + "/gen_pre_trained")
             print("Saving pre-trained generative model to %s" %
                   (cvae_params.save_path + "/gen_pre_trained"))
-
 
         print("Done pretraining")
 
@@ -377,27 +379,11 @@ class ObservationGenerator(nn.Module):
                 plt.scatter([obs[2] for obs in obs_batch], [obs[3] for obs in obs_batch], color='b')
                 plt.scatter([obs[2] for obs in obs_hat.detach().cpu().numpy()],
                             [obs[3] for obs in obs_hat.detach().cpu().numpy()], color='m')
-            plt.savefig("IMOVERHEREcvae_test" + str(j))                
-            #plt.show()
+
+            plt.savefig("cvae_test" + str(j))      
 
         print("OBS_MEAN_DIFF\n", mean_diff)
         print("OBS_STD_DIFF\n", std_diff)
         if DIM_OBS == 4:
             print("REST_MEAN_DIFF\n", mean_rest_diff)
             print("REST_STD_DIFF\n", std_rest_diff)
-
-
-
-##################### TESTING ###########################
-cvae = ObservationGenerator()
-#t = cvae.pretrain()
-#print("Time to pretrain", str(t))
-#cvae.test_with_prints()
-#cvae.plot_training_losses()
-#cvae.plot_testing_losses()
-
-cvae = ObservationGenerator()
-cvae.load_model("/home/sampada_deglurkar/VisualTreeSearch/floor_domain_records/pretrain_cvae_sched_nocalib_500k.pth")
-cvae.test_with_prints()
-
-

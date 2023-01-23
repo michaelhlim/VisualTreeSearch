@@ -8,6 +8,12 @@ from humanav.humanav_renderer import HumANavRenderer
 from humanav.renderer_params import create_params as create_base_params
 from humanav.renderer_params import get_surreal_texture_dir
 
+
+IMAGE_SIZE = 32.
+DATA_PATH = '/home/ext_drive/sampada_deglurkar/vae_stanford/'
+HUMANAV_PATH = '/home/sampada_deglurkar/HumANavRelease/'
+
+
 def create_params():
     p = create_base_params()
 
@@ -63,9 +69,9 @@ def plot_rgb(rgb_image_1mk3, filename):
     #fig = plt.figure(figsize=(30, 10))
 
     src = rgb_image_1mk3[0].astype(np.uint8)
-    src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB!! So dumb!
+    src = src[:,:,::-1]   ## CV2 works in BGR space instead of RGB
     #percent by which the image is resized
-    scale_percent = (32./src.shape[0]) * 100
+    scale_percent = (IMAGE_SIZE/src.shape[0]) * 100
 
     width = int(src.shape[1] * scale_percent / 100)
     height = int(src.shape[0] * scale_percent / 100)
@@ -230,10 +236,8 @@ def generate_one_data(camera_pos_13, path):
     filename_rgb = 'rgb' + camera_pos_str + '.png'
 
     # Plot the rendered images
-    path_top_down = '/home/ext_drive/sampada_deglurkar/vae_stanford/' + path + '/top_downs/'
-    path_rgbs = '/home/ext_drive/sampada_deglurkar/vae_stanford/' + path + '/rgbs/'
-    #path_top_down = '../top_downs/'
-    #path_rgbs = '../rgbs/'
+    path_top_down = DATA_PATH + path + '/top_downs/'
+    path_rgbs = DATA_PATH + path + '/rgbs/'
     plot_top_view(traversible, dx_m, camera_pos_13, path_top_down + filename_topdown)
     plot_rgb(rgb_image_1mk3, path_rgbs + filename_rgb)
 
@@ -305,11 +309,11 @@ def example1():
     filename_rgb = 'rgb' + camera_pos_str + '.png'
 
     # Plot the rendered images
-    #plot_top_view(traversible, dx_m, camera_pos_13, '/home/sampada_deglurkar/HumANavRelease/top_downs/' + filename_topdown)
-    #plot_rgb(rgb_image_1mk3, '/home/sampada_deglurkar/HumANavRelease/rgbs/' + filename_rgb)
+    plot_top_view(traversible, dx_m, camera_pos_13, HUMANAV_PATH + 'top_downs/' + filename_topdown)
+    plot_rgb(rgb_image_1mk3, HUMANAV_PATH + 'rgbs/' + filename_rgb)
 
     plot_images(rgb_image_1mk3, depth_image_1mk1, traversible, dx_m,
-               camera_pos_13, human_pos_3, '/home/sampada/example1_15.png')
+                camera_pos_13, human_pos_3, 'example1_15.png')
 
 
 def get_known_human_identity(r):
@@ -372,7 +376,7 @@ def example2():
 
 
 if __name__ == '__main__':
-    example1() 
-    #example2() 
+    # example1() 
+    # example2() 
 
-    #generate_training_data_hallway(1000, 'training_hallway')
+    generate_training_data_hallway(1000, 'training_hallway')

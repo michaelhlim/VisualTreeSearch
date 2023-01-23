@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import matplotlib
 
 from src.environments.stanford import StanfordEnvironment
@@ -101,7 +103,6 @@ def plot_par(xlim, ylim, goal, trap, test_trap, dark, figure_name='default', tru
          test_trap2 = test_trap[1]
          ax.add_patch(Rectangle((test_trap1[0], test_trap1[1]), test_trap1[2], test_trap1[3], facecolor='orange'))
          ax.add_patch(Rectangle((test_trap2[0], test_trap2[1]), test_trap2[2], test_trap2[3], facecolor='orange'))
-
 
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')

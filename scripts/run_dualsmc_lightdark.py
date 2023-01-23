@@ -1,8 +1,10 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import math
 import numpy as np
 import os.path
 import random
+
 import shutil
 from statistics import mean, stdev
 import sys
@@ -102,6 +104,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             curr_obs, _, _, _ = env.get_observation(normalization_data=normalization_data) 
         #tf = time.time()
         #print("TIME BEFORE STEP GET_OBS", tf-tg)
+
         trajectory.append(curr_state)
 
         par_states, par_orientations = env.make_pars(dlp.num_par_pf)
@@ -131,6 +134,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
         #t0 = time.time()
         for step in range(sep.max_steps):
             #tstep = time.time()
+
             # 1. observation model
             # 2. planning
             # 3. re-sample
@@ -158,6 +162,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
                     curr_obs_tensor.unsqueeze(0).to(dlp.device),
                     torch.FloatTensor(hidden).to(dlp.device),
                     torch.FloatTensor(cell).to(dlp.device))
+
             #tm1 = time.time()
             #print("MEASURE MODEL", tm1-tm)
             par_weight += lik.squeeze()  # [num_par_pf]
@@ -170,9 +175,11 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
                     file_name = 'im0' + str(step)
                 else:
                     file_name = 'im' + str(step)
+
                 #frm_name = traj_dir + '/' + file_name + '_distr' + sep.fig_format
                 #frm_name = img_path + "/distrs/" + file_name + '_distr' + sep.fig_format 
                 frm_name = distr_dir + '/' + file_name + '_par' + sep.fig_format
+
                 weights = normalized_weights.detach().cpu().numpy()
                 fig1, ax1 = plt.subplots()
                 plt.hist(weights, bins=np.logspace(-5, 0, 50))
@@ -238,6 +245,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
                     torch.FloatTensor(smc_mean_state[i]).to(dlp.device), action * sep.step_range)  # [num_par_smc, dim_state]
                 #tdynw1 = time.time()
                 #print("DYNAMIC2", tdynw1-tdynw)
+
                 mean_par[:, 0] = torch.clamp(mean_par[:, 0], env.xrange[0], env.xrange[1])
                 mean_par[:, 1] = torch.clamp(mean_par[:, 1], env.yrange[0], env.yrange[1])
 
@@ -385,6 +393,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
                     step_Z_loss.append(z_loss.item())
                     step_q1_loss.append(q1_loss.item())
                     step_q2_loss.append(q2_loss.item())
+                    
             #ttrain1 = time.time()
             #print("TRAINING TIME", ttrain1-ttrain)
             #######################################
@@ -496,6 +505,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
             interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
                 episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
                 rt[0], rt[1], rd[0], rd[1])
+
             print('\r{}'.format(interaction))
             file2.write('\n{}'.format(interaction))
             file2.flush()
@@ -534,6 +544,7 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
                 plot_maze(xlim, ylim, goal, [trap1, trap2], None, 
                             dark, figure_name=st, states=np.array(trajectory))
 
+
         # Repeat the above code block for writing to the text file every episode instead of every 10
         
         interaction = 'Episode %s: cumulative success rate = %s, steps = %s, reward = %s, avg_plan_time = %s, avg_dist = %s' % (
@@ -554,7 +565,6 @@ def dualsmc(model, experiment_id, train, model_path, test_env_is_diff=False, tes
 
 
     rmse_per_step = rmse_per_step / num_loops
-    # print(rmse_per_step) - not sure why this is relevant...
     file1.close()
     file2.close()
 
@@ -616,3 +626,4 @@ if __name__ == "__main__":
         # Generalization Experiment 2
         # dualsmc_driver(load_path="dualsmc_lightdark02-07-19_11_39", end_to_end=False, 
         #                save_model=False, test=True, test_env_is_diff=False, test_img_is_diff=True)
+

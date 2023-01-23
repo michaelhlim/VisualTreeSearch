@@ -74,7 +74,6 @@ class MeasureNetwork(nn.Module):
 class ProposerNetwork(nn.Module):
     def __init__(self):
         super(ProposerNetwork, self).__init__()
-        #self.dim = 64
 
         self.obs_encode_out = dlp.obs_encode_out
         self.dim_first_layer = dlp.dim_first_layer

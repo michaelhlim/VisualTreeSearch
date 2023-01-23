@@ -1,4 +1,19 @@
-# Visual Tree Search
+# Compositional Learning-based Planning for Vision POMDPs
+This is the codebase for Compositional Learning-based Planning for Vision POMDPs [[Deglurkar, Lim, et al.]](https://arxiv.org/abs/2112.09456).
+
+## Visual Tree Search
+![Visual Tree Search](misc/visual_tree_search_final.png)
+
+### Summary of VTS
+In the Visual Tree Search (VTS) algorithm, we integrate the learned POMDP model components with
+classical filtering and planning techniques. This results in a POMDP solver that can learn model
+components that are more sample efficient and interpretable than end-to-end approaches. It also
+benefits from having a robust particle filter and planner built upon techniques with theoretical guar-
+antees, and can adapt to different task rewards. To integrate planning techniques that use online tree
+search, we must have access to a conditional generative model that can generate image observations
+o from a given state s according to the likelihood density Z(o|s).
+
+# Setup
 ## Installing Packages via Conda
 It's most preferred to make your own Conda environment for the project. In order to do so, you can perform the following steps. First, create your own conda environment. The environment I used currently has Python 3.8.8:
 

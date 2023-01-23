@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import os.path
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -288,10 +289,56 @@ def dualsmc(model, experiment_id, train, model_path):
         filter_dist = filter_dist / (step + 1)
         dist_list.append(filter_dist)
         step_list.append(step)
+        
+        reach = np.array(step_list) < (MAX_STEPS - 1) # List of booleans for successful episodes
 
-        if episode >= SUMMARY_ITER:
-            step_list.pop(0)
-            dist_list.pop(0)
+        if episode % SAVE_ITER == 0 and train:
+            model.save_model(model_path + "/dpf_online")
+            print("Saving online trained models to %s" % model_path)
+        
+        # Take only the statistics for successful episodes
+        reach_steps = np.array(step_list)[reach] 
+        reach_rewards = np.array(reward_list_episode)[reach]
+        reach_times = np.array(time_list_episode)[reach]
+        reach_dists = np.array(dist_list)[reach]
+        
+
+        if episode % real_display_iter == 0:
+            episode_list = [episode_P_loss, episode_T_loss, episode_Z_loss, episode_q1_loss, episode_q2_loss]
+            st2 = img_path + "/"
+            name_list = ['particle_loss', 'transition_loss', 'observation_loss', 'sac_1_loss', 'sac_2_loss']
+            if train:
+                visualize_learning(st2, episode_list, time_list_episode, step_list, reward_list_episode, episode, name_list)
+            else:
+                visualize_learning(st2, None, time_list_episode, step_list, reward_list_episode, episode, name_list)
+            
+            if len(reach_steps) == 0:  # No episodes were successful - return a null value
+                rs = [-1, -1]
+            else:
+                rs = [np.mean(reach_steps), np.std(reach_steps)]
+            if len(reach_rewards) == 0:  # No episodes were successful - return a null value
+                rr = [-1, -1]
+            else:
+                rr = [np.mean(reach_rewards), np.std(reach_rewards)]
+            if len(reach_times) == 0:  # No episodes were successful - return a null value
+                rt = [-1, -1]
+            else:
+                rt = [np.mean(reach_times), np.std(reach_times)]
+            if len(reach_dists) == 0:  # No episodes were successful - return a null value
+                rd = [-1, -1]
+            else:
+                rd = [np.mean(reach_dists), np.std(reach_dists)]
+            interaction = 'Episode %s: cumulative success rate = %s, mean/stdev steps taken = %s / %s, reward = %s / %s, avg_plan_time = %s / %s, avg_dist = %s / %s' % (
+                episode, np.mean(reach), rs[0], rs[1], rr[0], rr[1],
+                rt[0], rt[1], rd[0], rd[1])
+            print('\r{}'.format(interaction))
+            file2.write('\n{}'.format(interaction))
+            file2.flush()
+
+        if (train and episode % DISPLAY_ITER == 0) or (not train):
+            check_path(img_path + "/traj/")
+            st = img_path + "/traj/" + str(episode) + "-trj" + FIG_FORMAT
+            plot_maze(figure_name=st, states=np.array(trajectory))
 
         reach = np.array(step_list) < (MAX_STEPS - 1)
 
@@ -378,9 +425,10 @@ def dualsmc_driver(load_path=None, end_to_end=True, save_model=True, test=True):
 
 if __name__ == "__main__":
     if MODEL_NAME == 'dualsmc':
-        # Just training
-        dualsmc_driver(load_path=None, end_to_end=True,
-                       save_model=True, test=True)
-
-        # Everything
-        # dualsmc_driver()
+        if len(sys.argv) > 1 and sys.argv[1] == "--train":
+            # Just training
+            dualsmc_driver(load_path=None, end_to_end=True,
+                      save_model=True, test=True)
+        else:
+            # Everything -- training and testing
+            dualsmc_driver()

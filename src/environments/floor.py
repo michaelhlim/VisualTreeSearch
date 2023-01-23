@@ -1,4 +1,5 @@
-# author: @wangyunbo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 from utils.utils import *
 from configs.environments.floor import *
 from src.environments.abstract import AbstractEnvironment
@@ -129,11 +130,6 @@ class Environment(AbstractEnvironment):
             rnd = int(random.random()*9)
 
         action = STEP_RANGE * np.array([(rnd % 3) - 1, (rnd // 3) - 1])
-
-        # # just generate completely random
-        # action_x = STEP_RANGE * (2 * random.random() - 1)
-        # action_y = STEP_RANGE * (2 * random.random() - 1)
-        # action = np.array([action_x, action_y])
 
         return action
 
@@ -289,7 +285,6 @@ class Environment(AbstractEnvironment):
 
             index = np.random.randint(len(walls_arr))
             wall = walls_arr[index]
-
             if wall == 0.1:
                 state[1] = state[1] * 0.1
             elif wall == 0.4:

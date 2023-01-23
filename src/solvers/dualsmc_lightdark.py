@@ -1,4 +1,5 @@
-# author: @wangyunbo, @liubo
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -167,6 +168,7 @@ class DualSMC:
                                                     curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
         # fake_logit, _, _ = self.measure_net.m_model(curr_par.view(-1, sep.dim_state), curr_orientation.repeat(dlp.num_par_pf, 1),
         #                                                               curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
+
         if dlp.pp_exist:
             fake_logit_pp, _, _ = self.measure_net.m_model(state_propose.detach(), curr_orientation.repeat(dlp.num_par_pf, 1),
                                                            curr_obs, hidden, cell, dlp.num_par_pf)  # [batch_size, num_par_pf]
@@ -201,6 +203,7 @@ class DualSMC:
         next_par_sample = self.dynamic_net.t_model(
             curr_par_sample.view(-1, sep.dim_state),
             torch.repeat_interleave(action_batch, dlp.num_par_smc_init, dim=0) * sep.step_range)  # [batch_size * num_par_smc_init, dim_state]
+
         with torch.no_grad():
             next_state_action, next_state_log_pi, _ = self.policy.sample(
                 next_mean_state, next_par_sample.view(dlp.batch_size, -1))  # [batch_size, dim_action]  [batch_size, 1]

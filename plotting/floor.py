@@ -1,3 +1,5 @@
+# author: @sdeglurkar, @jatucker4, @michaelhlim
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -6,7 +8,7 @@ import numpy as np
 from configs.environments.floor import *
 
 
-def plot_maze(figure_name='default', states=None):
+def plot_maze(figure_name='default', states=None, highres=False):
     plt.figure(figure_name)
     ax = plt.axes()
 
@@ -59,12 +61,15 @@ def plot_maze(figure_name='default', states=None):
             plt.plot(x[i], y[i], color=viridis(colorvec[i]), marker='o')
 
     ax.set_aspect('equal')
-    plt.savefig(figure_name)
+    if highres:
+        plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    else:
+        plt.savefig(figure_name, bbox_inches='tight')
     plt.close()
 
 
 def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=None,
-             pp_state=None, smc_traj=None):
+             pp_state=None, smc_traj=None, highres=False):
     plt.figure(figure_name)
     ax = plt.axes()
     ax.set_xlim([0, 2])
@@ -103,13 +108,6 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     color = (0, 0, 1)
     ax.plot(walls_dotted[:, :, 0].T, walls_dotted[:, :, 1].T, color=color, linewidth=1.0, linestyle='--')
 
-    # planning trajectories
-    if smc_traj.any():
-        num_par_smc = smc_traj.shape[1]
-        for k in range(num_par_smc):
-            points = smc_traj[:, k, :]
-            ax.plot(*points.T, lw=1, color=(0.5, 0.5, 0.5))  # RGB
-
     ax.plot(mean_state[0], mean_state[1], 'ko')
     ax.plot(true_state[0], true_state[1], 'ro')
 
@@ -117,13 +115,31 @@ def plot_par(figure_name='default', true_state=None, mean_state=None, pf_state=N
     x, y = zip(*xy)
     ax.plot(x, y, 'gx')
 
-    xy = pp_state[:, :2]
-    x, y = zip(*xy)
-    ax.plot(x, y, 'bx')
+    if pp_state is not None:
+        xy = pp_state[:, :2]
+        x, y = zip(*xy)
+        ax.plot(x, y, 'bx')
+
+     # planning trajectories
+    if smc_traj is not None:
+        if smc_traj.any():
+            num_par_smc = smc_traj.shape[1]
+            for k in range(num_par_smc):
+                points = smc_traj[:, k, :]
+                ax.plot(*points.T, lw=3, color=(0.5, 0.5, 0.5))  # RGB
+            if len(points) > 1:
+                plt.arrow(points[-2, 0], points[-2, 1], 
+                        points[-1, 0] - points[-2, 0],
+                        points[-1, 1] - points[-2, 1], 
+                        head_width = 0.037, width = 0.013, color=(0.5, 0.5, 0.6))
 
     ax.set_aspect('equal')
 
-    plt.savefig(figure_name)
+    if highres:
+        plt.savefig(figure_name, bbox_inches='tight', dpi=1000)
+    else:
+        plt.savefig(figure_name, bbox_inches='tight')
+
     plt.close()
 
 
