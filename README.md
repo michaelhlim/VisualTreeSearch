@@ -5,13 +5,7 @@ This is the codebase for Compositional Learning-based Planning for Vision POMDPs
 ![Visual Tree Search](misc/visual_tree_search_final.png)
 
 ### Summary of VTS
-In the Visual Tree Search (VTS) algorithm, we integrate the learned POMDP model components with
-classical filtering and planning techniques. This results in a POMDP solver that can learn model
-components that are more sample efficient and interpretable than end-to-end approaches. It also
-benefits from having a robust particle filter and planner built upon techniques with theoretical guar-
-antees, and can adapt to different task rewards. To integrate planning techniques that use online tree
-search, we must have access to a conditional generative model that can generate image observations
-o from a given state s according to the likelihood density Z(o|s).
+The Partially Observable Markov Decision Process (POMDP) is a powerful framework for capturing decision-making problems that involve state and transition uncertainty. However, most current POMDP planners cannot effectively handle high-dimensional image observations prevalent in real world applications, and often require lengthy online training that requires interaction with the environment. The Visual Tree Search (VTS) algorithm is a compositional learning and planning procedure that combines generative models learned offline with online model-based POMDP planning. The deep generative observation models evaluate the likelihood of and predict future image observations in a Monte Carlo tree search planner. VTS is robust to different types of image noises that were not present during training and can adapt to different reward structures without the need to re-train. It outperforms several baseline state-of-the-art vision POMDP algorithms while using a fraction of the training time.
 
 # Setup
 The setup and requirements for the project conda environment is similar to that in this HuMAnav-Release [codebase](https://github.com/vtolani95/HumANav-Release). The codebase also provides instructions for how to download the Stanford Large Scale 3D Indoor Spaces Dataset, which is necessary to run our 3D Light-Dark experiments but not our Floor Positioning experiments. You may skip the "Download SMPL data & Render human meshes" section. Otherwise, follow all instructions on the HumANav-Release README. You may also change the name of the desired conda environment by modifying the "name" field of the HumANav-Release codebase's `environment.yml` file. 
